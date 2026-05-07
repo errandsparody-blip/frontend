@@ -52,3 +52,13 @@ export const resetPasswordSchema = z.object({
   mfaCode: totpCodeSchema.optional(),
 });
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+
+export const verifyEmailCodeSchema = z
+  .string()
+  .regex(/^\d{6}$/, "Enter the 6-digit code from your email.");
+
+export const verifyEmailSchema = z.object({
+  email: emailSchema,
+  code: verifyEmailCodeSchema,
+});
+export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>;

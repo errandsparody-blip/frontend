@@ -29,7 +29,9 @@ export default function SignupPage() {
     setServerError(null);
     try {
       await api.post<{ ok: true; userId: string }>("/auth/signup", values);
-      router.push("/signup/verify-email");
+      // Carry the email through so the verify form can pre-fill it for the
+      // POST /auth/verify-email request without making the user retype.
+      router.push(`/signup/verify-email?email=${encodeURIComponent(values.email)}`);
     } catch (err) {
       const e = err as ApiError;
       setServerError(e.message);
