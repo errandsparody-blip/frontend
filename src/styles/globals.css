@@ -1,0 +1,64 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* =============================================================================
+ * Design tokens — locked v1.0. Mirror in tailwind.config.ts.
+ * ============================================================================= */
+:root {
+  --color-bg-primary: #f1efe9;
+  --color-bg-deeper: #e8e5dc;
+  --color-bg-surface: #ffffff;
+  --color-bg-soft: #f5f4f0;
+  --color-bg-black: #0a0a0a;
+
+  --color-text: #111111;
+  --color-text-2: #2a2a2a;
+  --color-text-muted: #6b6b6b;
+  --color-text-subtle: #9b9b9b;
+  --color-text-inv: #ffffff;
+
+  --color-amber: #c99428;
+  --color-amber-hi: #ddaa3d;
+  --color-success: #2e7d5f;
+  --color-error: #b33333;
+
+  --color-border: rgba(0, 0, 0, 0.06);
+  --color-border-strong: rgba(0, 0, 0, 0.12);
+}
+
+html,
+body {
+  background: var(--color-bg-primary);
+  color: var(--color-text);
+  font-family:
+    "Inter Tight",
+    "Inter",
+    -apple-system,
+    BlinkMacSystemFont,
+    system-ui,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background: var(--color-amber);
+  color: #000;
+}
+
+/* =============================================================================
+ * Constellation background utility (use on hero / marketing sections).
+ * ============================================================================= */
+.bg-constellation {
+  background-color: var(--color-bg-primary);
+  background-image:
+    radial-gradient(rgba(0, 0, 0, 0.18) 1px, transparent 1px),
+    radial-gradient(rgba(0, 0, 0, 0.10) 1px, transparent 1px);
+  background-size:
+    96px 96px,
+    160px 160px;
+  background-position:
+    0 0,
+    48px 48px;
+}

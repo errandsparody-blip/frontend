@@ -1,0 +1,46 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
+
+import { AdminSidebar } from "@/components/portal/admin-sidebar";
+import { Topbar } from "@/components/portal/topbar";
+import { useAuth } from "@/lib/auth-context";
+
+const ADMIN_ROLES = new Set(["WAREHOUSE_OPERATOR", "FINANCE_ADMIN", "SUPER_ADMIN"]);
+
+export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (loading) return;
+    if (!user) {
+      router.replace("/login");
+      return;
+    }
+    if (!ADMIN_ROLES.has(user.role)) {
+      router.replace("/dashboard");
+    }
+  }, [user, loading, router]);
+
+  if (loading || !user || !ADMIN_ROLES.has(user.role)) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-cream">
+        <div className="font-mono text-mono-label uppercase text-text-muted">Authenticating…</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-screen overflow-hidden bg-cream">
+      <AdminSidebar />
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <Topbar />
+        <main className="flex-1 overflow-auto bg-cream px-8 py-8">
+          <div className="mx-auto max-w-[84rem]">{children}</div>
+        </main>
+      </div>
+    </div>
+  );
+}
