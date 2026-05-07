@@ -1,6 +1,8 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import {
+  BadgeCheck,
   Boxes,
   ClipboardList,
   CreditCard,
@@ -14,6 +16,7 @@ import {
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { api } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 
 interface NavItem {
@@ -22,10 +25,22 @@ interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
   /** Disabled until the relevant phase ships. */
   disabled?: boolean;
+  /**
+   * If set, renders a small amber dot when the test returns true. Used to
+   * draw the vendor's eye to a navigation entry that's awaiting their
+   * action — like KYC verification when the account is still PENDING.
+   */
+  needsAttention?: (ctx: { kycStatus?: string }) => boolean;
 }
 
 const NAV: NavItem[] = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
+  {
+    href: "/verification",
+    label: "Verification",
+    icon: BadgeCheck,
+    needsAttention: ({ kycStatus }) => kycStatus !== "APPROVED",
+  },
   { href: "/products", label: "Products", icon: Package },
   { href: "/inventory", label: "Inventory", icon: Boxes },
   { href: "/psn", label: "Pre-Shipment Notices", icon: ClipboardList },
@@ -36,8 +51,24 @@ const NAV: NavItem[] = [
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
+interface VendorMeForSidebar {
+  kycStatus: string;
+}
+
 export function Sidebar(): JSX.Element {
   const pathname = usePathname();
+
+  // The vendor profile is already cached by other portal pages — this query
+  // hits the cache when warm and only fires on initial portal mount.
+  const meQ = useQuery({
+    queryKey: ["vendor", "me"],
+    queryFn: () => api.get<VendorMeForSidebar>("/vendors/me"),
+    staleTime: 30_000,
+    // Don't fail loud in the sidebar — if the request errors, just hide the
+    // attention dot. The page-level pages will surface the error properly.
+    retry: false,
+  });
+  const kycStatus = meQ.data?.kycStatus;
 
   return (
     <aside className="flex h-screen w-60 shrink-0 flex-col border-r border-line bg-cream-soft">
@@ -77,6 +108,11 @@ export function Sidebar(): JSX.Element {
                 <span className="ml-auto font-mono text-[9px] uppercase tracking-[1px] text-text-subtle">
                   Soon
                 </span>
+              ) : item.needsAttention?.({ kycStatus }) ? (
+                <span
+                  aria-label="Action needed"
+                  className="ml-auto h-2 w-2 shrink-0 rounded-full bg-amber"
+                />
               ) : null}
             </Link>
           );
