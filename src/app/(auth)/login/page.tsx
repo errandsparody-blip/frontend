@@ -44,14 +44,16 @@ export default function LoginPage() {
     try {
       const r = await api.post<LoginResponse>("/auth/login", values);
       if ("status" in r) {
-        const url = r.mfaEnrolled
-          ? `/login/2fa?ct=${encodeURIComponent(r.challengeToken)}`
-          : `/signup/2fa-enroll?ct=${encodeURIComponent(r.challengeToken)}`;
-        router.push(url);
+        // MFA-enrolled users go to the challenge screen.
+        router.push(`/login/2fa?ct=${encodeURIComponent(r.challengeToken)}`);
         return;
       }
+      // Authenticated. Two sub-cases:
+      //   - mfaEnrolled === false → user has an acr="1" token. Force them to
+      //     finish MFA enrollment before going anywhere else.
+      //   - mfaEnrolled === true  → fully authenticated, go to dashboard.
       setAccessToken(r.accessToken);
-      router.push("/dashboard");
+      router.push(r.user.mfaEnrolled ? "/dashboard" : "/signup/2fa-enroll");
     } catch (err) {
       const e = err as ApiError;
       setServerError(e.message);
