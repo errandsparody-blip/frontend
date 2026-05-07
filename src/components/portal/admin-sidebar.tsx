@@ -25,7 +25,7 @@ interface NavItem {
 const NAV: NavItem[] = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/psn", label: "Receiving", icon: ClipboardCheck },
-  { href: "/admin/vendors", label: "Vendors", icon: Building2, disabled: true },
+  { href: "/admin/vendors", label: "Vendors", icon: Building2 },
   { href: "/admin/inventory", label: "Inventory", icon: Package, disabled: true },
   { href: "/admin/orders", label: "Orders", icon: ClipboardList },
   { href: "/admin/finance", label: "Finance", icon: CreditCard },

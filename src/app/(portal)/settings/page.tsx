@@ -23,6 +23,11 @@ interface VendorProfile {
   agreementAcceptedAt: string | null;
   agreementVersion: string | null;
   createdAt: string;
+  instagramHandle: string | null;
+  tiktokHandle: string | null;
+  xHandle: string | null;
+  websiteUrl: string | null;
+  socialVerifiedAt: string | null;
 }
 
 interface WalletSnapshot {
@@ -33,6 +38,51 @@ const profileSchema = z.object({
   businessName: z.string().trim().min(2, "At least 2 characters.").max(120),
 });
 type ProfileInput = z.infer<typeof profileSchema>;
+
+// ---------------------------------------------------------------------------
+// Social presence
+//
+// Each input accepts the handle with or without "@" — we strip it before
+// validating against the platform's published rules. Empty strings are
+// allowed and translate to "unset" on save.
+// ---------------------------------------------------------------------------
+
+const stripAt = (s: string) => s.trim().replace(/^@/, "").toLowerCase();
+
+const handleField = (opts: { max: number; pattern: RegExp; label: string }) =>
+  z
+    .string()
+    .transform(stripAt)
+    .refine(
+      (s) => s === "" || (s.length <= opts.max && opts.pattern.test(s)),
+      `${opts.label} doesn't match the platform's allowed format.`,
+    );
+
+const socialSchema = z.object({
+  instagramHandle: handleField({
+    max: 30,
+    pattern: /^[a-z0-9._]+$/,
+    label: "Instagram handle",
+  }),
+  tiktokHandle: handleField({
+    max: 24,
+    pattern: /^[a-z0-9._]+$/,
+    label: "TikTok handle",
+  }),
+  xHandle: handleField({
+    max: 15,
+    pattern: /^[a-z0-9_]+$/,
+    label: "X handle",
+  }),
+  websiteUrl: z
+    .string()
+    .trim()
+    .refine(
+      (s) => s === "" || /^https?:\/\/[^\s/$.?#].[^\s]*$/i.test(s),
+      "Enter a full URL starting with https://",
+    ),
+});
+type SocialInput = z.infer<typeof socialSchema>;
 
 const thresholdSchema = z.object({
   lowBalanceThresholdCents: z.coerce.number().int().nonnegative().max(50_000_000),
@@ -70,10 +120,27 @@ export default function SettingsPage() {
     if (walletQ.data) thresholdForm.reset({ lowBalanceThresholdCents: walletQ.data.lowBalanceThresholdCents });
   }, [walletQ.data]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const socialForm = useForm<SocialInput>({
+    resolver: zodResolver(socialSchema),
+    defaultValues: { instagramHandle: "", tiktokHandle: "", xHandle: "", websiteUrl: "" },
+  });
+  useEffect(() => {
+    if (profileQ.data) {
+      socialForm.reset({
+        instagramHandle: profileQ.data.instagramHandle ?? "",
+        tiktokHandle: profileQ.data.tiktokHandle ?? "",
+        xHandle: profileQ.data.xHandle ?? "",
+        websiteUrl: profileQ.data.websiteUrl ?? "",
+      });
+    }
+  }, [profileQ.data]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const [profileError, setProfileError] = useState<string | null>(null);
   const [thresholdError, setThresholdError] = useState<string | null>(null);
+  const [socialError, setSocialError] = useState<string | null>(null);
   const [profileSaved, setProfileSaved] = useState(false);
   const [thresholdSaved, setThresholdSaved] = useState(false);
+  const [socialSaved, setSocialSaved] = useState(false);
 
   const profileMut = useMutation({
     mutationFn: (input: ProfileInput) => api.patch<VendorProfile>("/vendors/me", input),
@@ -95,6 +162,25 @@ export default function SettingsPage() {
       setTimeout(() => setThresholdSaved(false), 2000);
     },
     onError: (err) => setThresholdError((err as ApiError).message),
+  });
+
+  const socialMut = useMutation({
+    mutationFn: (input: SocialInput) =>
+      // Empty strings → null on the wire so the backend can clear a field. The
+      // schema already lowercased + stripped @ via stripAt().
+      api.patch<VendorProfile>("/vendors/me", {
+        instagramHandle: input.instagramHandle === "" ? null : input.instagramHandle,
+        tiktokHandle: input.tiktokHandle === "" ? null : input.tiktokHandle,
+        xHandle: input.xHandle === "" ? null : input.xHandle,
+        websiteUrl: input.websiteUrl === "" ? null : input.websiteUrl,
+      }),
+    onSuccess: async () => {
+      setSocialError(null);
+      setSocialSaved(true);
+      await qc.invalidateQueries({ queryKey: ["vendor", "me"] });
+      setTimeout(() => setSocialSaved(false), 2000);
+    },
+    onError: (err) => setSocialError((err as ApiError).message),
   });
 
   return (
@@ -226,6 +312,115 @@ export default function SettingsPage() {
                 Saved.
               </div>
             ) : null}
+          </section>
+
+          <section className="rounded-md border border-line bg-white p-8">
+            <div className="flex flex-wrap items-baseline justify-between gap-3">
+              <h2 className="text-h3 font-semibold text-ink">Social presence</h2>
+              {profileQ.data.socialVerifiedAt ? (
+                <StatusPill tone="success">
+                  Reviewed{" "}
+                  {new Date(profileQ.data.socialVerifiedAt).toLocaleDateString()}
+                </StatusPill>
+              ) : (
+                <StatusPill tone="warning">Awaiting review</StatusPill>
+              )}
+            </div>
+            <p className="mt-1 max-w-prose text-body-sm text-text-muted">
+              Optional, but strongly recommended. Our review team checks these
+              handles to confirm you&apos;re a real business — KYC moves faster
+              when there&apos;s a visible footprint to look at. Editing any
+              handle re-opens the review.
+            </p>
+
+            <form
+              onSubmit={socialForm.handleSubmit((v) => socialMut.mutate(v))}
+              className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2"
+              noValidate
+            >
+              <Field
+                label="Instagram"
+                hint="Without the @. e.g. adela.apparel"
+                error={socialForm.formState.errors.instagramHandle?.message}
+              >
+                <Input
+                  type="text"
+                  placeholder="adela.apparel"
+                  disabled={isSubUser}
+                  invalid={!!socialForm.formState.errors.instagramHandle}
+                  {...socialForm.register("instagramHandle")}
+                />
+              </Field>
+
+              <Field
+                label="TikTok"
+                hint="Without the @. e.g. adelaofficial"
+                error={socialForm.formState.errors.tiktokHandle?.message}
+              >
+                <Input
+                  type="text"
+                  placeholder="adelaofficial"
+                  disabled={isSubUser}
+                  invalid={!!socialForm.formState.errors.tiktokHandle}
+                  {...socialForm.register("tiktokHandle")}
+                />
+              </Field>
+
+              <Field
+                label="X (Twitter)"
+                hint="Without the @. Letters, numbers, underscore."
+                error={socialForm.formState.errors.xHandle?.message}
+              >
+                <Input
+                  type="text"
+                  placeholder="adelahq"
+                  disabled={isSubUser}
+                  invalid={!!socialForm.formState.errors.xHandle}
+                  {...socialForm.register("xHandle")}
+                />
+              </Field>
+
+              <Field
+                label="Website"
+                hint="Full URL with https://"
+                error={socialForm.formState.errors.websiteUrl?.message}
+              >
+                <Input
+                  type="url"
+                  placeholder="https://adela.example"
+                  disabled={isSubUser}
+                  invalid={!!socialForm.formState.errors.websiteUrl}
+                  {...socialForm.register("websiteUrl")}
+                />
+              </Field>
+
+              {socialError ? (
+                <div
+                  role="alert"
+                  className="md:col-span-2 rounded-sm border-l-4 border-error bg-error/10 px-4 py-2 text-body-sm text-error"
+                >
+                  {socialError}
+                </div>
+              ) : null}
+              {socialSaved ? (
+                <div className="md:col-span-2 rounded-sm border-l-4 border-success bg-success/10 px-4 py-2 text-body-sm text-success">
+                  Saved. Our team will re-review shortly.
+                </div>
+              ) : null}
+
+              {!isSubUser ? (
+                <div className="md:col-span-2 flex justify-end">
+                  <Button
+                    type="submit"
+                    variant="amber"
+                    loading={socialMut.isPending}
+                    disabled={!socialForm.formState.isDirty}
+                  >
+                    Save social profile
+                  </Button>
+                </div>
+              ) : null}
+            </form>
           </section>
 
           <section className="rounded-md border border-line bg-white p-8">
