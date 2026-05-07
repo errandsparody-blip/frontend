@@ -36,10 +36,13 @@ export default function NewPsnPage() {
   const qc = useQueryClient();
   const [serverError, setServerError] = useState<string | null>(null);
 
+  // The API caps `limit` at 100. Asking for more makes Zod reject with 400
+  // and the page silently falls into the empty state below.
+  // TODO: paginate properly once a vendor has >100 active products.
   const productsQ = useQuery({
     queryKey: ["products", { status: "ACTIVE" }],
     queryFn: () =>
-      api.get<{ items: PublicProduct[]; nextCursor: string | null }>("/products?limit=200&status=ACTIVE"),
+      api.get<{ items: PublicProduct[]; nextCursor: string | null }>("/products?limit=100&status=ACTIVE"),
   });
 
   const {
@@ -90,6 +93,19 @@ export default function NewPsnPage() {
 
   if (productsQ.isLoading) {
     return <div className="font-mono text-mono-label uppercase text-text-muted">Loading products…</div>;
+  }
+  // Distinguish "the request failed" from "no products yet" — they're very
+  // different problems and conflating them masked a query-cap bug for a
+  // while. Show the real error so the next regression is obvious.
+  if (productsQ.error) {
+    return (
+      <div
+        role="alert"
+        className="rounded-md border-l-4 border-error bg-error/10 px-5 py-4 text-body-sm text-error"
+      >
+        Couldn&apos;t load your products: {(productsQ.error as ApiError).message ?? "Unknown error."}
+      </div>
+    );
   }
   if (!productsQ.data || productsQ.data.items.length === 0) {
     return (
