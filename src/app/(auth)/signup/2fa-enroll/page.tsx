@@ -97,7 +97,7 @@ export default function MfaEnrollPage() {
             Copy all
           </Button>
           <Button variant="primary" withArrow onClick={() => router.push("/dashboard")}>
-            I've saved them, continue
+            I&apos;ve saved them, continue
           </Button>
         </div>
       </div>

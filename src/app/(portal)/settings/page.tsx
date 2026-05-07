@@ -181,7 +181,7 @@ export default function SettingsPage() {
           <section className="rounded-md border border-line bg-white p-8">
             <h2 className="text-h3 font-semibold text-ink">Wallet alert threshold</h2>
             <p className="mt-1 text-body-sm text-text-muted">
-              When your balance falls to or below this number, we'll send a low-balance email + in-app
+              When your balance falls to or below this number, we&apos;ll send a low-balance email + in-app
               notification.
             </p>
 

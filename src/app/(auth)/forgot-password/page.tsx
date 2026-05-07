@@ -41,7 +41,7 @@ export default function ForgotPasswordPage() {
         <div className="font-mono text-mono-eyebrow uppercase text-amber">[01] Reset password</div>
         <h1 className="mt-3 text-display font-medium tracking-[-0.8px] text-ink">Check your email.</h1>
         <p className="mt-3 text-body text-text-muted">
-          If an account exists for that email, we've sent a reset link. The link is valid for one hour.
+          If an account exists for that email, we&apos;ve sent a reset link. The link is valid for one hour.
         </p>
         <Link href="/login" className="mt-8 inline-block">
           <Button variant="outline">← Back to sign in</Button>
@@ -57,7 +57,7 @@ export default function ForgotPasswordPage() {
         Forgot your password?
       </h1>
       <p className="mt-3 text-body text-text-muted">
-        Enter the email you signed up with. We'll send a single-use link to set a new password.
+        Enter the email you signed up with. We&apos;ll send a single-use link to set a new password.
       </p>
 
       <form onSubmit={handleSubmit(onSubmit)} className="mt-10 flex flex-col gap-5" noValidate>

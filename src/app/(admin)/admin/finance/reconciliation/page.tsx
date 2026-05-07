@@ -111,7 +111,7 @@ export default function ReconciliationPage() {
             <div className="rounded-md border-l-4 border-success bg-success/10 px-5 py-4">
               <div className="font-mono text-mono-label uppercase text-success">All clean</div>
               <p className="mt-1 text-body-sm text-text">
-                Every vendor's materialized balance equals the sum of their ledger entries.
+                Every vendor&apos;s materialized balance equals the sum of their ledger entries.
               </p>
             </div>
           )}

@@ -86,7 +86,7 @@ export default function PublicTrackingPage() {
           <div className="mt-8 font-mono text-mono-label uppercase text-text-muted">Looking up…</div>
         ) : error ? (
           <div className="mt-8 rounded-md border-l-4 border-error bg-error/10 px-5 py-4 text-body-sm text-error">
-            We couldn't find this tracking number. Double-check it and try again, or reach out to the
+            We couldn&apos;t find this tracking number. Double-check it and try again, or reach out to the
             sender.
           </div>
         ) : data ? (

@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -27,6 +27,14 @@ const acceptSchema = z
 type AcceptInput = z.infer<typeof acceptSchema>;
 
 export default function AcceptInvitePage() {
+  return (
+    <Suspense fallback={null}>
+      <AcceptInviteInner />
+    </Suspense>
+  );
+}
+
+function AcceptInviteInner() {
   const params = useSearchParams();
   const router = useRouter();
   const token = params.get("token") ?? "";
@@ -72,7 +80,7 @@ export default function AcceptInvitePage() {
         <div className="rounded-md border-l-4 border-success bg-success/10 px-5 py-4">
           <div className="font-mono text-mono-label uppercase text-success">Invitation accepted</div>
           <p className="mt-1 text-body-sm text-text">
-            Welcome, <span className="font-medium">{success.email}</span>. You'll be redirected to sign in
+            Welcome, <span className="font-medium">{success.email}</span>. You&apos;ll be redirected to sign in
             and enrol two-factor authentication.
           </p>
         </div>
@@ -86,7 +94,7 @@ export default function AcceptInvitePage() {
         <div className="font-mono text-mono-eyebrow uppercase text-amber">[01] Accept invitation</div>
         <h1 className="mt-2 text-h1 font-semibold tracking-[-0.4px] text-ink">Set your password</h1>
         <p className="mt-2 text-body-sm text-text-muted">
-          You've been invited to join a USA Errands account. Set a password to finish — you'll enrol two-factor
+          You&apos;ve been invited to join a USA Errands account. Set a password to finish — you&apos;ll enrol two-factor
           authentication on your first sign-in.
         </p>
       </div>

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { TotpInput } from "@/components/ui/totp-input";
@@ -15,6 +15,14 @@ interface AuthOk {
 }
 
 export default function TwoFactorVerifyPage() {
+  return (
+    <Suspense fallback={null}>
+      <TwoFactorVerifyInner />
+    </Suspense>
+  );
+}
+
+function TwoFactorVerifyInner() {
   const router = useRouter();
   const params = useSearchParams();
   const challengeToken = params.get("ct") ?? "";
