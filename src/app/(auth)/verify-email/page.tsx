@@ -25,7 +25,13 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { api, type ApiError } from "@/lib/api-client";
 
-type Status = "verifying" | "success" | "invalid" | "missing" | "network";
+type Status =
+  | "verifying"
+  | "success"
+  | "invalid"
+  | "missing"
+  | "ratelimited"
+  | "network";
 
 export default function VerifyEmailPage() {
   return (
@@ -53,8 +59,13 @@ function VerifyEmailInner() {
 
     void (async () => {
       try {
+        // noRefresh: this is an unauthenticated token-handler. Without it, a
+        // transient 4xx (throttle, validation) would chain a useless
+        // /auth/refresh call that 401s and pollutes the console with a
+        // misleading CORS error.
         await api.get<{ ok: true }>(
           `/auth/verify-email?token=${encodeURIComponent(token)}`,
+          { noRefresh: true },
         );
         setStatus("success");
         // Brief pause so the user sees the success state, then continue.
@@ -63,6 +74,10 @@ function VerifyEmailInner() {
         const e = err as ApiError;
         if (e.code === "verify_invalid" || e.status === 400) {
           setStatus("invalid");
+        } else if (e.status === 429) {
+          // Rate-limited (we throttle this endpoint at 10/min). Tell the user
+          // to wait, don't pretend the server is down.
+          setStatus("ratelimited");
         } else {
           setStatus("network");
         }
@@ -123,6 +138,30 @@ function VerifyEmailInner() {
               Continue to sign in
             </Button>
           </Link>
+        </div>
+      </Frame>
+    );
+  }
+
+  if (status === "ratelimited") {
+    return (
+      <Frame eyebrow="[02] Verify email" title="Too many attempts.">
+        <p className="mt-3 text-body text-text-muted">
+          For your account&apos;s safety we limit how often this link can be
+          tried. Wait a minute, then click the link again.
+        </p>
+        <div className="mt-8 flex flex-col gap-3">
+          <Button
+            variant="primary"
+            size="lg"
+            withArrow
+            onClick={() => {
+              requested.current = false;
+              setStatus("verifying");
+            }}
+          >
+            Try again
+          </Button>
         </div>
       </Frame>
     );
