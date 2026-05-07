@@ -9,6 +9,7 @@ import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { TotpInput } from "@/components/ui/totp-input";
 import { api, type ApiError } from "@/lib/api-client";
 import { resetPasswordSchema, type ResetPasswordInput } from "@/lib/schemas/auth";
@@ -105,8 +106,7 @@ function ResetPasswordInner() {
         <input type="hidden" {...register("token")} value={token} />
 
         <Field label="New password" error={errors.newPassword?.message}>
-          <Input
-            type="password"
+          <PasswordInput
             autoComplete="new-password"
             invalid={!!errors.newPassword}
             {...register("newPassword")}

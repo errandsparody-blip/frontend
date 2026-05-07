@@ -10,6 +10,7 @@ import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { api, type ApiError } from "@/lib/api-client";
 
 const acceptSchema = z
@@ -109,16 +110,14 @@ function AcceptInviteInner() {
           error={errors.password?.message}
           hint="At least 12 characters. We block known-breached passwords automatically."
         >
-          <Input
-            type="password"
+          <PasswordInput
             autoComplete="new-password"
             invalid={!!errors.password}
             {...register("password")}
           />
         </Field>
         <Field label="Confirm password" error={errors.confirmPassword?.message}>
-          <Input
-            type="password"
+          <PasswordInput
             autoComplete="new-password"
             invalid={!!errors.confirmPassword}
             {...register("confirmPassword")}

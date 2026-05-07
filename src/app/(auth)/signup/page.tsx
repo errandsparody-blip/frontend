@@ -9,6 +9,7 @@ import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { api, type ApiError } from "@/lib/api-client";
 import { signupSchema, type SignupInput } from "@/lib/schemas/auth";
 
@@ -85,8 +86,7 @@ export default function SignupPage() {
           error={errors.password?.message}
           hint="At least 12 characters. We check it against known data breaches."
         >
-          <Input
-            type="password"
+          <PasswordInput
             autoComplete="new-password"
             invalid={!!errors.password}
             {...register("password")}
