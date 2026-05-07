@@ -9,13 +9,15 @@ import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { api, setAccessToken, type ApiError } from "@/lib/api-client";
+import { PasswordInput } from "@/components/ui/password-input";
+import { api, type ApiError } from "@/lib/api-client";
+import { useAuth, type AuthUser } from "@/lib/auth-context";
 import { loginSchema, type LoginInput } from "@/lib/schemas/auth";
 
 interface LoginAuthedResponse {
   accessToken: string;
   expiresAt: string;
-  user: { id: string; email: string; mfaEnrolled: boolean };
+  user: AuthUser;
 }
 
 interface LoginMfaResponse {
@@ -28,6 +30,7 @@ type LoginResponse = LoginAuthedResponse | LoginMfaResponse;
 
 export default function LoginPage() {
   const router = useRouter();
+  const { setSession } = useAuth();
   const [serverError, setServerError] = useState<string | null>(null);
 
   const {
@@ -52,7 +55,8 @@ export default function LoginPage() {
       //   - mfaEnrolled === false → user has an acr="1" token. Force them to
       //     finish MFA enrollment before going anywhere else.
       //   - mfaEnrolled === true  → fully authenticated, go to dashboard.
-      setAccessToken(r.accessToken);
+      // Plant the session so PortalLayout sees user !== null on mount.
+      setSession({ accessToken: r.accessToken, user: r.user });
       router.push(r.user.mfaEnrolled ? "/dashboard" : "/signup/2fa-enroll");
     } catch (err) {
       const e = err as ApiError;
@@ -80,8 +84,7 @@ export default function LoginPage() {
         </Field>
 
         <Field label="Password" error={errors.password?.message}>
-          <Input
-            type="password"
+          <PasswordInput
             autoComplete="current-password"
             invalid={!!errors.password}
             {...register("password")}

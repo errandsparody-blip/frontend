@@ -27,6 +27,16 @@ interface AuthContextValue {
   loading: boolean;
   refresh: () => Promise<void>;
   logout: () => Promise<void>;
+  /**
+   * Plant a session into the context after a successful sign-in flow that
+   * already received both the access token and the user shape (login,
+   * MFA verify, recovery-code verify). Avoids the immediate-after-login
+   * round trip to /auth/refresh and, more importantly, keeps the
+   * authenticated AuthProvider state in sync — without this, navigating
+   * to a portal layout after MFA verify trips the "user === null" check
+   * and bounces back to /login.
+   */
+  setSession: (input: { accessToken: string; user: AuthUser }) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -71,12 +81,30 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
     router.push("/login");
   }, [router]);
 
+  const setSession = useCallback(
+    (input: { accessToken: string; user: AuthUser }): void => {
+      setAccessToken(input.accessToken);
+      setUser(input.user);
+      // We just received an authenticated payload — bypass the loading state
+      // even if the initial /auth/refresh hasn't returned yet.
+      setLoading(false);
+      Sentry.setUser({
+        id: input.user.id,
+        email: input.user.email,
+        role: input.user.role,
+      } as Record<string, unknown>);
+    },
+    [],
+  );
+
   useEffect(() => {
     void refresh();
   }, [refresh]);
 
   return (
-    <AuthContext.Provider value={{ user, loading, refresh, logout }}>{children}</AuthContext.Provider>
+    <AuthContext.Provider value={{ user, loading, refresh, logout, setSession }}>
+      {children}
+    </AuthContext.Provider>
   );
 }
 

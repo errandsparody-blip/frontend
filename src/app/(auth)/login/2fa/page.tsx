@@ -6,12 +6,13 @@ import { Suspense, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { TotpInput } from "@/components/ui/totp-input";
-import { api, setAccessToken, type ApiError } from "@/lib/api-client";
+import { api, type ApiError } from "@/lib/api-client";
+import { useAuth, type AuthUser } from "@/lib/auth-context";
 
 interface AuthOk {
   accessToken: string;
   expiresAt: string;
-  user: { id: string; email: string };
+  user: AuthUser;
 }
 
 export default function TwoFactorVerifyPage() {
@@ -25,6 +26,7 @@ export default function TwoFactorVerifyPage() {
 function TwoFactorVerifyInner() {
   const router = useRouter();
   const params = useSearchParams();
+  const { setSession } = useAuth();
   const challengeToken = params.get("ct") ?? "";
 
   const [code, setCode] = useState("");
@@ -40,7 +42,10 @@ function TwoFactorVerifyInner() {
         challengeToken,
         code: submitted,
       });
-      setAccessToken(r.accessToken);
+      // Plant the session into AuthContext BEFORE navigating. Otherwise
+      // PortalLayout renders with `user === null` (since the initial /auth/refresh
+      // ran before we had any cookie) and immediately bounces back to /login.
+      setSession({ accessToken: r.accessToken, user: r.user });
       router.push("/dashboard");
     } catch (err) {
       const e = err as ApiError;
