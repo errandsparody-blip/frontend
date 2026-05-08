@@ -62,6 +62,7 @@ export default function ProductDetailPage() {
             lengthIn: product.lengthIn ?? undefined,
             widthIn: product.widthIn ?? undefined,
             heightIn: product.heightIn ?? undefined,
+            storageTier: product.storageTier,
             code: product.code,
           }}
           submitLabel="Save changes"

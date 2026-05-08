@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -9,7 +9,12 @@ import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import type { ApiError } from "@/lib/api-client";
-import { createProductSchema, type CreateProductInput } from "@/lib/schemas/products";
+import {
+  createProductSchema,
+  storageTierSchema,
+  type CreateProductInput,
+  type StorageTier,
+} from "@/lib/schemas/products";
 
 interface ProductFormProps {
   initial?: Partial<CreateProductInput>;
@@ -82,6 +87,73 @@ const centsToDollars = (c: number): number => Math.round(c) / 100;
 const dollarsToCents = (d: number): number => Math.round(d * 100);
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
+// ---------------------------------------------------------------------------
+// Storage-tier auto-suggest
+// ---------------------------------------------------------------------------
+//
+// Mirrors the `tier_dimensions` configuration row seeded by the API
+// (prisma/seed.ts). KEEP IN SYNC: if the seed values change, update this
+// table too. The vendor product form uses these to suggest a tier from
+// the typed L×W×H + weight; the vendor can always override.
+
+interface TierEnvelope {
+  lengthIn: number;
+  widthIn: number;
+  heightIn: number;
+  maxWeightOz: number;
+}
+
+const TIER_ENVELOPES: Array<{ tier: StorageTier; box: TierEnvelope }> = [
+  { tier: "SMALL", box: { lengthIn: 12, widthIn: 9, heightIn: 4, maxWeightOz: 80 } },
+  { tier: "MEDIUM", box: { lengthIn: 14, widthIn: 11, heightIn: 6, maxWeightOz: 240 } },
+  { tier: "LARGE", box: { lengthIn: 18, widthIn: 14, heightIn: 10, maxWeightOz: 480 } },
+  { tier: "X_LARGE", box: { lengthIn: 24, widthIn: 18, heightIn: 14, maxWeightOz: 960 } },
+];
+
+/**
+ * Suggest the smallest tier that fits the given product dimensions and
+ * weight. Returns null when not enough info is available (no dimensions
+ * AND no weight). When weight alone is given, suggests by weight only.
+ *
+ * Items larger than X_LARGE return "PALLET" — pallets are negotiated
+ * separately, but the suggestion at least nudges the vendor toward
+ * support.
+ */
+function suggestTier(args: {
+  lengthIn?: number | null;
+  widthIn?: number | null;
+  heightIn?: number | null;
+  weightOz?: number | null;
+}): StorageTier | null {
+  const dims =
+    args.lengthIn != null && args.widthIn != null && args.heightIn != null;
+  const w = args.weightOz != null && args.weightOz > 0 ? args.weightOz : null;
+  if (!dims && w == null) return null;
+
+  // Sort the input dimensions so a 4×9×12 product matches a 12×9×4 box.
+  const sorted = dims
+    ? [args.lengthIn!, args.widthIn!, args.heightIn!].sort((a, b) => b - a)
+    : null;
+
+  for (const { tier, box } of TIER_ENVELOPES) {
+    if (sorted) {
+      const boxSorted = [box.lengthIn, box.widthIn, box.heightIn].sort(
+        (a, b) => b - a,
+      );
+      if (
+        sorted[0]! > boxSorted[0]! ||
+        sorted[1]! > boxSorted[1]! ||
+        sorted[2]! > boxSorted[2]!
+      ) {
+        continue;
+      }
+    }
+    if (w != null && w > box.maxWeightOz) continue;
+    return tier;
+  }
+  return "PALLET";
+}
+
 export function ProductForm({
   initial,
   onSubmit,
@@ -127,10 +199,33 @@ export function ProductForm({
         initial?.heightIn != null
           ? initial.heightIn
           : (undefined as unknown as number),
+      storageTier: (initial?.storageTier as StorageTier | undefined) ?? "SMALL",
     },
   });
 
   const weightUnit = watch("weightUnit");
+  const weightValue = watch("weightValue");
+  const lengthIn = watch("lengthIn");
+  const widthIn = watch("widthIn");
+  const heightIn = watch("heightIn");
+  const storageTier = watch("storageTier");
+
+  // Compute a suggested tier from the typed dimensions + weight. Returns
+  // null when the form doesn't have enough info, in which case the
+  // suggestion UI hides itself. The vendor's explicit choice always wins
+  // — we never auto-overwrite their selection.
+  const suggestedTier = useMemo(() => {
+    const w =
+      typeof weightValue === "number" && Number.isFinite(weightValue) && weightValue > 0
+        ? convertWeight(weightValue, weightUnit ?? "oz", "oz")
+        : null;
+    return suggestTier({
+      lengthIn: typeof lengthIn === "number" ? lengthIn : null,
+      widthIn: typeof widthIn === "number" ? widthIn : null,
+      heightIn: typeof heightIn === "number" ? heightIn : null,
+      weightOz: w,
+    });
+  }, [lengthIn, widthIn, heightIn, weightValue, weightUnit]);
 
   // Apply the user's preferred unit after mount (localStorage isn't
   // available during SSR, so we can't use it to seed defaultValues
@@ -317,6 +412,47 @@ export function ProductForm({
             />
           </Field>
         </div>
+      </section>
+
+      <section className="rounded-md border border-line bg-cream-soft p-5">
+        <Field
+          label="Storage tier"
+          error={errors.storageTier?.message}
+          hint={
+            suggestedTier && suggestedTier !== storageTier
+              ? `Based on the dimensions and weight you entered, we'd suggest ${suggestedTier.replace("_", "-")}.`
+              : "What size bin each unit of this product lives in. Drives monthly storage billing."
+          }
+        >
+          <div className="flex flex-wrap items-center gap-3">
+            <select
+              aria-label="Storage tier"
+              {...register("storageTier")}
+              className="h-11 max-w-xs rounded-sm border border-line-strong bg-white px-3 font-sans text-body text-text outline-none focus:border-ink"
+            >
+              {storageTierSchema.options.map((t) => (
+                <option key={t} value={t}>
+                  {t.replace("_", "-")}
+                  {t === "PALLET" ? " (negotiated)" : ""}
+                </option>
+              ))}
+            </select>
+            {suggestedTier && suggestedTier !== storageTier ? (
+              <button
+                type="button"
+                onClick={() =>
+                  setValue("storageTier", suggestedTier, {
+                    shouldDirty: true,
+                    shouldValidate: false,
+                  })
+                }
+                className="font-mono text-[11px] uppercase tracking-[1.2px] text-amber hover:text-amber-hi"
+              >
+                Use {suggestedTier.replace("_", "-")} →
+              </button>
+            ) : null}
+          </div>
+        </Field>
       </section>
 
       {serverError ? (

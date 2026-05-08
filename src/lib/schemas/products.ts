@@ -24,6 +24,17 @@ const optionalDimension = z.union([
   z.undefined(),
 ]);
 
+// Storage tier — vendor declares this on the product. Drives monthly
+// storage billing. Mirrors prisma StorageTier enum.
+export const storageTierSchema = z.enum([
+  "SMALL",
+  "MEDIUM",
+  "LARGE",
+  "X_LARGE",
+  "PALLET",
+]);
+export type StorageTier = z.infer<typeof storageTierSchema>;
+
 export const createProductSchema = z.object({
   code: productCodeSchema,
   name: z.string().min(2).max(120),
@@ -35,6 +46,7 @@ export const createProductSchema = z.object({
   lengthIn: optionalDimension,
   widthIn: optionalDimension,
   heightIn: optionalDimension,
+  storageTier: storageTierSchema.default("SMALL"),
 });
 export type CreateProductInput = z.infer<typeof createProductSchema>;
 
@@ -58,6 +70,7 @@ export interface PublicProduct {
   lengthIn: number | null;
   widthIn: number | null;
   heightIn: number | null;
+  storageTier: StorageTier;
   status: "ACTIVE" | "ARCHIVED";
   createdAt: string;
   updatedAt: string;
