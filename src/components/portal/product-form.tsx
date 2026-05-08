@@ -22,6 +22,13 @@ interface ProductFormProps {
   onSubmit: (values: CreateProductInput) => Promise<void>;
   /** Hide the immutable code field on edit. */
   showCode?: boolean;
+  /**
+   * When true, the variant input is rendered disabled with an inline
+   * note explaining the lock. Set this on edit pages where at least one
+   * SKU has been received under the product (the variant is part of the
+   * SKU id format and can't change once SKUs exist).
+   */
+  variantLocked?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -159,6 +166,7 @@ export function ProductForm({
   onSubmit,
   submitLabel,
   showCode = true,
+  variantLocked = false,
 }: ProductFormProps): JSX.Element {
   const [serverError, setServerError] = useState<string | null>(null);
 
@@ -290,8 +298,22 @@ export function ProductForm({
             />
           </Field>
         ) : null}
-        <Field label="Variant" error={errors.variant?.message} hint="Default: STD.">
-          <Input type="text" placeholder="STD" invalid={!!errors.variant} {...register("variant")} />
+        <Field
+          label="Variant"
+          error={errors.variant?.message}
+          hint={
+            variantLocked
+              ? "Locked — already used in SKU ids. Archive this product and create a new one to change."
+              : "Default: STD."
+          }
+        >
+          <Input
+            type="text"
+            placeholder="STD"
+            invalid={!!errors.variant}
+            disabled={variantLocked}
+            {...register("variant")}
+          />
         </Field>
         <Field label="Display name" error={errors.name?.message} className="md:col-span-2">
           <Input
@@ -421,7 +443,9 @@ export function ProductForm({
           hint={
             suggestedTier && suggestedTier !== storageTier
               ? `Based on the dimensions and weight you entered, we'd suggest ${suggestedTier.replace("_", "-")}.`
-              : "What size bin each unit of this product lives in. Drives monthly storage billing."
+              : variantLocked
+                ? "Future PSN receipts will land in this tier. SKUs already in inventory keep their current tier — use Inventory → Adjust if you need to move them."
+                : "What size bin each unit of this product lives in. Drives monthly storage billing."
           }
         >
           <div className="flex flex-wrap items-center gap-3">

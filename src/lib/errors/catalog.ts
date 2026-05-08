@@ -393,6 +393,12 @@ export const errorCatalog: Record<string, ErrorEntry> = {
     surface: "inline",
     field: "code",
   },
+  product_variant_locked: {
+    title: "Variant can't change once stock has been received",
+    body: "The variant is part of the SKU id format. Archive this product and create a new one with the new variant instead.",
+    surface: "inline",
+    field: "variant",
+  },
   month_invalid: {
     title: "Invalid month format",
     body: "Use YYYY-MM (e.g., 2026-05).",
