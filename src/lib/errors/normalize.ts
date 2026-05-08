@@ -23,7 +23,7 @@
 
 import type { ApiError } from "@/lib/api-client";
 
-import { lookupErrorEntry, type ErrorEntry, type ErrorSurface } from "./catalog";
+import { errorCatalog, lookupErrorEntry, type ErrorEntry, type ErrorSurface } from "./catalog";
 
 export interface NormalizedError {
   /** Where the UI should put this error. */
@@ -121,10 +121,23 @@ export function normalizeError(err: unknown): NormalizedError {
   const correlationId = err.correlationId;
 
   // 5xx + unknown server failures.
+  //
+  // If the backend gave us a stable `code` AND that code exists in the
+  // catalog, prefer the catalog entry for that code over the generic
+  // `network_5xx` copy. Some 500s are operational ("fee_schedule_missing",
+  // "psn_tier_misconfigured") where we have actionable user-facing copy
+  // ready — the user shouldn't see "something went wrong on our end" if
+  // we can tell them "pricing is being configured" instead. Codes that
+  // aren't in the catalog still fall through to network_5xx, and the
+  // missing-code telemetry sink will surface them in Sentry.
   if (status >= 500) {
+    const knownEntry =
+      code && Object.prototype.hasOwnProperty.call(errorCatalog, code)
+        ? lookupErrorEntry(code, detail)
+        : null;
     return {
       surface: "banner",
-      entry: lookupErrorEntry("network_5xx", detail),
+      entry: knownEntry ?? lookupErrorEntry("network_5xx", detail),
       code: code ?? "network_5xx",
       status,
       ...(fieldErrors ? { fieldErrors } : {}),

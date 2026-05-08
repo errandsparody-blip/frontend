@@ -9,6 +9,7 @@ import {
   Package,
   ScrollText,
   Settings,
+  Tag,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -29,6 +30,7 @@ const NAV: NavItem[] = [
   { href: "/admin/inventory", label: "Inventory", icon: Package, disabled: true },
   { href: "/admin/orders", label: "Orders", icon: ClipboardList },
   { href: "/admin/finance", label: "Finance", icon: CreditCard },
+  { href: "/admin/config/fees", label: "Pricing", icon: Tag },
   { href: "/admin/audit", label: "Audit log", icon: ScrollText },
   { href: "/admin/config", label: "Config", icon: Settings },
 ];

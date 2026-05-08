@@ -15,6 +15,17 @@ interface ConfigRow {
   updatedBy: string | null;
 }
 
+// Map config keys → the friendly editor that handles them. Keys not in this
+// map fall back to the raw JSON editor at /admin/config/[key].
+const FRIENDLY_EDITORS: Record<string, { href: string; label: string }> = {
+  fee_schedule: { href: "/admin/config/fees", label: "Edit pricing →" },
+  tier_dimensions: { href: "/admin/config/box-tiers", label: "Edit box tiers →" },
+  repackaging_fees: { href: "/admin/config/box-tiers", label: "Edit box tiers →" },
+  quarantine_daily_fee_cents: { href: "/admin/config/policy", label: "Edit policy →" },
+  reassessment_threshold: { href: "/admin/config/policy", label: "Edit policy →" },
+  agreement_version: { href: "/admin/config/policy", label: "Edit policy →" },
+};
+
 export default function AdminConfigPage() {
   const { data, isLoading } = useQuery({
     queryKey: ["admin", "config"],
@@ -55,12 +66,29 @@ export default function AdminConfigPage() {
                   {new Date(c.updatedAt).toLocaleString()}
                 </Td>
                 <Td align="right">
-                  <Link
-                    href={`/admin/config/${encodeURIComponent(c.key)}`}
-                    className="font-mono text-[11px] uppercase tracking-[1.2px] text-amber hover:text-amber-hi"
-                  >
-                    Edit →
-                  </Link>
+                  {FRIENDLY_EDITORS[c.key] ? (
+                    <div className="flex justify-end gap-3">
+                      <Link
+                        href={FRIENDLY_EDITORS[c.key]!.href}
+                        className="font-mono text-[11px] uppercase tracking-[1.2px] text-amber hover:text-amber-hi"
+                      >
+                        {FRIENDLY_EDITORS[c.key]!.label}
+                      </Link>
+                      <Link
+                        href={`/admin/config/${encodeURIComponent(c.key)}`}
+                        className="font-mono text-[11px] uppercase tracking-[1.2px] text-text-muted hover:text-ink"
+                      >
+                        JSON
+                      </Link>
+                    </div>
+                  ) : (
+                    <Link
+                      href={`/admin/config/${encodeURIComponent(c.key)}`}
+                      className="font-mono text-[11px] uppercase tracking-[1.2px] text-amber hover:text-amber-hi"
+                    >
+                      Edit →
+                    </Link>
+                  )}
                 </Td>
               </TR>
             ))}
