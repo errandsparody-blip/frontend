@@ -197,6 +197,20 @@ export const errorCatalog: Record<string, ErrorEntry> = {
     body: "Pallet boxes are priced per-vendor. Contact support to set up your rate, then resubmit.",
     action: { label: "Contact support", handler: "support" },
   },
+  psn_tier_misconfigured: {
+    // Operational gap (a tier was added to the schema but not yet to the
+    // fee schedule on this environment). User-facing copy is the same as
+    // the negotiated case — they need support either way — but the code
+    // is distinct so we can tell them apart in Sentry.
+    title: "We need to set up your rate",
+    body: "One of the tiers you declared isn't priced on this environment yet. Contact support and we'll have it ready in minutes.",
+    action: { label: "Contact support", handler: "support" },
+  },
+  fee_schedule_missing: {
+    title: "Pricing is being configured",
+    body: "Our fee schedule isn't loaded on this environment. Contact support — this is on our end, not yours.",
+    action: { label: "Contact support", handler: "support" },
+  },
   psn_not_editable: {
     title: "This PSN is no longer editable",
     body: "Once a PSN is submitted it can only be edited by an admin during receiving.",
