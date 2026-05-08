@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 
 import { StatusPill } from "@/components/ui/status-pill";
 import { api } from "@/lib/api-client";
+import { normalizeError } from "@/lib/errors";
 
 interface TrackingPayload {
   trackingNumber: string;
@@ -85,10 +86,35 @@ export default function PublicTrackingPage() {
         {isLoading ? (
           <div className="mt-8 font-mono text-mono-label uppercase text-text-muted">Looking up…</div>
         ) : error ? (
-          <div className="mt-8 rounded-md border-l-4 border-error bg-error/10 px-5 py-4 text-body-sm text-error">
-            We couldn&apos;t find this tracking number. Double-check it and try again, or reach out to the
-            sender.
-          </div>
+          (() => {
+            const normalized = normalizeError(error);
+            // Tracking lookups should be resilient to all the usual errors
+            // — for an unknown tracking number we already get a 404, which
+            // becomes the catalog's "not_found" entry. Network failures,
+            // however, surface a different message and a retry hint, so the
+            // user can distinguish "wrong number" from "we're offline."
+            const isNotFound = normalized.status === 404;
+            return (
+              <div
+                role="alert"
+                className="mt-8 rounded-md border-l-4 border-error bg-error/10 px-5 py-4"
+              >
+                <div className="font-mono text-mono-label uppercase text-error">
+                  {isNotFound ? "We couldn't find this tracking number" : normalized.entry.title}
+                </div>
+                <p className="mt-1 text-body-sm text-text">
+                  {isNotFound
+                    ? "Double-check the number and try again, or reach out to the sender."
+                    : normalized.entry.body}
+                </p>
+                {normalized.correlationId ? (
+                  <div className="mt-2 font-mono text-[11px] uppercase tracking-[1.2px] text-text-muted">
+                    Reference: {normalized.correlationId.slice(0, 16)}
+                  </div>
+                ) : null}
+              </div>
+            );
+          })()
         ) : data ? (
           <>
             <section className="mt-8 rounded-md border border-line bg-white p-8">

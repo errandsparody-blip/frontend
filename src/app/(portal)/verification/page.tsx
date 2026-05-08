@@ -25,12 +25,14 @@ import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
+import { ErrorBanner } from "@/components/errors/error-banner";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
-import { api, type ApiError } from "@/lib/api-client";
+import { api } from "@/lib/api-client";
+import { normalizeError, useApiErrorHandler } from "@/lib/errors";
 import { useAuth } from "@/lib/auth-context";
 
 interface VendorProfile {
@@ -172,8 +174,9 @@ export default function VerificationPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profileQ.data]);
 
-  const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+
+  const { bannerError, handle, clear } = useApiErrorHandler(socialForm);
 
   const saveSocialMut = useMutation({
     mutationFn: (input: SocialInput) =>
@@ -183,32 +186,45 @@ export default function VerificationPage() {
         xHandle: input.xHandle === "" ? null : input.xHandle,
         websiteUrl: input.websiteUrl === "" ? null : input.websiteUrl,
       }),
+    onMutate: clear,
     onSuccess: async () => {
-      setActionError(null);
       setActionSuccess("Saved.");
       await qc.invalidateQueries({ queryKey: ["vendor", "me"] });
       setTimeout(() => setActionSuccess(null), 2000);
     },
-    onError: (err) => setActionError((err as ApiError).message),
+    onError: (err) => handle(err),
   });
 
   const submitKycMut = useMutation({
     mutationFn: () => api.post<VendorProfile>("/vendors/me/kyc/submit", {}),
+    onMutate: clear,
     onSuccess: async () => {
-      setActionError(null);
       setActionSuccess("Submitted. We'll email you when the review is complete.");
       await qc.invalidateQueries({ queryKey: ["vendor", "me"] });
     },
-    onError: (err) => setActionError((err as ApiError).message),
+    onError: (err) => handle(err),
   });
+
+  function onAction(handler: NonNullable<NonNullable<typeof bannerError>["entry"]["action"]>["handler"]) {
+    if (handler === "support") window.location.href = "mailto:support@usa-errands.com";
+  }
 
   if (profileQ.isLoading) {
     return <div className="font-mono text-mono-label uppercase text-text-muted">Loading…</div>;
   }
   if (profileQ.error || !profileQ.data) {
+    const normalized = profileQ.error ? normalizeError(profileQ.error) : null;
     return (
-      <div className="rounded-md border-l-4 border-error bg-error/10 px-5 py-4 text-body-sm text-error">
-        Couldn&apos;t load your profile. Try again, or contact support.
+      <div
+        role="alert"
+        className="rounded-md border-l-4 border-error bg-error/10 px-5 py-4"
+      >
+        <div className="font-mono text-mono-label uppercase text-error">
+          {normalized?.entry.title ?? "Couldn't load your profile"}
+        </div>
+        <p className="mt-1 text-body-sm text-text">
+          {normalized?.entry.body ?? "Try again, or contact support."}
+        </p>
       </div>
     );
   }
@@ -398,14 +414,7 @@ export default function VerificationPage() {
       ) : null}
 
       {/* Inline result banners. */}
-      {actionError ? (
-        <div
-          role="alert"
-          className="rounded-sm border-l-4 border-error bg-error/10 px-4 py-3 text-body-sm text-error"
-        >
-          {actionError}
-        </div>
-      ) : null}
+      <ErrorBanner error={bannerError} onAction={onAction} />
       {actionSuccess ? (
         <div className="rounded-sm border-l-4 border-success bg-success/10 px-4 py-3 text-body-sm text-success">
           {actionSuccess}

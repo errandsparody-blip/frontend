@@ -2,17 +2,18 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
+import { ErrorBanner } from "@/components/errors/error-banner";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
 import { DataTable, TBody, THead, Th, TR, Td } from "@/components/ui/table";
-import { api, type ApiError } from "@/lib/api-client";
+import { api } from "@/lib/api-client";
+import { useApiErrorHandler } from "@/lib/errors";
 
 interface Member {
   id: string;
@@ -50,36 +51,47 @@ const TONE: Record<Invitation["status"], "info" | "success" | "warning" | "error
 
 export default function TeamPage() {
   const qc = useQueryClient();
-  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const teamQ = useQuery({
     queryKey: ["team"],
     queryFn: () => api.get<TeamResp>("/team"),
   });
 
+  const form = useForm<InviteInput>({
+    resolver: zodResolver(inviteSchema),
+    defaultValues: { email: "" },
+  });
   const {
     register,
     handleSubmit,
     reset,
     formState: { errors, isSubmitting },
-  } = useForm<InviteInput>({ resolver: zodResolver(inviteSchema), defaultValues: { email: "" } });
+  } = form;
+
+  const { bannerError, handle, clear } = useApiErrorHandler(form);
 
   const inviteMut = useMutation({
     mutationFn: (input: InviteInput) => api.post<Invitation>("/team/invitations", input),
+    onMutate: clear,
     onSuccess: async () => {
       reset({ email: "" });
-      setSubmitError(null);
       await qc.invalidateQueries({ queryKey: ["team"] });
     },
-    onError: (err) => setSubmitError((err as ApiError).message),
+    onError: (err) => handle(err),
   });
 
   const revokeMut = useMutation({
     mutationFn: (id: string) => api.post<{ ok: true }>(`/team/invitations/${id}/revoke`),
+    onMutate: clear,
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["team"] });
     },
+    onError: (err) => handle(err),
   });
+
+  function onAction(handler: NonNullable<NonNullable<typeof bannerError>["entry"]["action"]>["handler"]) {
+    if (handler === "support") window.location.href = "mailto:support@usa-errands.com";
+  }
 
   return (
     <div className="flex flex-col gap-8">
@@ -103,11 +115,9 @@ export default function TeamPage() {
             Send invite
           </Button>
         </form>
-        {submitError ? (
-          <div role="alert" className="mt-3 rounded-sm border-l-4 border-error bg-error/10 px-4 py-2 text-body-sm text-error">
-            {submitError}
-          </div>
-        ) : null}
+        <div className="mt-3">
+          <ErrorBanner error={bannerError} onAction={onAction} />
+        </div>
       </section>
 
       {teamQ.isLoading ? (

@@ -4,10 +4,12 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 
+import { ErrorBanner } from "@/components/errors/error-banner";
 import { Button } from "@/components/ui/button";
 import { TotpInput } from "@/components/ui/totp-input";
-import { api, type ApiError } from "@/lib/api-client";
+import { api } from "@/lib/api-client";
 import { homeForRole, useAuth, type AuthUser } from "@/lib/auth-context";
+import { useApiErrorHandler } from "@/lib/errors";
 
 interface AuthOk {
   accessToken: string;
@@ -30,13 +32,16 @@ function TwoFactorVerifyInner() {
   const challengeToken = params.get("ct") ?? "";
 
   const [code, setCode] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // No react-hook-form here — the TotpInput is custom — so we pass undefined.
+  // mfa_invalid is catalog-tagged surface=inline+field=code, but without a
+  // form context the hook still surfaces it through the banner channel.
+  const { bannerError, handle, clear } = useApiErrorHandler();
 
   async function verify(submitted: string): Promise<void> {
     if (submitted.length !== 6) return;
     setSubmitting(true);
-    setError(null);
+    clear();
     try {
       const r = await api.post<AuthOk>("/auth/2fa/verify", {
         challengeToken,
@@ -49,12 +54,16 @@ function TwoFactorVerifyInner() {
       setSession({ accessToken: r.accessToken, user: r.user });
       router.push(homeForRole(r.user));
     } catch (err) {
-      const e = err as ApiError;
-      setError(e.message);
+      handle(err);
       setCode("");
     } finally {
       setSubmitting(false);
     }
+  }
+
+  function onAction(handler: NonNullable<NonNullable<typeof bannerError>["entry"]["action"]>["handler"]) {
+    if (handler === "signin") router.push("/login");
+    else if (handler === "support") window.location.href = "mailto:support@usa-errands.com";
   }
 
   if (!challengeToken) {
@@ -88,20 +97,14 @@ function TwoFactorVerifyInner() {
           value={code}
           onChange={setCode}
           onComplete={verify}
-          invalid={!!error}
+          invalid={!!bannerError}
           disabled={submitting}
-          autoFocus
         />
       </div>
 
-      {error ? (
-        <div
-          role="alert"
-          className="mt-6 rounded-sm border-l-4 border-error bg-error/10 px-4 py-3 text-body-sm text-error"
-        >
-          {error}
-        </div>
-      ) : null}
+      <div className="mt-6">
+        <ErrorBanner error={bannerError} onAction={onAction} />
+      </div>
 
       <div className="mt-8 flex items-center justify-between text-body-sm">
         <Link href={`/login/recovery?ct=${encodeURIComponent(challengeToken)}`} className="text-text-muted hover:text-ink">

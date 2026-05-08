@@ -6,12 +6,13 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { useForm } from "react-hook-form";
 
+import { ErrorBanner } from "@/components/errors/error-banner";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { TotpInput } from "@/components/ui/totp-input";
-import { api, type ApiError } from "@/lib/api-client";
+import { api } from "@/lib/api-client";
+import { useApiErrorHandler, type NormalizedError } from "@/lib/errors";
 import { resetPasswordSchema, type ResetPasswordInput } from "@/lib/schemas/auth";
 
 export default function ResetPasswordPage() {
@@ -27,25 +28,27 @@ function ResetPasswordInner() {
   const params = useSearchParams();
   const token = params.get("token") ?? "";
 
-  const [serverError, setServerError] = useState<string | null>(null);
   const [requireMfa, setRequireMfa] = useState(false);
   const [done, setDone] = useState(false);
 
+  const form = useForm<ResetPasswordInput>({
+    resolver: zodResolver(resetPasswordSchema),
+    defaultValues: { token, newPassword: "", mfaCode: "" },
+  });
   const {
     register,
     handleSubmit,
     setValue,
     watch,
     formState: { errors, isSubmitting },
-  } = useForm<ResetPasswordInput>({
-    resolver: zodResolver(resetPasswordSchema),
-    defaultValues: { token, newPassword: "", mfaCode: "" },
-  });
+  } = form;
 
   const mfaCode = watch("mfaCode") ?? "";
 
+  const { bannerError, handle, clear } = useApiErrorHandler(form);
+
   async function onSubmit(values: ResetPasswordInput): Promise<void> {
-    setServerError(null);
+    clear();
     try {
       await api.post<{ ok: true }>("/auth/reset-password", {
         token,
@@ -55,13 +58,12 @@ function ResetPasswordInner() {
       setDone(true);
       setTimeout(() => router.push("/login"), 2000);
     } catch (err) {
-      const e = err as ApiError;
-      if (e.code === "mfa_required") {
+      const n: NormalizedError = handle(err);
+      // Special case: mfa_required toggles a UI mode (reveal MFA field).
+      // The catalog still renders the title/body in the banner.
+      if (n.code === "mfa_required") {
         setRequireMfa(true);
-        setServerError("Please add your authenticator code to complete the reset.");
-        return;
       }
-      setServerError(e.message);
     }
   }
 
@@ -110,7 +112,6 @@ function ResetPasswordInner() {
             autoComplete="new-password"
             invalid={!!errors.newPassword}
             {...register("newPassword")}
-            autoFocus
           />
         </Field>
 
@@ -130,14 +131,12 @@ function ResetPasswordInner() {
           </div>
         ) : null}
 
-        {serverError ? (
-          <div
-            role="alert"
-            className="rounded-sm border-l-4 border-error bg-error/10 px-4 py-3 text-body-sm text-error"
-          >
-            {serverError}
-          </div>
-        ) : null}
+        <ErrorBanner
+          error={bannerError}
+          onAction={(handler) => {
+            if (handler === "support") window.location.href = "mailto:support@usa-errands.com";
+          }}
+        />
 
         <Button type="submit" variant="primary" size="lg" withArrow loading={isSubmitting}>
           {isSubmitting ? "Updating" : "Update password"}

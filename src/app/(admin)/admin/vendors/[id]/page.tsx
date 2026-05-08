@@ -24,11 +24,13 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
+import { ErrorBanner } from "@/components/errors/error-banner";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
-import { api, type ApiError } from "@/lib/api-client";
+import { api } from "@/lib/api-client";
+import { normalizeError, useApiErrorHandler } from "@/lib/errors";
 
 type KycStatus =
   | "PENDING"
@@ -93,7 +95,6 @@ export default function AdminVendorDetailPage() {
     enabled: !!params.id,
   });
 
-  const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
   const [reasonMode, setReasonMode] = useState<"reject" | "resubmission" | null>(null);
 
@@ -102,8 +103,10 @@ export default function AdminVendorDetailPage() {
     defaultValues: { reason: "" },
   });
 
+  const { bannerError, handle, clear } = useApiErrorHandler(reasonForm);
+
   function clearAction() {
-    setActionError(null);
+    clear();
     setActionSuccess(null);
   }
 
@@ -115,7 +118,7 @@ export default function AdminVendorDetailPage() {
       await qc.invalidateQueries({ queryKey: ["admin", "vendor", params.id] });
       await qc.invalidateQueries({ queryKey: ["admin", "vendors"] });
     },
-    onError: (err) => setActionError((err as ApiError).message),
+    onError: (err) => handle(err),
   });
 
   const rejectMut = useMutation({
@@ -129,7 +132,7 @@ export default function AdminVendorDetailPage() {
       await qc.invalidateQueries({ queryKey: ["admin", "vendor", params.id] });
       await qc.invalidateQueries({ queryKey: ["admin", "vendors"] });
     },
-    onError: (err) => setActionError((err as ApiError).message),
+    onError: (err) => handle(err),
   });
 
   const resubmitMut = useMutation({
@@ -143,7 +146,7 @@ export default function AdminVendorDetailPage() {
       await qc.invalidateQueries({ queryKey: ["admin", "vendor", params.id] });
       await qc.invalidateQueries({ queryKey: ["admin", "vendors"] });
     },
-    onError: (err) => setActionError((err as ApiError).message),
+    onError: (err) => handle(err),
   });
 
   const verifySocialMut = useMutation({
@@ -154,16 +157,26 @@ export default function AdminVendorDetailPage() {
       await qc.invalidateQueries({ queryKey: ["admin", "vendor", params.id] });
       await qc.invalidateQueries({ queryKey: ["admin", "vendors"] });
     },
-    onError: (err) => setActionError((err as ApiError).message),
+    onError: (err) => handle(err),
   });
+
+  function onAction(handler: NonNullable<NonNullable<typeof bannerError>["entry"]["action"]>["handler"]) {
+    if (handler === "support") window.location.href = "mailto:support@usa-errands.com";
+  }
 
   if (detailQ.isLoading) {
     return <div className="font-mono text-mono-label uppercase text-text-muted">Loading…</div>;
   }
   if (detailQ.error || !detailQ.data) {
+    const normalized = detailQ.error ? normalizeError(detailQ.error) : null;
     return (
-      <div className="rounded-md border-l-4 border-error bg-error/10 px-5 py-4 text-body-sm text-error">
-        Failed to load vendor.
+      <div role="alert" className="rounded-md border-l-4 border-error bg-error/10 px-5 py-4">
+        <div className="font-mono text-mono-label uppercase text-error">
+          {normalized?.entry.title ?? "Failed to load vendor"}
+        </div>
+        <p className="mt-1 text-body-sm text-text">
+          {normalized?.entry.body ?? "The vendor may have been deleted or you don't have access."}
+        </p>
       </div>
     );
   }
@@ -373,14 +386,9 @@ export default function AdminVendorDetailPage() {
               Decisions
             </h3>
 
-            {actionError ? (
-              <div
-                role="alert"
-                className="mt-3 rounded-sm border-l-4 border-error bg-error/10 px-3 py-2 text-body-sm text-error"
-              >
-                {actionError}
-              </div>
-            ) : null}
+            <div className="mt-3">
+              <ErrorBanner error={bannerError} onAction={onAction} />
+            </div>
             {actionSuccess ? (
               <div className="mt-3 rounded-sm border-l-4 border-success bg-success/10 px-3 py-2 text-body-sm text-success">
                 {actionSuccess}

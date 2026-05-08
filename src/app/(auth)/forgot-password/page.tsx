@@ -5,33 +5,36 @@ import Link from "next/link";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 
+import { ErrorBanner } from "@/components/errors/error-banner";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { api, type ApiError } from "@/lib/api-client";
+import { api } from "@/lib/api-client";
+import { useApiErrorHandler } from "@/lib/errors";
 import { forgotPasswordSchema, type ForgotPasswordInput } from "@/lib/schemas/auth";
 
 export default function ForgotPasswordPage() {
   const [submitted, setSubmitted] = useState(false);
-  const [serverError, setServerError] = useState<string | null>(null);
 
+  const form = useForm<ForgotPasswordInput>({
+    resolver: zodResolver(forgotPasswordSchema),
+    defaultValues: { email: "" },
+  });
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<ForgotPasswordInput>({
-    resolver: zodResolver(forgotPasswordSchema),
-    defaultValues: { email: "" },
-  });
+  } = form;
+
+  const { bannerError, handle, clear } = useApiErrorHandler(form);
 
   async function onSubmit(values: ForgotPasswordInput): Promise<void> {
-    setServerError(null);
+    clear();
     try {
       await api.post<{ ok: true }>("/auth/forgot-password", values);
       setSubmitted(true);
     } catch (err) {
-      const e = err as ApiError;
-      setServerError(e.message);
+      handle(err);
     }
   }
 
@@ -68,18 +71,15 @@ export default function ForgotPasswordPage() {
             invalid={!!errors.email}
             placeholder="vendor@example.com"
             {...register("email")}
-            autoFocus
           />
         </Field>
 
-        {serverError ? (
-          <div
-            role="alert"
-            className="rounded-sm border-l-4 border-error bg-error/10 px-4 py-3 text-body-sm text-error"
-          >
-            {serverError}
-          </div>
-        ) : null}
+        <ErrorBanner
+          error={bannerError}
+          onAction={(handler) => {
+            if (handler === "support") window.location.href = "mailto:support@usa-errands.com";
+          }}
+        />
 
         <Button type="submit" variant="primary" size="lg" withArrow loading={isSubmitting}>
           {isSubmitting ? "Sending link" : "Send reset link"}

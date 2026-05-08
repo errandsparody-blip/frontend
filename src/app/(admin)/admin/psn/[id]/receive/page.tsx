@@ -5,12 +5,14 @@ import { CheckCircle2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { ErrorBanner } from "@/components/errors/error-banner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
 import { DataTable, TBody, THead, Th, TR, Td } from "@/components/ui/table";
-import { api, type ApiError } from "@/lib/api-client";
+import { api } from "@/lib/api-client";
+import { normalizeError, useApiErrorHandler } from "@/lib/errors";
 
 interface AdminPsn {
   id: string;
@@ -51,7 +53,8 @@ export default function ReceivePsnPage() {
   });
 
   const [rows, setRows] = useState<Record<string, ReceivingState>>({});
-  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  const { bannerError, handle, clear } = useApiErrorHandler();
 
   useEffect(() => {
     if (!psn) return;
@@ -79,20 +82,32 @@ export default function ReceivePsnPage() {
           notes: r.notes || undefined,
         })),
       }),
+    onMutate: clear,
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["admin", "psns"] });
       await qc.invalidateQueries({ queryKey: ["admin", "psns", params.id] });
       await qc.invalidateQueries({ queryKey: ["admin", "dashboard"] });
       router.push("/admin/psn");
     },
-    onError: (err) => setSubmitError((err as ApiError).message),
+    onError: (err) => handle(err),
   });
+
+  function onAction(handler: NonNullable<NonNullable<typeof bannerError>["entry"]["action"]>["handler"]) {
+    if (handler === "retry") void submitMut.mutate();
+    else if (handler === "support") window.location.href = "mailto:support@usa-errands.com";
+  }
 
   if (isLoading) return <div className="font-mono text-mono-label uppercase text-text-muted">Loading…</div>;
   if (error || !psn) {
+    const normalized = error ? normalizeError(error) : null;
     return (
-      <div className="rounded-md border-l-4 border-error bg-error/10 px-5 py-4 text-body-sm text-error">
-        {(error as { message?: string })?.message ?? "PSN not found."}
+      <div role="alert" className="rounded-md border-l-4 border-error bg-error/10 px-5 py-4">
+        <div className="font-mono text-mono-label uppercase text-error">
+          {normalized?.entry.title ?? "PSN not found"}
+        </div>
+        <p className="mt-1 text-body-sm text-text">
+          {normalized?.entry.body ?? "The PSN may have been deleted or you don't have access."}
+        </p>
       </div>
     );
   }
@@ -125,11 +140,7 @@ export default function ReceivePsnPage() {
         }
       />
 
-      {submitError ? (
-        <div role="alert" className="rounded-sm border-l-4 border-error bg-error/10 px-4 py-3 text-body-sm text-error">
-          {submitError}
-        </div>
-      ) : null}
+      <ErrorBanner error={bannerError} onAction={onAction} />
 
       {/* Per-line entry table */}
       <DataTable>
@@ -215,7 +226,7 @@ export default function ReceivePsnPage() {
               size="lg"
               withArrow
               onClick={() => {
-                setSubmitError(null);
+                clear();
                 submitMut.mutate();
               }}
               loading={submitMut.isPending}

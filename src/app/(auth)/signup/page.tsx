@@ -3,40 +3,48 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
 import { useForm } from "react-hook-form";
 
+import { ErrorBanner } from "@/components/errors/error-banner";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
-import { api, type ApiError } from "@/lib/api-client";
+import { api } from "@/lib/api-client";
+import { useApiErrorHandler } from "@/lib/errors";
 import { signupSchema, type SignupInput } from "@/lib/schemas/auth";
 
 export default function SignupPage() {
   const router = useRouter();
-  const [serverError, setServerError] = useState<string | null>(null);
 
+  const form = useForm<SignupInput>({
+    resolver: zodResolver(signupSchema),
+    defaultValues: { email: "", password: "", businessName: "", country: "" },
+  });
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<SignupInput>({
-    resolver: zodResolver(signupSchema),
-    defaultValues: { email: "", password: "", businessName: "", country: "" },
-  });
+  } = form;
+
+  const { bannerError, handle, clear } = useApiErrorHandler(form);
 
   async function onSubmit(values: SignupInput): Promise<void> {
-    setServerError(null);
+    clear();
     try {
       await api.post<{ ok: true; userId: string }>("/auth/signup", values);
       // Carry the email through so the verify form can pre-fill it for the
       // POST /auth/verify-email request without making the user retype.
       router.push(`/signup/verify-email?email=${encodeURIComponent(values.email)}`);
     } catch (err) {
-      const e = err as ApiError;
-      setServerError(e.message);
+      handle(err);
     }
+  }
+
+  function onAction(handler: NonNullable<NonNullable<typeof bannerError>["entry"]["action"]>["handler"]) {
+    if (handler === "signin") router.push("/login");
+    else if (handler === "support") window.location.href = "mailto:support@usa-errands.com";
+    else if (handler === "retry") void handleSubmit(onSubmit)();
   }
 
   return (
@@ -46,7 +54,7 @@ export default function SignupPage() {
         Set up your business account.
       </h1>
       <p className="mt-3 text-body text-text-muted">
-        We&apos;ll email a verification link, then walk you through MFA enrollment and KYC.
+        We&apos;ll email a 6-digit code, then walk you through MFA enrollment and KYC.
       </p>
 
       <form onSubmit={handleSubmit(onSubmit)} className="mt-10 flex flex-col gap-5" noValidate>
@@ -93,14 +101,7 @@ export default function SignupPage() {
           />
         </Field>
 
-        {serverError ? (
-          <div
-            role="alert"
-            className="rounded-sm border-l-4 border-error bg-error/10 px-4 py-3 text-body-sm text-error"
-          >
-            {serverError}
-          </div>
-        ) : null}
+        <ErrorBanner error={bannerError} onAction={onAction} />
 
         <Button type="submit" variant="primary" size="lg" withArrow loading={isSubmitting}>
           {isSubmitting ? "Creating account" : "Create account"}

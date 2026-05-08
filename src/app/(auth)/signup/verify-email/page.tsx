@@ -17,11 +17,13 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { useForm } from "react-hook-form";
 
+import { ErrorBanner } from "@/components/errors/error-banner";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { TotpInput } from "@/components/ui/totp-input";
-import { api, type ApiError } from "@/lib/api-client";
+import { api } from "@/lib/api-client";
+import { useApiErrorHandler } from "@/lib/errors";
 import { verifyEmailSchema, type VerifyEmailInput } from "@/lib/schemas/auth";
 
 export default function VerifyEmailPage() {
@@ -37,26 +39,28 @@ function VerifyEmailInner() {
   const params = useSearchParams();
   const initialEmail = params.get("email") ?? "";
 
-  const [serverError, setServerError] = useState<string | null>(null);
   const [resendStatus, setResendStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [resending, setResending] = useState(false);
 
+  const form = useForm<VerifyEmailInput>({
+    resolver: zodResolver(verifyEmailSchema),
+    defaultValues: { email: initialEmail, code: "" },
+  });
   const {
     register,
     handleSubmit,
     setValue,
     watch,
     formState: { errors, isSubmitting },
-  } = useForm<VerifyEmailInput>({
-    resolver: zodResolver(verifyEmailSchema),
-    defaultValues: { email: initialEmail, code: "" },
-  });
+  } = form;
 
   const email = watch("email");
   const code = watch("code") ?? "";
 
+  const { bannerError, handle, clear } = useApiErrorHandler(form);
+
   async function onSubmit(values: VerifyEmailInput): Promise<void> {
-    setServerError(null);
+    clear();
     try {
       // noRefresh: this is unauthenticated. A 4xx must NOT trigger the
       // api-client's auto-refresh dance.
@@ -67,17 +71,11 @@ function VerifyEmailInner() {
       );
       router.push("/login?verified=1");
     } catch (err) {
-      const e = err as ApiError;
-      if (e.code === "verify_invalid") {
-        setServerError("That code is invalid or has expired. Try again, or request a new one.");
-        setValue("code", "", { shouldValidate: false });
-        return;
-      }
-      if (e.status === 429) {
-        setServerError("Too many attempts. Wait a minute and try again.");
-        return;
-      }
-      setServerError("Something went wrong. Try again, or contact support.");
+      handle(err);
+      // verify_invalid is catalog-tagged surface=inline+field=code, but the
+      // user also benefits from clearing the input so they can retype the
+      // freshest code from the new email.
+      setValue("code", "", { shouldValidate: false });
     }
   }
 
@@ -142,21 +140,20 @@ function VerifyEmailInner() {
             value={code}
             onChange={(v) => setValue("code", v, { shouldValidate: true })}
             invalid={!!errors.code}
-            autoFocus
           />
           {errors.code ? (
             <span className="text-caption text-error">{errors.code.message}</span>
           ) : null}
         </div>
 
-        {serverError ? (
-          <div
-            role="alert"
-            className="rounded-sm border-l-4 border-error bg-error/10 px-4 py-3 text-body-sm text-error"
-          >
-            {serverError}
-          </div>
-        ) : null}
+        <ErrorBanner
+          error={bannerError}
+          onAction={(handler) => {
+            if (handler === "verifyEmail") void onResend();
+            else if (handler === "support") window.location.href = "mailto:support@usa-errands.com";
+          }}
+        />
+
 
         <Button
           type="submit"

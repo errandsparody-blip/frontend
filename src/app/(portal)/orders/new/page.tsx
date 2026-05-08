@@ -5,13 +5,15 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
+import { ErrorBanner } from "@/components/errors/error-banner";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
 import { DataTable, TBody, THead, Th, TR, Td } from "@/components/ui/table";
-import { api, type ApiError } from "@/lib/api-client";
+import { api } from "@/lib/api-client";
+import { useApiErrorHandler } from "@/lib/errors";
 import {
   recipientAddressSchema,
   type CreateOrderInput,
@@ -77,7 +79,9 @@ export default function NewOrderPage() {
   const productsQ = useQuery({
     queryKey: ["products", "for-order-builder"],
     queryFn: () =>
-      api.get<{ items: ProductRow[] }>("/products?limit=200"),
+      // 100 is the API cap on this list endpoint; over-asking returns 400
+      // and silently ends up looking like an empty product catalog.
+      api.get<{ items: ProductRow[] }>("/products?limit=100"),
   });
 
   const skuOptions: SkuOption[] = useMemo(() => {
@@ -106,7 +110,10 @@ export default function NewOrderPage() {
   const [insuranceRequested, setInsuranceRequested] = useState(false);
   const [quote, setQuote] = useState<QuoteResult | null>(null);
   const [chosen, setChosen] = useState<QuoteRateOption | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // Local validation messages (not API errors — those go through the banner).
+  const [validationError, setValidationError] = useState<string | null>(null);
+
+  const { bannerError, handle, clear } = useApiErrorHandler();
 
   const [step, setStep] = useState<Step>("lines");
   const [submitted, setSubmitted] = useState<PublicOrder | null>(null);
@@ -125,6 +132,10 @@ export default function NewOrderPage() {
         insuranceRequested,
       });
     },
+    onMutate: () => {
+      clear();
+      setValidationError(null);
+    },
     onSuccess: (data) => {
       setQuote(data);
       const cheapest = [...data.rates].sort(
@@ -132,9 +143,8 @@ export default function NewOrderPage() {
       )[0];
       setChosen(cheapest ?? null);
       setStep("rates");
-      setError(null);
     },
-    onError: (err) => setError((err as ApiError).message ?? "Failed to fetch quote."),
+    onError: (err) => handle(err),
   });
 
   const submitMut = useMutation({
@@ -157,11 +167,24 @@ export default function NewOrderPage() {
       };
       return api.post<PublicOrder>("/orders", payload, { idempotencyKey });
     },
+    onMutate: () => {
+      clear();
+      setValidationError(null);
+    },
     onSuccess: (o) => {
       setSubmitted(o);
     },
-    onError: (err) => setError((err as ApiError).message ?? "Failed to submit order."),
+    onError: (err) => handle(err),
   });
+
+  function onAction(handler: NonNullable<NonNullable<typeof bannerError>["entry"]["action"]>["handler"]) {
+    if (handler === "retry") {
+      if (step === "rates" || step === "address") void quoteMut.mutate();
+      else if (step === "review") void submitMut.mutate();
+    } else if (handler === "support") {
+      window.location.href = "mailto:support@usa-errands.com";
+    }
+  }
 
   // ---- helpers ------------------------------------------------------------
 
@@ -232,9 +255,14 @@ export default function NewOrderPage() {
 
       <Stepper step={step} />
 
-      {error ? (
-        <div role="alert" className="rounded-sm border-l-4 border-error bg-error/10 px-4 py-3 text-body-sm text-error">
-          {error}
+      <ErrorBanner error={bannerError} onAction={onAction} />
+
+      {validationError ? (
+        <div
+          role="alert"
+          className="rounded-sm border-l-4 border-error bg-error/10 px-4 py-3 text-body-sm text-error"
+        >
+          {validationError}
         </div>
       ) : null}
 
@@ -248,24 +276,24 @@ export default function NewOrderPage() {
           onRemove={removeLine}
           onNext={() => {
             if (lines.length === 0) {
-              setError("Add at least one line.");
+              setValidationError("Add at least one line.");
               return;
             }
             for (const l of lines) {
               const o = skuOptions.find((s) => s.id === l.skuId);
               if (!o) continue;
               if (l.quantity < 1) {
-                setError(`Quantity must be at least 1 on ${o.productCode}.`);
+                setValidationError(`Quantity must be at least 1 on ${o.productCode}.`);
                 return;
               }
               if (l.quantity > o.quantityAvailable) {
-                setError(
+                setValidationError(
                   `Quantity for ${o.productCode} exceeds available stock (${o.quantityAvailable}).`,
                 );
                 return;
               }
             }
-            setError(null);
+            setValidationError(null);
             setStep("address");
           }}
         />
@@ -282,10 +310,10 @@ export default function NewOrderPage() {
             const parsed = recipientAddressSchema.safeParse(address);
             if (!parsed.success) {
               const first = parsed.error.errors[0];
-              setError(first ? `${first.path.join(".")}: ${first.message}` : "Invalid address.");
+              setValidationError(first ? `${first.path.join(".")}: ${first.message}` : "Invalid address.");
               return;
             }
-            setError(null);
+            setValidationError(null);
             quoteMut.mutate();
           }}
           quoting={quoteMut.isPending}
@@ -305,10 +333,10 @@ export default function NewOrderPage() {
           onBack={() => setStep("address")}
           onNext={() => {
             if (!chosen) {
-              setError("Pick a service.");
+              setValidationError("Pick a service.");
               return;
             }
-            setError(null);
+            setValidationError(null);
             setStep("review");
           }}
         />

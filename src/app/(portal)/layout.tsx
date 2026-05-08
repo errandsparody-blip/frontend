@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
+import { NetworkStatusBanner } from "@/components/errors/network-status-banner";
 import { Sidebar } from "@/components/portal/sidebar";
 import { Topbar } from "@/components/portal/topbar";
 import { homeForRole, useAuth } from "@/lib/auth-context";
@@ -35,6 +36,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
 
   return (
     <div className="flex h-screen overflow-hidden bg-cream">
+      <NetworkStatusBanner />
       <Sidebar />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Topbar />

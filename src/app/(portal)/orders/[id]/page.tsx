@@ -4,11 +4,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { ErrorBanner } from "@/components/errors/error-banner";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
 import { DataTable, TBody, THead, Th, TR, Td } from "@/components/ui/table";
-import { api, type ApiError } from "@/lib/api-client";
+import { api } from "@/lib/api-client";
+import { normalizeError, useApiErrorHandler } from "@/lib/errors";
 import { ORDER_CANCEL_REASON, type OrderStatus, type PublicOrder } from "@/lib/schemas/orders";
 
 const TONE: Record<OrderStatus, "neutral" | "info" | "success" | "warning" | "error"> = {
@@ -49,7 +51,8 @@ export default function OrderDetailPage() {
   const [showCancel, setShowCancel] = useState(false);
   const [cancelReason, setCancelReason] = useState<(typeof ORDER_CANCEL_REASON)[number]>("VENDOR_REQUEST");
   const [cancelNote, setCancelNote] = useState("");
-  const [cancelError, setCancelError] = useState<string | null>(null);
+
+  const { bannerError, handle, clear } = useApiErrorHandler();
 
   const cancelMut = useMutation({
     mutationFn: () =>
@@ -57,22 +60,41 @@ export default function OrderDetailPage() {
         reason: cancelReason,
         note: cancelNote.trim() || undefined,
       }),
+    onMutate: clear,
     onSuccess: async () => {
       setShowCancel(false);
       setCancelNote("");
-      setCancelError(null);
       await qc.invalidateQueries({ queryKey: ["orders"] });
     },
-    onError: (err) => setCancelError((err as ApiError).message ?? "Cancel failed."),
+    onError: (err) => handle(err),
   });
+
+  function onAction(handler: NonNullable<NonNullable<typeof bannerError>["entry"]["action"]>["handler"]) {
+    if (handler === "retry") void cancelMut.mutate();
+    else if (handler === "support") window.location.href = "mailto:support@usa-errands.com";
+  }
 
   if (orderQ.isLoading) {
     return <div className="font-mono text-mono-label uppercase text-text-muted">Loading…</div>;
   }
-  if (!orderQ.data) {
+  if (orderQ.error || !orderQ.data) {
+    const normalized = orderQ.error ? normalizeError(orderQ.error) : null;
     return (
-      <div className="rounded-md border-l-4 border-error bg-error/10 px-5 py-4 text-body-sm text-error">
-        Order not found.
+      <div
+        role="alert"
+        className="rounded-md border-l-4 border-error bg-error/10 px-5 py-4"
+      >
+        <div className="font-mono text-mono-label uppercase text-error">
+          {normalized?.entry.title ?? "Order not found"}
+        </div>
+        <p className="mt-1 text-body-sm text-text">
+          {normalized?.entry.body ?? "The order may have been deleted or you do not have access to it."}
+        </p>
+        {normalized?.correlationId ? (
+          <div className="mt-2 font-mono text-[11px] uppercase tracking-[1.2px] text-text-muted">
+            Reference: {normalized.correlationId.slice(0, 16)}
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -227,11 +249,7 @@ export default function OrderDetailPage() {
                 onChange={(e) => setCancelNote(e.target.value)}
                 className="rounded-sm border border-line-strong bg-white p-3 font-sans text-body text-text outline-none focus:border-ink"
               />
-              {cancelError ? (
-                <div role="alert" className="rounded-sm border-l-4 border-error bg-error/10 px-4 py-3 text-body-sm text-error">
-                  {cancelError}
-                </div>
-              ) : null}
+              <ErrorBanner error={bannerError} onAction={onAction} />
               <div className="flex justify-end gap-3">
                 <Button variant="outline" onClick={() => setShowCancel(false)}>
                   Keep order

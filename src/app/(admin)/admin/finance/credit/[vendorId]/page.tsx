@@ -7,12 +7,14 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
+import { ErrorBanner } from "@/components/errors/error-banner";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
-import { api, type ApiError } from "@/lib/api-client";
+import { api } from "@/lib/api-client";
+import { useApiErrorHandler } from "@/lib/errors";
 
 interface VendorRow {
   id: string;
@@ -34,7 +36,6 @@ export default function CreditDepositPage() {
   const router = useRouter();
   const qc = useQueryClient();
 
-  const [submitError, setSubmitError] = useState<string | null>(null);
   const [success, setSuccess] = useState<{
     ledgerEntryId: string;
     balanceAfterCents: number;
@@ -52,20 +53,23 @@ export default function CreditDepositPage() {
     enabled: !!params.vendorId,
   });
 
+  const form = useForm<FormInput>({
+    resolver: zodResolver(formSchema),
+    defaultValues: { amountCents: 0, reason: "WISE", reference: "" },
+  });
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
     reset,
     watch,
-  } = useForm<FormInput>({
-    resolver: zodResolver(formSchema),
-    defaultValues: { amountCents: 0, reason: "WISE", reference: "" },
-  });
+  } = form;
   const amountCents = Number(watch("amountCents") ?? 0);
 
+  const { bannerError, handle, clear } = useApiErrorHandler(form);
+
   async function onSubmit(values: FormInput): Promise<void> {
-    setSubmitError(null);
+    clear();
     try {
       const idempotencyKey =
         typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -88,8 +92,12 @@ export default function CreditDepositPage() {
       reset({ amountCents: 0, reason: "WISE", reference: "" });
       await qc.invalidateQueries({ queryKey: ["admin", "vendors"] });
     } catch (err) {
-      setSubmitError((err as ApiError).message);
+      handle(err);
     }
+  }
+
+  function onAction(handler: NonNullable<NonNullable<typeof bannerError>["entry"]["action"]>["handler"]) {
+    if (handler === "support") window.location.href = "mailto:support@usa-errands.com";
   }
 
   if (vendorQ.isLoading) {
@@ -195,14 +203,7 @@ export default function CreditDepositPage() {
           <Input type="text" placeholder="WISE-1234567890" {...register("reference")} />
         </Field>
 
-        {submitError ? (
-          <div
-            role="alert"
-            className="rounded-sm border-l-4 border-error bg-error/10 px-4 py-3 text-body-sm text-error"
-          >
-            {submitError}
-          </div>
-        ) : null}
+        <ErrorBanner error={bannerError} onAction={onAction} />
 
         <div className="flex justify-end">
           <Button type="submit" variant="amber" size="lg" withArrow loading={isSubmitting}>

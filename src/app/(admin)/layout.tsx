@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
+import { NetworkStatusBanner } from "@/components/errors/network-status-banner";
 import { AdminSidebar } from "@/components/portal/admin-sidebar";
 import { Topbar } from "@/components/portal/topbar";
 import { useAuth } from "@/lib/auth-context";
@@ -34,6 +35,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <div className="flex h-screen overflow-hidden bg-cream">
+      <NetworkStatusBanner />
       <AdminSidebar />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Topbar />

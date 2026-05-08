@@ -1,5 +1,9 @@
 module.exports = {
-  extends: ["next/core-web-vitals", "eslint-config-prettier"],
+  extends: [
+    "next/core-web-vitals",
+    "plugin:jsx-a11y/recommended",
+    "eslint-config-prettier",
+  ],
   parser: "@typescript-eslint/parser",
   plugins: ["@typescript-eslint"],
   rules: {

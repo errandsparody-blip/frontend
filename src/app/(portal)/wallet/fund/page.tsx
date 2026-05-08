@@ -4,12 +4,14 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { ErrorBanner } from "@/components/errors/error-banner";
 import { StripePaymentForm } from "@/components/portal/stripe-payment-form";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
-import { api, type ApiError } from "@/lib/api-client";
+import { api } from "@/lib/api-client";
+import { useApiErrorHandler } from "@/lib/errors";
 
 interface CreateIntentResponse {
   clientSecret: string;
@@ -28,13 +30,14 @@ export default function FundWalletPage() {
   const [method, setMethod] = useState<Method>("stripe");
   const [netInput, setNetInput] = useState<string>("100");
   const [intent, setIntent] = useState<CreateIntentResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [requesting, setRequesting] = useState(false);
+
+  const { bannerError, handle, clear } = useApiErrorHandler();
 
   const netAmountCents = Math.round(Number(netInput || "0") * 100);
 
   async function createIntent(): Promise<void> {
-    setError(null);
+    clear();
     setRequesting(true);
     try {
       const idempotencyKey =
@@ -48,10 +51,15 @@ export default function FundWalletPage() {
       );
       setIntent(r);
     } catch (err) {
-      setError((err as ApiError).message);
+      handle(err);
     } finally {
       setRequesting(false);
     }
+  }
+
+  function onAction(handler: NonNullable<NonNullable<typeof bannerError>["entry"]["action"]>["handler"]) {
+    if (handler === "retry") void createIntent();
+    else if (handler === "support") window.location.href = "mailto:support@usa-errands.com";
   }
 
   async function onSuccess(): Promise<void> {
@@ -77,7 +85,7 @@ export default function FundWalletPage() {
             onClick={() => {
               setMethod(m);
               setIntent(null);
-              setError(null);
+              clear();
             }}
             className={
               "rounded-sm px-4 py-2 font-mono text-[11px] font-medium uppercase tracking-[1.2px] transition-colors duration-fast " +
@@ -111,14 +119,7 @@ export default function FundWalletPage() {
                 <FeeBreakdownPreview netCents={netAmountCents} />
               ) : null}
 
-              {error ? (
-                <div
-                  role="alert"
-                  className="rounded-sm border-l-4 border-error bg-error/10 px-4 py-3 text-body-sm text-error"
-                >
-                  {error}
-                </div>
-              ) : null}
+              <ErrorBanner error={bannerError} onAction={onAction} />
 
               <div>
                 <Button

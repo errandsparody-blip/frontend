@@ -4,9 +4,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { ErrorBanner } from "@/components/errors/error-banner";
 import { Button } from "@/components/ui/button";
 import { TotpInput } from "@/components/ui/totp-input";
-import { api, type ApiError } from "@/lib/api-client";
+import { api } from "@/lib/api-client";
+import { useApiErrorHandler } from "@/lib/errors";
 
 interface BeginEnrollResponse {
   qrDataUrl: string;
@@ -25,7 +27,8 @@ export default function MfaEnrollPage() {
   const [pendingSecret, setPendingSecret] = useState<string>("");
   const [code, setCode] = useState("");
   const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
-  const [error, setError] = useState<string | null>(null);
+
+  const { bannerError, handle, clear } = useApiErrorHandler();
 
   useEffect(() => {
     let cancelled = false;
@@ -37,18 +40,20 @@ export default function MfaEnrollPage() {
         setPendingSecret(r.pendingSecret);
         setStep("scan");
       })
-      .catch((err: ApiError) => {
+      .catch((err: unknown) => {
         if (cancelled) return;
-        setError(err.message);
+        handle(err);
       });
     return () => {
       cancelled = true;
     };
+    // handle is stable; we want this to fire exactly once on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function confirm(submitted: string): Promise<void> {
     if (submitted.length !== 6) return;
-    setError(null);
+    clear();
     try {
       const r = await api.post<ConfirmEnrollResponse>("/auth/2fa/enroll/confirm", {
         pendingSecret,
@@ -57,10 +62,14 @@ export default function MfaEnrollPage() {
       setRecoveryCodes(r.recoveryCodes);
       setStep("codes");
     } catch (err) {
-      const e = err as ApiError;
-      setError(e.message);
+      handle(err);
       setCode("");
     }
+  }
+
+  function onAction(handler: NonNullable<NonNullable<typeof bannerError>["entry"]["action"]>["handler"]) {
+    if (handler === "signin") router.push("/login");
+    else if (handler === "support") window.location.href = "mailto:support@usa-errands.com";
   }
 
   if (step === "loading") {
@@ -131,17 +140,12 @@ export default function MfaEnrollPage() {
         <div className="mb-3 font-mono text-mono-label uppercase text-text-muted">
           Code from your authenticator
         </div>
-        <TotpInput value={code} onChange={setCode} onComplete={confirm} invalid={!!error} autoFocus />
+        <TotpInput value={code} onChange={setCode} onComplete={confirm} invalid={!!bannerError} />
       </div>
 
-      {error ? (
-        <div
-          role="alert"
-          className="mt-6 rounded-sm border-l-4 border-error bg-error/10 px-4 py-3 text-body-sm text-error"
-        >
-          {error}
-        </div>
-      ) : null}
+      <div className="mt-6">
+        <ErrorBanner error={bannerError} onAction={onAction} />
+      </div>
 
       <Link href="/" className="mt-8 inline-block text-body-sm text-text-muted hover:text-ink">
         Skip for now (not recommended)

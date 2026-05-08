@@ -4,14 +4,15 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
 import { Controller, useFieldArray, useForm } from "react-hook-form";
 
+import { ErrorBanner } from "@/components/errors/error-banner";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
-import { api, type ApiError } from "@/lib/api-client";
+import { api } from "@/lib/api-client";
+import { normalizeError, useApiErrorHandler } from "@/lib/errors";
 import type { PublicProduct } from "@/lib/schemas/products";
 import {
   createPsnSchema,
@@ -34,7 +35,6 @@ const ONBOARDING_TOTAL_CENTS: Record<StorageTier, number | null> = {
 export default function NewPsnPage() {
   const router = useRouter();
   const qc = useQueryClient();
-  const [serverError, setServerError] = useState<string | null>(null);
 
   // The API caps `limit` at 100. Asking for more makes Zod reject with 400
   // and the page silently falls into the empty state below.
@@ -45,13 +45,7 @@ export default function NewPsnPage() {
       api.get<{ items: PublicProduct[]; nextCursor: string | null }>("/products?limit=100&status=ACTIVE"),
   });
 
-  const {
-    register,
-    control,
-    handleSubmit,
-    watch,
-    formState: { errors, isSubmitting },
-  } = useForm<CreatePsnInput>({
+  const form = useForm<CreatePsnInput>({
     resolver: zodResolver(createPsnSchema),
     defaultValues: {
       declaredBoxCounts: { SMALL: 0, MEDIUM: 0, LARGE: 0, X_LARGE: 0, PALLET: 0 },
@@ -59,6 +53,15 @@ export default function NewPsnPage() {
       notes: "",
     },
   });
+  const {
+    register,
+    control,
+    handleSubmit,
+    watch,
+    formState: { errors, isSubmitting },
+  } = form;
+
+  const { bannerError, handle, clear } = useApiErrorHandler(form);
 
   const { fields, append, remove } = useFieldArray({ control, name: "lines" });
   const declaredBoxCounts = watch("declaredBoxCounts");
@@ -73,7 +76,7 @@ export default function NewPsnPage() {
   const hasNegotiated = (declaredBoxCounts?.PALLET ?? 0) > 0;
 
   async function onSubmit(values: CreatePsnInput): Promise<void> {
-    setServerError(null);
+    clear();
     try {
       // Strip zero-count tiers — the API requires at least one positive entry.
       const cleanedCounts = Object.fromEntries(
@@ -86,9 +89,12 @@ export default function NewPsnPage() {
       await qc.invalidateQueries({ queryKey: ["psns"] });
       router.push(`/psn/${created.id}`);
     } catch (err) {
-      const e = err as ApiError;
-      setServerError(e.message);
+      handle(err);
     }
+  }
+
+  function onAction(handler: NonNullable<NonNullable<typeof bannerError>["entry"]["action"]>["handler"]) {
+    if (handler === "support") window.location.href = "mailto:support@usa-errands.com";
   }
 
   if (productsQ.isLoading) {
@@ -98,12 +104,21 @@ export default function NewPsnPage() {
   // different problems and conflating them masked a query-cap bug for a
   // while. Show the real error so the next regression is obvious.
   if (productsQ.error) {
+    const normalized = normalizeError(productsQ.error);
     return (
       <div
         role="alert"
-        className="rounded-md border-l-4 border-error bg-error/10 px-5 py-4 text-body-sm text-error"
+        className="rounded-md border-l-4 border-error bg-error/10 px-5 py-4"
       >
-        Couldn&apos;t load your products: {(productsQ.error as ApiError).message ?? "Unknown error."}
+        <div className="font-mono text-mono-label uppercase text-error">
+          {normalized.entry.title}
+        </div>
+        <p className="mt-1 text-body-sm text-text">{normalized.entry.body}</p>
+        {normalized.correlationId ? (
+          <div className="mt-2 font-mono text-[11px] uppercase tracking-[1.2px] text-text-muted">
+            Reference: {normalized.correlationId.slice(0, 16)}
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -259,11 +274,7 @@ export default function NewPsnPage() {
           ) : null}
         </section>
 
-        {serverError ? (
-          <div role="alert" className="rounded-sm border-l-4 border-error bg-error/10 px-4 py-3 text-body-sm text-error">
-            {serverError}
-          </div>
-        ) : null}
+        <ErrorBanner error={bannerError} onAction={onAction} />
 
         <div className="flex justify-end gap-3">
           <Button

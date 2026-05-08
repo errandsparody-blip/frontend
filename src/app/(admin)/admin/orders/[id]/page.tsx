@@ -2,13 +2,14 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
-import { useState } from "react";
 
+import { ErrorBanner } from "@/components/errors/error-banner";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
 import { DataTable, TBody, THead, Th, TR, Td } from "@/components/ui/table";
-import { api, type ApiError } from "@/lib/api-client";
+import { api } from "@/lib/api-client";
+import { normalizeError, useApiErrorHandler } from "@/lib/errors";
 
 interface AdminOrderDetail {
   id: string;
@@ -85,24 +86,34 @@ export default function AdminOrderDetailPage() {
     enabled: !!params.id,
   });
 
-  const [actionError, setActionError] = useState<string | null>(null);
+  const { bannerError, handle, clear } = useApiErrorHandler();
 
   const action = useMutation({
     mutationFn: (endpoint: string) => api.post<AdminOrderDetail>(`/admin/orders/${params.id}/${endpoint}`, {}),
+    onMutate: clear,
     onSuccess: async () => {
-      setActionError(null);
       await qc.invalidateQueries({ queryKey: ["admin", "orders"] });
     },
-    onError: (err) => setActionError((err as ApiError).message ?? "Action failed."),
+    onError: (err) => handle(err),
   });
+
+  function onAction(handler: NonNullable<NonNullable<typeof bannerError>["entry"]["action"]>["handler"]) {
+    if (handler === "support") window.location.href = "mailto:support@usa-errands.com";
+  }
 
   if (orderQ.isLoading) {
     return <div className="font-mono text-mono-label uppercase text-text-muted">Loading…</div>;
   }
-  if (!orderQ.data) {
+  if (orderQ.error || !orderQ.data) {
+    const normalized = orderQ.error ? normalizeError(orderQ.error) : null;
     return (
-      <div className="rounded-md border-l-4 border-error bg-error/10 px-5 py-4 text-body-sm text-error">
-        Order not found.
+      <div role="alert" className="rounded-md border-l-4 border-error bg-error/10 px-5 py-4">
+        <div className="font-mono text-mono-label uppercase text-error">
+          {normalized?.entry.title ?? "Order not found"}
+        </div>
+        <p className="mt-1 text-body-sm text-text">
+          {normalized?.entry.body ?? "The order may have been deleted or you don't have access."}
+        </p>
       </div>
     );
   }
@@ -189,13 +200,13 @@ export default function AdminOrderDetailPage() {
               {next.label}
             </Button>
           </div>
-          {actionError ? (
-            <div role="alert" className="mt-3 rounded-sm border-l-4 border-error bg-error/10 px-4 py-2 text-body-sm text-error">
-              {actionError}
-            </div>
-          ) : null}
+          <div className="mt-3">
+            <ErrorBanner error={bannerError} onAction={onAction} />
+          </div>
         </section>
       ) : null}
+
+      {!next ? <ErrorBanner error={bannerError} onAction={onAction} /> : null}
 
       <section className="rounded-md border border-line bg-white p-6">
         <h2 className="font-mono text-mono-label uppercase text-text-muted">Lines</h2>

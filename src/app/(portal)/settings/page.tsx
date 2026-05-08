@@ -6,12 +6,14 @@ import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
+import { ErrorBanner } from "@/components/errors/error-banner";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
-import { api, type ApiError } from "@/lib/api-client";
+import { api } from "@/lib/api-client";
+import { useApiErrorHandler } from "@/lib/errors";
 import { useAuth } from "@/lib/auth-context";
 
 interface VendorProfile {
@@ -135,33 +137,34 @@ export default function SettingsPage() {
     }
   }, [profileQ.data]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const [profileError, setProfileError] = useState<string | null>(null);
-  const [thresholdError, setThresholdError] = useState<string | null>(null);
-  const [socialError, setSocialError] = useState<string | null>(null);
   const [profileSaved, setProfileSaved] = useState(false);
   const [thresholdSaved, setThresholdSaved] = useState(false);
   const [socialSaved, setSocialSaved] = useState(false);
 
+  const profileErr = useApiErrorHandler(profileForm);
+  const thresholdErr = useApiErrorHandler(thresholdForm);
+  const socialErr = useApiErrorHandler(socialForm);
+
   const profileMut = useMutation({
     mutationFn: (input: ProfileInput) => api.patch<VendorProfile>("/vendors/me", input),
+    onMutate: profileErr.clear,
     onSuccess: async () => {
-      setProfileError(null);
       setProfileSaved(true);
       await qc.invalidateQueries({ queryKey: ["vendor", "me"] });
       setTimeout(() => setProfileSaved(false), 2000);
     },
-    onError: (err) => setProfileError((err as ApiError).message),
+    onError: (err) => profileErr.handle(err),
   });
 
   const thresholdMut = useMutation({
     mutationFn: (input: ThresholdInput) => api.patch<WalletSnapshot>("/wallet", input),
+    onMutate: thresholdErr.clear,
     onSuccess: async () => {
-      setThresholdError(null);
       setThresholdSaved(true);
       await qc.invalidateQueries({ queryKey: ["wallet"] });
       setTimeout(() => setThresholdSaved(false), 2000);
     },
-    onError: (err) => setThresholdError((err as ApiError).message),
+    onError: (err) => thresholdErr.handle(err),
   });
 
   const socialMut = useMutation({
@@ -174,14 +177,18 @@ export default function SettingsPage() {
         xHandle: input.xHandle === "" ? null : input.xHandle,
         websiteUrl: input.websiteUrl === "" ? null : input.websiteUrl,
       }),
+    onMutate: socialErr.clear,
     onSuccess: async () => {
-      setSocialError(null);
       setSocialSaved(true);
       await qc.invalidateQueries({ queryKey: ["vendor", "me"] });
       setTimeout(() => setSocialSaved(false), 2000);
     },
-    onError: (err) => setSocialError((err as ApiError).message),
+    onError: (err) => socialErr.handle(err),
   });
+
+  function onSupport() {
+    window.location.href = "mailto:support@usa-errands.com";
+  }
 
   return (
     <div className="flex flex-col gap-8">
@@ -238,11 +245,12 @@ export default function SettingsPage() {
                 <Input type="text" value={profileQ.data.country} disabled />
               </Field>
 
-              {profileError ? (
-                <div role="alert" className="col-span-2 rounded-sm border-l-4 border-error bg-error/10 px-4 py-2 text-body-sm text-error">
-                  {profileError}
-                </div>
-              ) : null}
+              <div className="col-span-2">
+                <ErrorBanner
+                  error={profileErr.bannerError}
+                  onAction={(h) => h === "support" && onSupport()}
+                />
+              </div>
               {profileSaved ? (
                 <div className="col-span-2 rounded-sm border-l-4 border-success bg-success/10 px-4 py-2 text-body-sm text-success">
                   Saved.
@@ -302,11 +310,12 @@ export default function SettingsPage() {
                 </Button>
               ) : null}
             </form>
-            {thresholdError ? (
-              <div role="alert" className="mt-3 rounded-sm border-l-4 border-error bg-error/10 px-4 py-2 text-body-sm text-error">
-                {thresholdError}
-              </div>
-            ) : null}
+            <div className="mt-3">
+              <ErrorBanner
+                error={thresholdErr.bannerError}
+                onAction={(h) => h === "support" && onSupport()}
+              />
+            </div>
             {thresholdSaved ? (
               <div className="mt-3 rounded-sm border-l-4 border-success bg-success/10 px-4 py-2 text-body-sm text-success">
                 Saved.
@@ -394,14 +403,12 @@ export default function SettingsPage() {
                 />
               </Field>
 
-              {socialError ? (
-                <div
-                  role="alert"
-                  className="md:col-span-2 rounded-sm border-l-4 border-error bg-error/10 px-4 py-2 text-body-sm text-error"
-                >
-                  {socialError}
-                </div>
-              ) : null}
+              <div className="md:col-span-2">
+                <ErrorBanner
+                  error={socialErr.bannerError}
+                  onAction={(h) => h === "support" && onSupport()}
+                />
+              </div>
               {socialSaved ? (
                 <div className="md:col-span-2 rounded-sm border-l-4 border-success bg-success/10 px-4 py-2 text-body-sm text-success">
                   Saved. Our team will re-review shortly.

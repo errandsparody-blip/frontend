@@ -2,13 +2,14 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
-import { useState } from "react";
 
+import { ErrorBanner } from "@/components/errors/error-banner";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
 import { DataTable, TBody, THead, Th, TR, Td } from "@/components/ui/table";
-import { api, type ApiError } from "@/lib/api-client";
+import { api } from "@/lib/api-client";
+import { normalizeError, useApiErrorHandler } from "@/lib/errors";
 import type { PublicProduct } from "@/lib/schemas/products";
 import type { PsnStatus, PublicPsn } from "@/lib/schemas/psn";
 
@@ -25,7 +26,8 @@ const TONE: Record<PsnStatus, "neutral" | "info" | "success" | "warning" | "erro
 export default function PsnDetailPage() {
   const params = useParams<{ id: string }>();
   const qc = useQueryClient();
-  const [actionError, setActionError] = useState<string | null>(null);
+
+  const { bannerError, handle, clear } = useApiErrorHandler();
 
   const { data: psn, isLoading, error } = useQuery({
     queryKey: ["psns", params.id],
@@ -33,11 +35,12 @@ export default function PsnDetailPage() {
     enabled: !!params.id,
   });
 
-  // Pull products for human-readable line labels.
+  // Pull products for human-readable line labels. Capped at 100 because the
+  // API rejects anything higher; paginate when a vendor exceeds that.
   const productsQ = useQuery({
     queryKey: ["products", { all: true }],
     queryFn: () =>
-      api.get<{ items: PublicProduct[]; nextCursor: string | null }>("/products?limit=200"),
+      api.get<{ items: PublicProduct[]; nextCursor: string | null }>("/products?limit=100"),
     enabled: !!psn,
   });
   const productById = new Map((productsQ.data?.items ?? []).map((p) => [p.id, p]));
@@ -51,27 +54,48 @@ export default function PsnDetailPage() {
           : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
       return api.post<PublicPsn>(`/psns/${params.id}/submit`, undefined, { idempotencyKey });
     },
+    onMutate: clear,
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["psns"] });
       await qc.invalidateQueries({ queryKey: ["psns", params.id] });
     },
-    onError: (err) => setActionError((err as ApiError).message),
+    onError: (err) => handle(err),
   });
 
   const cancelMut = useMutation({
     mutationFn: () => api.post<PublicPsn>(`/psns/${params.id}/cancel`),
+    onMutate: clear,
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["psns"] });
       await qc.invalidateQueries({ queryKey: ["psns", params.id] });
     },
-    onError: (err) => setActionError((err as ApiError).message),
+    onError: (err) => handle(err),
   });
+
+  function onAction(handler: NonNullable<NonNullable<typeof bannerError>["entry"]["action"]>["handler"]) {
+    if (handler === "support") window.location.href = "mailto:support@usa-errands.com";
+  }
 
   if (isLoading) return <div className="font-mono text-mono-label uppercase text-text-muted">Loading…</div>;
   if (error || !psn) {
+    const normalized = error ? normalizeError(error) : null;
     return (
-      <div className="rounded-md border-l-4 border-error bg-error/10 px-5 py-4 text-body-sm text-error">
-        {(error as { message?: string })?.message ?? "PSN not found."}
+      <div
+        role="alert"
+        className="rounded-md border-l-4 border-error bg-error/10 px-5 py-4"
+      >
+        <div className="font-mono text-mono-label uppercase text-error">
+          {normalized?.entry.title ?? "PSN not found"}
+        </div>
+        <p className="mt-1 text-body-sm text-text">
+          {normalized?.entry.body ??
+            "The PSN may have been deleted or you do not have access to it."}
+        </p>
+        {normalized?.correlationId ? (
+          <div className="mt-2 font-mono text-[11px] uppercase tracking-[1.2px] text-text-muted">
+            Reference: {normalized.correlationId.slice(0, 16)}
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -91,11 +115,7 @@ export default function PsnDetailPage() {
         actions={<StatusPill tone={TONE[psn.status]}>{psn.status.replace(/_/g, " ")}</StatusPill>}
       />
 
-      {actionError ? (
-        <div role="alert" className="rounded-sm border-l-4 border-error bg-error/10 px-4 py-3 text-body-sm text-error">
-          {actionError}
-        </div>
-      ) : null}
+      <ErrorBanner error={bannerError} onAction={onAction} />
 
       {/* Summary panel */}
       <section className="grid gap-6 rounded-md border border-line bg-white p-6 md:grid-cols-3">
