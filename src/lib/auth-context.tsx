@@ -22,6 +22,27 @@ export interface AuthUser {
   emailVerified: boolean;
 }
 
+/**
+ * Where a user belongs after a successful sign-in. Centralized so login,
+ * MFA verify, and the layout role-guards all agree on the destination.
+ *
+ *   VENDOR / VENDOR_SUB_USER       → /dashboard
+ *   SUPER_ADMIN / FINANCE_ADMIN /
+ *   WAREHOUSE_OPERATOR             → /admin
+ *   anything unrecognized          → /login (fail closed)
+ */
+export function homeForRole(user: { role: AuthUser["role"] }): string {
+  if (user.role === "VENDOR" || user.role === "VENDOR_SUB_USER") return "/dashboard";
+  if (
+    user.role === "SUPER_ADMIN" ||
+    user.role === "FINANCE_ADMIN" ||
+    user.role === "WAREHOUSE_OPERATOR"
+  ) {
+    return "/admin";
+  }
+  return "/login";
+}
+
 interface AuthContextValue {
   user: AuthUser | null;
   loading: boolean;

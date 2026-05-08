@@ -5,7 +5,7 @@ import { useEffect } from "react";
 
 import { Sidebar } from "@/components/portal/sidebar";
 import { Topbar } from "@/components/portal/topbar";
-import { useAuth } from "@/lib/auth-context";
+import { homeForRole, useAuth } from "@/lib/auth-context";
 
 export default function PortalLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -18,8 +18,10 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       return;
     }
     if (user.role !== "VENDOR" && user.role !== "VENDOR_SUB_USER") {
-      // Admin users should be on /admin (P1.13).
-      router.replace("/login");
+      // Admin users belong on /admin, not /login. Sending them to /login
+      // here used to create a sign-in loop: login → push to /dashboard →
+      // PortalLayout → /login → login again. Route to the right home.
+      router.replace(homeForRole(user));
     }
   }, [user, loading, router]);
 

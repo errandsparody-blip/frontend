@@ -7,7 +7,7 @@ import { Suspense, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { TotpInput } from "@/components/ui/totp-input";
 import { api, type ApiError } from "@/lib/api-client";
-import { useAuth, type AuthUser } from "@/lib/auth-context";
+import { homeForRole, useAuth, type AuthUser } from "@/lib/auth-context";
 
 interface AuthOk {
   accessToken: string;
@@ -43,10 +43,11 @@ function TwoFactorVerifyInner() {
         code: submitted,
       });
       // Plant the session into AuthContext BEFORE navigating. Otherwise
-      // PortalLayout renders with `user === null` (since the initial /auth/refresh
-      // ran before we had any cookie) and immediately bounces back to /login.
+      // the destination layout renders with `user === null` (since the
+      // initial /auth/refresh ran before we had any cookie) and immediately
+      // bounces back to /login.
       setSession({ accessToken: r.accessToken, user: r.user });
-      router.push("/dashboard");
+      router.push(homeForRole(r.user));
     } catch (err) {
       const e = err as ApiError;
       setError(e.message);

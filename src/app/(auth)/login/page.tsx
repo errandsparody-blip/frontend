@@ -11,7 +11,7 @@ import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { api, type ApiError } from "@/lib/api-client";
-import { useAuth, type AuthUser } from "@/lib/auth-context";
+import { homeForRole, useAuth, type AuthUser } from "@/lib/auth-context";
 import { loginSchema, type LoginInput } from "@/lib/schemas/auth";
 
 interface LoginAuthedResponse {
@@ -54,10 +54,11 @@ export default function LoginPage() {
       // Authenticated. Two sub-cases:
       //   - mfaEnrolled === false → user has an acr="1" token. Force them to
       //     finish MFA enrollment before going anywhere else.
-      //   - mfaEnrolled === true  → fully authenticated, go to dashboard.
-      // Plant the session so PortalLayout sees user !== null on mount.
+      //   - mfaEnrolled === true  → fully authenticated, go to the home that
+      //     matches their role (vendors → /dashboard, admins → /admin).
+      // Plant the session so the destination layout sees user !== null on mount.
       setSession({ accessToken: r.accessToken, user: r.user });
-      router.push(r.user.mfaEnrolled ? "/dashboard" : "/signup/2fa-enroll");
+      router.push(r.user.mfaEnrolled ? homeForRole(r.user) : "/signup/2fa-enroll");
     } catch (err) {
       const e = err as ApiError;
       setServerError(e.message);
