@@ -23,14 +23,13 @@ import {
 
 const TIERS: StorageTier[] = ["SMALL", "MEDIUM", "LARGE", "X_LARGE", "PALLET"];
 
-// Subset of the seed config needed for the live preview.
-const ONBOARDING_TOTAL_CENTS: Record<StorageTier, number | null> = {
-  SMALL: 3400,
-  MEDIUM: 5500,
-  LARGE: 8500,
-  X_LARGE: 12000,
-  PALLET: null, // negotiated
-};
+// Wire shape returned by GET /v1/fees/onboarding. Mirrors the storage on
+// the `fee_schedule` config row — each tier is either a priced object or
+// a "negotiated" marker.
+type OnboardingFeeEntry =
+  | { stockingCents: number; firstMonthStorageCents: number; totalCents: number; negotiated?: false }
+  | { negotiated: true };
+type OnboardingFees = Record<StorageTier, OnboardingFeeEntry>;
 
 export default function NewPsnPage() {
   const router = useRouter();
@@ -43,6 +42,18 @@ export default function NewPsnPage() {
     queryKey: ["products", { status: "ACTIVE" }],
     queryFn: () =>
       api.get<{ items: PublicProduct[]; nextCursor: string | null }>("/products?limit=100&status=ACTIVE"),
+  });
+
+  // Pull the live onboarding fee schedule from the API instead of trusting
+  // a frontend constant. Without this, finance staff editing rates via
+  // /admin/config/fees would silently desync from what vendors see in the
+  // submit preview here. The backend's compute path at PSN submit reads
+  // the same source of truth, so preview and reality always agree.
+  const feesQ = useQuery({
+    queryKey: ["fees", "onboarding"],
+    queryFn: () => api.get<{ onboarding: OnboardingFees }>("/fees/onboarding"),
+    // Rates change rarely; let the data sit a bit before re-fetching.
+    staleTime: 60_000,
   });
 
   const form = useForm<CreatePsnInput>({
@@ -66,14 +77,30 @@ export default function NewPsnPage() {
   const { fields, append, remove } = useFieldArray({ control, name: "lines" });
   const declaredBoxCounts = watch("declaredBoxCounts");
 
-  const liveFeeCents = TIERS.reduce((acc, tier) => {
-    const count = Number(declaredBoxCounts?.[tier] ?? 0);
-    if (count <= 0) return acc;
-    const per = ONBOARDING_TOTAL_CENTS[tier];
-    if (per === null) return acc; // pallet → negotiated
-    return acc + per * count;
-  }, 0);
-  const hasNegotiated = (declaredBoxCounts?.PALLET ?? 0) > 0;
+  // Live preview total: sum count × tier.totalCents using whatever the
+  // backend currently publishes. If the schedule hasn't loaded yet (slow
+  // network, server temporarily unreachable), we fall back to null and the
+  // UI shows "—" instead of guessing — better to be silent than to lie.
+  const onboardingFees = feesQ.data?.onboarding;
+  const previewIsLive = !!onboardingFees;
+  const previewFeeCents = onboardingFees
+    ? TIERS.reduce((acc, tier) => {
+        const count = Number(declaredBoxCounts?.[tier] ?? 0);
+        if (count <= 0) return acc;
+        const entry = onboardingFees[tier];
+        if (!entry || ("negotiated" in entry && entry.negotiated)) return acc;
+        return acc + entry.totalCents * count;
+      }, 0)
+    : null;
+  // A tier is "negotiated" if the live schedule says so. We mark PALLET
+  // declarations as negotiated even pre-load (its near-universal default).
+  const hasNegotiatedDeclared = TIERS.some((t) => {
+    const count = Number(declaredBoxCounts?.[t] ?? 0);
+    if (count <= 0) return false;
+    if (!onboardingFees) return t === "PALLET";
+    const entry = onboardingFees[t];
+    return !!entry && "negotiated" in entry && entry.negotiated;
+  });
 
   async function onSubmit(values: CreatePsnInput): Promise<void> {
     clear();
@@ -183,10 +210,25 @@ export default function NewPsnPage() {
               Estimated onboarding fee
             </span>
             <span className="font-mono text-h2 tabular-nums">
-              ${(liveFeeCents / 100).toFixed(2)}
-              {hasNegotiated ? (
-                <span className="ml-2 font-mono text-body-sm text-amber">+ pallet quote</span>
-              ) : null}
+              {previewIsLive && previewFeeCents !== null ? (
+                <>
+                  ${(previewFeeCents / 100).toFixed(2)}
+                  {hasNegotiatedDeclared ? (
+                    <span className="ml-2 font-mono text-body-sm text-amber">
+                      + negotiated tier quote
+                    </span>
+                  ) : null}
+                </>
+              ) : (
+                // Schedule fetch is in flight or failed. Don't show a stale
+                // estimate from frontend constants — the backend computes
+                // the real charge at submit either way.
+                <span className="font-mono text-body-sm text-text-muted">
+                  {feesQ.error
+                    ? "Live rate unavailable — submit will use the current schedule."
+                    : "Loading rates…"}
+                </span>
+              )}
             </span>
           </div>
           {errors.declaredBoxCounts ? (
