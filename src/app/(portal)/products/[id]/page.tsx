@@ -56,9 +56,12 @@ export default function ProductDetailPage() {
             countryOfOrigin: product.countryOfOrigin,
             declaredValueCents: product.declaredValueCents,
             weightOz: product.weightOz,
-            lengthIn: product.lengthIn,
-            widthIn: product.widthIn,
-            heightIn: product.heightIn,
+            // Dimensions are nullable in the API; CreateProductInput
+            // expects `number | undefined`. Convert nulls so the form
+            // gets a clean shape.
+            lengthIn: product.lengthIn ?? undefined,
+            widthIn: product.widthIn ?? undefined,
+            heightIn: product.heightIn ?? undefined,
             code: product.code,
           }}
           submitLabel="Save changes"

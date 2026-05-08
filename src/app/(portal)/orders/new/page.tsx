@@ -111,7 +111,10 @@ export default function NewOrderPage() {
   const [quote, setQuote] = useState<QuoteResult | null>(null);
   const [chosen, setChosen] = useState<QuoteRateOption | null>(null);
   // Local validation messages (not API errors — those go through the banner).
+  // Two flavours: a top-level message ("Add at least one line.") and a
+  // per-field map for the address step so we can light up individual inputs.
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [addressErrors, setAddressErrors] = useState<Record<string, string>>({});
 
   const { bannerError, handle, clear } = useApiErrorHandler();
 
@@ -319,17 +322,38 @@ export default function NewOrderPage() {
         <AddressForm
           address={address}
           externalReference={externalReference}
-          onChangeAddress={setAddress}
+          fieldErrors={addressErrors}
+          onChangeAddress={(next) => {
+            // Clear the field-level error as the user corrects it — keeps the
+            // form from showing stale red borders after a typo is fixed.
+            setAddress(next);
+            if (Object.keys(addressErrors).length > 0) {
+              setAddressErrors({});
+              setValidationError(null);
+            }
+          }}
           onChangeReference={setExternalReference}
           onBack={() => setStep("lines")}
           onNext={() => {
             const parsed = recipientAddressSchema.safeParse(address);
             if (!parsed.success) {
-              const first = parsed.error.errors[0];
-              setValidationError(first ? `${first.path.join(".")}: ${first.message}` : "Invalid address.");
+              // Collect every issue so the user sees ALL missing fields at
+              // once, not just the first one.
+              const fieldMap: Record<string, string> = {};
+              for (const issue of parsed.error.errors) {
+                const key = issue.path.join(".");
+                if (key && !fieldMap[key]) fieldMap[key] = issue.message;
+              }
+              setAddressErrors(fieldMap);
+              setValidationError(
+                parsed.error.errors.length === 1
+                  ? "Fix the highlighted field to get rates."
+                  : `Fix ${parsed.error.errors.length} highlighted fields to get rates.`,
+              );
               return;
             }
             setValidationError(null);
+            setAddressErrors({});
             quoteMut.mutate();
           }}
           quoting={quoteMut.isPending}
@@ -515,6 +539,7 @@ function LineBuilder({
 function AddressForm({
   address,
   externalReference,
+  fieldErrors,
   onChangeAddress,
   onChangeReference,
   onBack,
@@ -523,6 +548,11 @@ function AddressForm({
 }: {
   address: RecipientAddress;
   externalReference: string;
+  /**
+   * Per-field error map keyed by `recipientAddressSchema` path (e.g.
+   * "recipientName", "shipState"). Empty when the form is clean.
+   */
+  fieldErrors: Record<string, string>;
   onChangeAddress: (a: RecipientAddress) => void;
   onChangeReference: (s: string) => void;
   onBack: () => void;
@@ -532,15 +562,28 @@ function AddressForm({
   function patch<K extends keyof RecipientAddress>(key: K, value: RecipientAddress[K]): void {
     onChangeAddress({ ...address, [key]: value });
   }
+  const errCount = Object.keys(fieldErrors).length;
   return (
     <section className="flex flex-col gap-5 rounded-md border border-line bg-white p-8">
       <h2 className="text-h2 font-semibold text-ink">Recipient</h2>
 
+      {errCount > 0 ? (
+        <div
+          role="alert"
+          className="rounded-sm border-l-4 border-error bg-error/10 px-4 py-3 text-body-sm text-error"
+        >
+          {errCount === 1
+            ? "1 field needs your attention before we can quote rates."
+            : `${errCount} fields need your attention before we can quote rates.`}
+        </div>
+      ) : null}
+
       <div className="grid grid-cols-2 gap-4">
-        <Field label="Recipient name">
+        <Field label="Recipient name" error={fieldErrors.recipientName}>
           <Input
             type="text"
             value={address.recipientName}
+            invalid={!!fieldErrors.recipientName}
             onChange={(e) => patch("recipientName", e.target.value)}
           />
         </Field>
@@ -552,58 +595,65 @@ function AddressForm({
             placeholder="#1042"
           />
         </Field>
-        <Field label="Phone (optional)">
+        <Field label="Phone (optional)" error={fieldErrors.recipientPhone}>
           <Input
             type="tel"
             value={address.recipientPhone ?? ""}
+            invalid={!!fieldErrors.recipientPhone}
             onChange={(e) => patch("recipientPhone", e.target.value || undefined)}
           />
         </Field>
-        <Field label="Email (optional)">
+        <Field label="Email (optional)" error={fieldErrors.recipientEmail}>
           <Input
             type="email"
             value={address.recipientEmail ?? ""}
+            invalid={!!fieldErrors.recipientEmail}
             onChange={(e) => patch("recipientEmail", e.target.value || undefined)}
           />
         </Field>
       </div>
 
-      <Field label="Address line 1">
+      <Field label="Address line 1" error={fieldErrors.shipAddressLine1}>
         <Input
           type="text"
           value={address.shipAddressLine1}
+          invalid={!!fieldErrors.shipAddressLine1}
           onChange={(e) => patch("shipAddressLine1", e.target.value)}
         />
       </Field>
-      <Field label="Address line 2 (optional)">
+      <Field label="Address line 2 (optional)" error={fieldErrors.shipAddressLine2}>
         <Input
           type="text"
           value={address.shipAddressLine2 ?? ""}
+          invalid={!!fieldErrors.shipAddressLine2}
           onChange={(e) => patch("shipAddressLine2", e.target.value || undefined)}
         />
       </Field>
 
       <div className="grid grid-cols-3 gap-4">
-        <Field label="City">
+        <Field label="City" error={fieldErrors.shipCity}>
           <Input
             type="text"
             value={address.shipCity}
+            invalid={!!fieldErrors.shipCity}
             onChange={(e) => patch("shipCity", e.target.value)}
           />
         </Field>
-        <Field label="State">
+        <Field label="State" error={fieldErrors.shipState}>
           <Input
             type="text"
             value={address.shipState}
+            invalid={!!fieldErrors.shipState}
             onChange={(e) => patch("shipState", e.target.value.toUpperCase())}
             maxLength={2}
             placeholder="FL"
           />
         </Field>
-        <Field label="ZIP">
+        <Field label="ZIP" error={fieldErrors.shipPostalCode}>
           <Input
             type="text"
             value={address.shipPostalCode}
+            invalid={!!fieldErrors.shipPostalCode}
             onChange={(e) => patch("shipPostalCode", e.target.value)}
             placeholder="33101"
           />
