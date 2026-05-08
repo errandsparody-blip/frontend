@@ -23,10 +23,25 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       // here used to create a sign-in loop: login → push to /dashboard →
       // PortalLayout → /login → login again. Route to the right home.
       router.replace(homeForRole(user));
+      return;
+    }
+    // Defence in depth: a vendor with mfaEnrolled=false is on a low-priv
+    // (acr=1) access token. The backend rejects sensitive routes for that
+    // tier, but if they navigate here directly (e.g. by hitting "Skip" on
+    // the 2FA enrolment screen and then typing /dashboard), we'd render
+    // the portal shell with empty data. Bounce them back to enrolment so
+    // the UI matches the auth state.
+    if (user.mfaEnrolled === false) {
+      router.replace("/signup/2fa-enroll");
     }
   }, [user, loading, router]);
 
-  if (loading || !user || (user.role !== "VENDOR" && user.role !== "VENDOR_SUB_USER")) {
+  if (
+    loading ||
+    !user ||
+    (user.role !== "VENDOR" && user.role !== "VENDOR_SUB_USER") ||
+    user.mfaEnrolled === false
+  ) {
     return (
       <div className="flex h-screen items-center justify-center bg-cream">
         <div className="font-mono text-mono-label uppercase text-text-muted">Loading…</div>

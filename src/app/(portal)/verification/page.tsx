@@ -233,9 +233,14 @@ export default function VerificationPage() {
   const headline = kycHeadline(v.kycStatus);
   const hasAnyHandle = !!(v.instagramHandle || v.tiktokHandle || v.xHandle || v.websiteUrl);
   const agreementAccepted = !!v.agreementAcceptedAt;
+  // Submitting for KYC review without an agreement on file is a guaranteed
+  // dead-end: even if KYC is approved, the vendor can't activate. We
+  // require both signals here so the user discovers the missing piece on
+  // this page, not three screens later.
   const canSubmit =
     !isSubUser &&
     hasAnyHandle &&
+    agreementAccepted &&
     (v.kycStatus === "PENDING" ||
       v.kycStatus === "REQUIRES_RESUBMISSION" ||
       v.kycStatus === "EXPIRED");
@@ -415,6 +420,34 @@ export default function VerificationPage() {
             {user?.email ? <strong>{user.email}</strong> : "you"} when the review
             is complete — usually within one business day.
           </p>
+        </section>
+      ) : !isSubUser &&
+        hasAnyHandle &&
+        !agreementAccepted &&
+        (v.kycStatus === "PENDING" ||
+          v.kycStatus === "REQUIRES_RESUBMISSION" ||
+          v.kycStatus === "EXPIRED") ? (
+        // The vendor has provided enough public footprint to submit, but
+        // the agreement isn't on file yet. Without this hint they'd see
+        // an empty section here and assume the page is broken.
+        <section className="rounded-md border-l-4 border-amber bg-amber/10 p-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="font-mono text-mono-label uppercase text-amber">
+                One more step
+              </div>
+              <p className="mt-2 max-w-prose text-body-sm text-text">
+                You&apos;re ready to submit for review — just need the vendor agreement on
+                file first. It takes a minute.
+              </p>
+            </div>
+            <a
+              href="/legal/vendor-agreement"
+              className="self-start font-mono text-[11px] uppercase tracking-[1.2px] text-amber hover:text-amber-hi sm:self-center"
+            >
+              Read &amp; accept →
+            </a>
+          </div>
         </section>
       ) : null}
 

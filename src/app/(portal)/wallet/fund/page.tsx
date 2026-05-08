@@ -1,6 +1,6 @@
 "use client";
 
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -21,6 +21,12 @@ interface CreateIntentResponse {
   processorFeeCents: number;
 }
 
+interface WalletSnapshot {
+  balanceCents: number;
+  status: string;
+  lowBalanceThresholdCents: number;
+}
+
 type Method = "stripe" | "wise" | "payoneer";
 
 export default function FundWalletPage() {
@@ -31,6 +37,13 @@ export default function FundWalletPage() {
   const [netInput, setNetInput] = useState<string>("100");
   const [intent, setIntent] = useState<CreateIntentResponse | null>(null);
   const [requesting, setRequesting] = useState(false);
+
+  // Show the user their starting balance and what it'll be after the
+  // deposit clears — without it they have no anchor for picking an amount.
+  const walletQ = useQuery({
+    queryKey: ["wallet"],
+    queryFn: () => api.get<WalletSnapshot>("/wallet"),
+  });
 
   const { bannerError, handle, clear } = useApiErrorHandler();
 
@@ -101,6 +114,11 @@ export default function FundWalletPage() {
         <section className="rounded-md border border-line bg-white p-8">
           {!intent ? (
             <div className="flex flex-col gap-6">
+              <BalanceCallout
+                currentCents={walletQ.data?.balanceCents}
+                addingCents={netAmountCents}
+              />
+
               <Field
                 label="Amount to add (USD)"
                 hint="The amount that will be credited to your wallet. Stripe processor fees are added on top and shown before you confirm."
@@ -155,6 +173,41 @@ export default function FundWalletPage() {
       ) : (
         <ManualInstructions provider={method} />
       )}
+    </div>
+  );
+}
+
+function BalanceCallout({
+  currentCents,
+  addingCents,
+}: {
+  currentCents: number | undefined;
+  addingCents: number;
+}) {
+  if (currentCents === undefined) {
+    return (
+      <div className="font-mono text-mono-label uppercase text-text-muted">
+        Loading wallet balance…
+      </div>
+    );
+  }
+  const projected = currentCents + addingCents;
+  return (
+    <div className="rounded-md border border-line bg-white p-5 font-mono text-body-sm">
+      <Row
+        label="Current balance"
+        value={`$${(currentCents / 100).toFixed(2)}`}
+        muted={currentCents === 0}
+      />
+      {addingCents > 0 ? (
+        <>
+          <Row
+            label="After this deposit"
+            value={`$${(projected / 100).toFixed(2)}`}
+            strong
+          />
+        </>
+      ) : null}
     </div>
   );
 }

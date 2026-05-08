@@ -22,10 +22,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
     if (!ADMIN_ROLES.has(user.role)) {
       router.replace("/dashboard");
+      return;
+    }
+    // Admins must have MFA enrolled — they can do destructive things, so
+    // we never render the admin shell to a low-priv (acr=1) session.
+    if (user.mfaEnrolled === false) {
+      router.replace("/signup/2fa-enroll");
     }
   }, [user, loading, router]);
 
-  if (loading || !user || !ADMIN_ROLES.has(user.role)) {
+  if (loading || !user || !ADMIN_ROLES.has(user.role) || user.mfaEnrolled === false) {
     return (
       <div className="flex h-screen items-center justify-center bg-cream">
         <div className="font-mono text-mono-label uppercase text-text-muted">Authenticating…</div>

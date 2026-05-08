@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 
 import { ErrorBanner } from "@/components/errors/error-banner";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,7 @@ const TONE: Record<PsnStatus, "neutral" | "info" | "success" | "warning" | "erro
 
 export default function PsnDetailPage() {
   const params = useParams<{ id: string }>();
+  const router = useRouter();
   const qc = useQueryClient();
 
   const { bannerError, handle, clear } = useApiErrorHandler();
@@ -74,6 +75,7 @@ export default function PsnDetailPage() {
 
   function onAction(handler: NonNullable<NonNullable<typeof bannerError>["entry"]["action"]>["handler"]) {
     if (handler === "support") window.location.href = "mailto:support@usa-errands.com";
+    else if (handler === "topUp") router.push("/wallet/fund");
   }
 
   if (isLoading) return <div className="font-mono text-mono-label uppercase text-text-muted">Loading…</div>;

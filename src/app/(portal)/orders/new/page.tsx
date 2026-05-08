@@ -138,10 +138,22 @@ export default function NewOrderPage() {
     },
     onSuccess: (data) => {
       setQuote(data);
-      const cheapest = [...data.rates].sort(
-        (a, b) => a.fees.totalChargedCents - b.fees.totalChargedCents,
-      )[0];
-      setChosen(cheapest ?? null);
+      // Preserve the user's previous selection across re-quotes (e.g.
+      // toggling insurance) when the same carrier+service is still on
+      // offer. Falling back to cheapest is correct for the FIRST quote
+      // but destroys an explicit user choice on subsequent re-quotes.
+      setChosen((prev) => {
+        if (prev) {
+          const stillOffered = data.rates.find(
+            (r) => r.carrier === prev.carrier && r.service === prev.service,
+          );
+          if (stillOffered) return stillOffered;
+        }
+        const cheapest = [...data.rates].sort(
+          (a, b) => a.fees.totalChargedCents - b.fees.totalChargedCents,
+        )[0];
+        return cheapest ?? null;
+      });
       setStep("rates");
     },
     onError: (err) => handle(err),
@@ -183,6 +195,10 @@ export default function NewOrderPage() {
       else if (step === "review") void submitMut.mutate();
     } else if (handler === "support") {
       window.location.href = "mailto:support@usa-errands.com";
+    } else if (handler === "topUp") {
+      // `insufficient_funds` from order submit — route the user to the
+      // funding page so the "Add funds" button does what it says.
+      router.push("/wallet/fund");
     }
   }
 

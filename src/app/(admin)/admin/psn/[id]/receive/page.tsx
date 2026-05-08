@@ -123,6 +123,18 @@ export default function ReceivePsnPage() {
     { accepted: 0, damaged: 0 },
   );
 
+  // Detect over-receive at the client so the operator gets immediate feedback
+  // instead of relying on a backend 400. The row tint already highlights which
+  // line is wrong; this flag also disables the submit button + shows a banner.
+  const overReceiveLines = psn.lines.filter((l) => {
+    const remaining = l.declaredQty - l.receivedQty;
+    const r = rows[l.id];
+    if (!r) return false;
+    return Number(r.acceptedQty || 0) + Number(r.damagedQty || 0) > remaining;
+  });
+  const hasOverReceive = overReceiveLines.length > 0;
+  const hasAnyEntry = summary.accepted > 0 || summary.damaged > 0;
+
   function setRow(lineId: string, patch: Partial<ReceivingState>): void {
     setRows((prev) => ({ ...prev, [lineId]: { ...prev[lineId]!, ...patch } }));
   }
@@ -209,6 +221,20 @@ export default function ReceivePsnPage() {
         </TBody>
       </DataTable>
 
+      {hasOverReceive ? (
+        <div
+          role="alert"
+          className="rounded-md border-l-4 border-error bg-error/10 px-5 py-4"
+        >
+          <div className="font-mono text-mono-label uppercase text-error">Over-received</div>
+          <p className="mt-1 text-body-sm text-text">
+            {overReceiveLines.length} line(s) have accepted + damaged quantities greater than
+            the remaining declared count. Reduce them before submitting — a discrepancy
+            should go through the exceptions workflow, not be quietly absorbed here.
+          </p>
+        </div>
+      ) : null}
+
       {/* Summary + submit */}
       <section className="grid gap-6 rounded-md border border-line bg-white p-6 md:grid-cols-3">
         <div>
@@ -230,6 +256,7 @@ export default function ReceivePsnPage() {
                 submitMut.mutate();
               }}
               loading={submitMut.isPending}
+              disabled={hasOverReceive || !hasAnyEntry}
             >
               <CheckCircle2 className="h-4 w-4" />
               Complete receiving
