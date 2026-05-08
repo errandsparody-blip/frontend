@@ -211,6 +211,22 @@ export const errorCatalog: Record<string, ErrorEntry> = {
     body: "Our fee schedule isn't loaded on this environment. Contact support — this is on our end, not yours.",
     action: { label: "Contact support", handler: "support" },
   },
+  agreement_version_outdated: {
+    // 412 from the AgreementVersionGuard. The api-client already redirects
+    // the browser to /legal/vendor-agreement?reaccept=1, so this catalog
+    // entry is mostly a fallback for SSR / non-browser callers.
+    title: "Agreement update required",
+    body: "Our terms have been updated. Review and re-accept the latest agreement to keep using your account.",
+  },
+  agreement_version_mismatch: {
+    title: "Agreement was updated",
+    body: "The terms changed while this page was open. Reload to see the latest agreement and accept it.",
+  },
+  agreement_version_missing: {
+    title: "Agreement is being configured",
+    body: "We haven't published an agreement version on this environment yet. Contact support — this is on our end.",
+    action: { label: "Contact support", handler: "support" },
+  },
   psn_not_editable: {
     title: "This PSN is no longer editable",
     body: "Once a PSN is submitted it can only be edited by an admin during receiving.",

@@ -59,7 +59,23 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
     }
   }
 
-  if (!res.ok) throw await toApiError(res);
+  if (!res.ok) {
+    const err = await toApiError(res);
+    // 412 from the AgreementVersionGuard — bounce the user to the
+    // re-acceptance page so they're never stuck. We do this once per
+    // failed request, ahead of any per-page error rendering, because no
+    // amount of per-page UI improves the "you can't do anything until
+    // you re-accept" state.
+    if (
+      typeof window !== "undefined" &&
+      err.status === 412 &&
+      err.code === "agreement_version_outdated" &&
+      !window.location.pathname.startsWith("/legal/vendor-agreement")
+    ) {
+      window.location.assign("/legal/vendor-agreement?reaccept=1");
+    }
+    throw err;
+  }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
 }

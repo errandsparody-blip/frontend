@@ -291,7 +291,12 @@ export default function VerificationPage() {
                       ? new Date(v.agreementAcceptedAt).toLocaleDateString()
                       : ""
                   }${v.agreementVersion ? ` · v${v.agreementVersion}` : ""}.`
-                : "You can accept the agreement on the settings page or after submission. Required before activation."
+                : "Read the terms and accept on behalf of your business. Required before activation."
+            }
+            cta={
+              agreementAccepted
+                ? undefined
+                : { label: "Read & accept", href: "/legal/vendor-agreement" }
             }
           />
         </ul>
@@ -430,10 +435,13 @@ function ChecklistRow({
   checked,
   title,
   body,
+  cta,
 }: {
   checked: boolean;
   title: string;
   body: string;
+  /** Optional call-to-action shown only when the row is unchecked. */
+  cta?: { label: string; href: string };
 }) {
   return (
     <li className="flex items-start gap-4 py-3">
@@ -466,6 +474,14 @@ function ChecklistRow({
         </div>
         <div className="mt-0.5 text-body-sm text-text-muted">{body}</div>
       </div>
+      {!checked && cta ? (
+        <a
+          href={cta.href}
+          className="font-mono text-[11px] uppercase tracking-[1.2px] text-amber hover:text-amber-hi"
+        >
+          {cta.label} →
+        </a>
+      ) : null}
     </li>
   );
 }
