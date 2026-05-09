@@ -10,10 +10,10 @@
  *        version. Sub-users can read but can't accept (the API enforces
  *        this; the UI mirrors the constraint).
  *
- * The legal text below is a v0 PLACEHOLDER. Engineering can wire any
- * subsequent revision through the same route — bumping
- * `agreement_version` in /admin/config/policy is what makes existing
- * vendors get prompted to re-accept (via the AgreementVersionGuard).
+ * The legal text below is the published USA Errands Vendor Agreement.
+ * Subsequent revisions land through the same route — bump
+ * `agreement_version` in /admin/config/policy alongside any meaningful
+ * change so existing vendors get re-prompted via the AgreementVersionGuard.
  */
 
 "use client";
@@ -385,146 +385,348 @@ function VendorAcceptanceForm({ isReaccept }: { isReaccept: boolean }): JSX.Elem
 }
 
 // ---------------------------------------------------------------------------
-// The agreement text itself — a v0 placeholder. Replace with the legal
-// team's final wording when ready. Bumping the wording here without also
-// bumping `agreement_version` in /admin/config/policy means existing
-// vendors WON'T be re-prompted, so coordinate the two.
+// USA Errands Vendor Agreement — final wording.
+//
+// Effective date below is the date THIS revision was published. To make every
+// existing vendor re-accept after a future change, bump `agreement_version`
+// in /admin/config/policy alongside any meaningful edit here. The
+// AgreementVersionGuard on the API will then 412 every write until the
+// vendor signs the new version.
 // ---------------------------------------------------------------------------
+
+const AGREEMENT_EFFECTIVE_DATE = "May 9, 2026";
 
 function AgreementText(): JSX.Element {
   return (
     <>
-      <h2>1. The relationship</h2>
+      <p className="text-body-sm text-text-muted">
+        <strong>Effective Date:</strong> {AGREEMENT_EFFECTIVE_DATE}
+      </p>
       <p>
-        These terms (the &quot;Agreement&quot;) form a contract between you (the
-        &quot;Vendor&quot;) and USA Errands, Inc. (&quot;USA Errands,&quot; &quot;we,&quot;
-        or &quot;us&quot;). By creating a vendor account or clicking &quot;Accept&quot;
-        below, you agree to be bound by the Agreement on behalf of the business you
-        represent. You confirm that you have authority to enter into this Agreement on
-        the business&apos;s behalf.
+        This Vendor Agreement (&quot;Agreement&quot;) is entered into between{" "}
+        <strong>USA Errands</strong>, operating through{" "}
+        <strong>MyUSAErrands.com</strong> (&quot;Company,&quot; &quot;USA Errands,&quot;
+        &quot;We,&quot; &quot;Us&quot;) and the <strong>Vendor</strong> (&quot;Vendor,&quot;
+        &quot;You,&quot; &quot;Your&quot;).
+      </p>
+      <p>
+        By creating an account, using the platform, shipping inventory, or requesting
+        fulfillment services, Vendor agrees to all terms below.
       </p>
 
-      <h2>2. What we do</h2>
-      <p>
-        USA Errands provides U.S.-based receiving, storage, fulfillment, and returns
-        services for inventory you ship to our warehouse. Specifically:
-      </p>
+      <h2>1. Services Provided</h2>
+      <p>USA Errands provides:</p>
       <ul>
-        <li>We receive and inspect inbound boxes you declare in a Pre-Shipment Notice (PSN).</li>
-        <li>We store accepted inventory and bill monthly storage at the rates published in the fee schedule.</li>
-        <li>We pick, pack, label, and hand off orders you submit to us, charging the published fulfillment fee.</li>
-        <li>We process returns sent to our address, charging the published returns-handling fee.</li>
+        <li>Inventory receiving</li>
+        <li>Inventory storage</li>
+        <li>SKU inventory tracking</li>
+        <li>Order fulfillment</li>
+        <li>Shipping label generation</li>
+        <li>Shipping coordination</li>
+        <li>Optional returns handling (if enabled)</li>
       </ul>
       <p>
-        We do not act as a merchant of record, do not collect sales tax on your behalf,
-        and do not advise on customs or tax positions for any specific jurisdiction.
+        USA Errands acts solely as a logistics and fulfillment provider and does not own
+        Vendor inventory.
       </p>
 
-      <h2>3. Fees and the wallet</h2>
-      <p>
-        All fees are debited from your USA Errands wallet. You are responsible for
-        funding the wallet via Stripe, Wise, Payoneer, or another method we support. If
-        the wallet has insufficient funds, we may pause new shipments and orders until
-        the balance is restored. Specific rates are published at the &quot;Pricing&quot;
-        page and in the fee schedule the platform reads at submit time. We may update
-        published fees with at least thirty (30) days&apos; notice.
-      </p>
+      <h2>2. Vendor Responsibilities</h2>
+      <p>Vendor agrees to:</p>
       <ul>
-        <li>
-          <strong>Onboarding fee.</strong> Charged when you submit a PSN. Computed from the
-          declared box mix at the rates in effect on the submission date.
-        </li>
-        <li>
-          <strong>Storage.</strong> Recurring monthly charge per box still in inventory at
-          bill date. Pallet rates are negotiated separately.
-        </li>
-        <li>
-          <strong>Fulfillment.</strong> Per-order base fee plus a per-additional-unit fee.
-        </li>
-        <li>
-          <strong>Returns handling.</strong> Per-return inspection / restock fee.
-        </li>
-        <li>
-          <strong>Repackaging.</strong> Charged when inbound packaging is non-standard and
-          we have to repack into our tier system.
-        </li>
+        <li>Provide accurate product information</li>
+        <li>Ensure all products are legal for sale and shipment in the United States</li>
+        <li>Maintain sufficient wallet balance at all times</li>
+        <li>Ensure product quality and compliance</li>
+        <li>Provide accurate shipping information for all fulfillment requests</li>
+      </ul>
+      <p>Vendor remains fully responsible for:</p>
+      <ul>
+        <li>product legality</li>
+        <li>product safety</li>
+        <li>taxes</li>
+        <li>customs compliance</li>
+        <li>intellectual property claims</li>
+        <li>customer disputes regarding products</li>
       </ul>
 
-      <h2>4. Inventory and risk of loss</h2>
+      <h2>3. Prohibited Products</h2>
+      <p>Vendor may NOT ship or store:</p>
+      <ul>
+        <li>Illegal products</li>
+        <li>Hazardous materials</li>
+        <li>Weapons or firearm-related items</li>
+        <li>Explosives</li>
+        <li>Counterfeit products</li>
+        <li>Perishable goods (unless approved)</li>
+        <li>Restricted medical products</li>
+        <li>Any product prohibited by U.S. law or carrier policies</li>
+      </ul>
       <p>
-        Title to your inventory remains with you at all times. We will exercise reasonable
-        commercial care while inventory is in our custody, including standard insurance
-        on the warehouse premises. We are not liable for loss or damage caused by carrier
-        handling, force majeure, or your packaging deficiencies. For high-value
-        inventory, you may purchase additional carrier insurance at quote time.
+        USA Errands reserves the right to reject, quarantine, or dispose of prohibited
+        inventory at Vendor&apos;s expense.
       </p>
 
-      <h2>5. Prohibited inventory</h2>
+      <h2>4. Inventory Receiving &amp; Onboarding</h2>
+      <p>Vendor inventory must:</p>
+      <ul>
+        <li>
+          Be properly packaged using our declared storage-tier box dimensions to ensure
+          proper storage-fee generation during PSN creation
+        </li>
+        <li>Include accurate shipment details</li>
+        <li>Match submitted inventory records</li>
+      </ul>
+      <p>Upon receiving inventory:</p>
+      <ul>
+        <li>USA Errands will inspect packages</li>
+        <li>SKUs may be assigned or generated</li>
+        <li>
+          Inventory quantities will be acknowledged to match the manifest before being
+          reflected in the system and the vendor inventory dashboard
+        </li>
+      </ul>
       <p>
-        You will not ship and we will not accept any inventory that is illegal under
-        U.S. federal law, hazardous, perishable, regulated as a firearm or weapon, or
-        otherwise prohibited under our Acceptable Inventory Policy (referenced from this
-        Agreement and updated from time to time). We may refuse, dispose of, or return at
-        your cost any non-compliant inventory we discover at receiving.
+        An onboarding fee, consisting of a stocking fee plus the first month&apos;s
+        storage, applies to every new PSN. Beginning the second month, only storage fees
+        apply to the referenced PSN.
       </p>
 
-      <h2>6. Compliance and KYC</h2>
+      <h2>5. Storage Fees</h2>
       <p>
-        Before activation, we verify your business identity (&quot;KYC&quot;) using public
-        information, social handles, and a vendor agreement on file. We may pause or
-        suspend your account if we cannot verify identity, if we receive credible reports
-        of policy violations, or if required by law.
+        Storage fees are billed monthly based on the assigned storage-box tier declared
+        during PSN creation.
+      </p>
+      <h3>Important Billing Policy</h3>
+      <p>Storage fees are automatically billed on the first day of every month.</p>
+      <p>
+        Vendor is solely responsible for ensuring sufficient wallet balance is available
+        before monthly billing occurs.
+      </p>
+      <p>Storage fees apply regardless of whether inventory sells or ships.</p>
+      <p>Failure to maintain sufficient balance may result in:</p>
+      <ul>
+        <li>fulfillment suspension</li>
+        <li>order processing delays</li>
+        <li>inventory hold</li>
+        <li>restricted account access</li>
+        <li>eventual inventory disposal after notice period</li>
+      </ul>
+      <p>
+        USA Errands reserves the right to continue charging storage fees while inventory
+        remains in storage.
       </p>
 
-      <h2>7. Data, privacy, and audit logs</h2>
+      <h2>5A. Storage Tier Review &amp; Inventory Optimization</h2>
       <p>
-        We capture a tamper-evident audit log of every operational change you make
-        (PSNs, orders, returns, settings, agreement acceptance) along with timestamps and
-        actor information. We retain this log for at least seven (7) years for compliance
-        purposes. Personal data is handled in accordance with our Privacy Policy.
+        USA Errands may conduct periodic inventory storage reviews and audits, including
+        quarterly storage-tier assessments, to ensure efficient warehouse space
+        utilization.
+      </p>
+      <p>During these reviews, USA Errands may:</p>
+      <ul>
+        <li>evaluate inventory dimensions and storage usage</li>
+        <li>recommend inventory consolidation</li>
+        <li>recommend repackaging or space optimization</li>
+        <li>recommend movement to more suitable storage tiers</li>
+      </ul>
+      <p>The purpose of these reviews is to:</p>
+      <ul>
+        <li>improve storage efficiency</li>
+        <li>reduce unnecessary storage costs for Vendors</li>
+        <li>maintain organized warehouse operations</li>
+      </ul>
+      <p>Vendor acknowledges that:</p>
+      <ul>
+        <li>
+          New storage fees will be based on the assigned storage-box tier reclassified
+          following the periodic or quarterly storage audit
+        </li>
+        <li>inventory configuration may impact monthly storage costs</li>
+        <li>USA Errands may provide recommendations to optimize storage expenses</li>
+      </ul>
+      <p>
+        Any changes affecting billing or storage-tier classification will be communicated
+        to Vendor before implementation where applicable.
+      </p>
+      <p>
+        USA Errands reserves the right to reclassify improperly categorized inventory if
+        actual storage usage materially differs from declared storage requirements.
       </p>
 
-      <h2>8. Suspension and termination</h2>
+      <h2>6. Wallet &amp; Payments</h2>
+      <p>USA Errands operates on a prepaid wallet system. Vendor agrees that:</p>
+      <ul>
+        <li>all services are prepaid</li>
+        <li>orders will not process without sufficient balance</li>
+        <li>fees may be automatically deducted from the wallet balance</li>
+      </ul>
+      <p>Fees may include:</p>
+      <ul>
+        <li>onboarding fees</li>
+        <li>storage fees</li>
+        <li>fulfillment fees</li>
+        <li>shipping costs</li>
+        <li>returns handling fees</li>
+        <li>payment processing fees</li>
+      </ul>
+      <p>Vendor is responsible for maintaining sufficient wallet balance at all times.</p>
+      <p>USA Errands shall not be liable for delays caused by insufficient wallet funds.</p>
+
+      <h2>7. Order Fulfillment</h2>
+      <p>Vendor submits fulfillment requests through the platform. USA Errands will:</p>
+      <ul>
+        <li>pick inventory</li>
+        <li>pack orders</li>
+        <li>print generated shipping labels</li>
+        <li>dispatch shipments</li>
+      </ul>
+      <p>Estimated processing timelines are not guaranteed.</p>
+      <p>USA Errands is not liable for:</p>
+      <ul>
+        <li>shipping carrier delays</li>
+        <li>public holiday or festive-celebration carrier delays</li>
+        <li>weather disruptions</li>
+        <li>customs delays</li>
+        <li>incorrect addresses provided by Vendor</li>
+      </ul>
+
+      <h2>8. Shipping &amp; Labels</h2>
       <p>
-        Either party may end this Agreement on thirty (30) days&apos; written notice. We
-        may suspend or terminate immediately for prohibited inventory, sustained
-        non-payment after notice, fraud, or breach of this Agreement that is not cured
-        within fifteen (15) days. Upon termination you have ninety (90) days to retrieve
-        any remaining inventory at your cost; after that we may dispose of it.
+        Shipping costs are calculated using carrier rates through integrated shipping
+        APIs. Vendor agrees that:
+      </p>
+      <ul>
+        <li>shipping fees must be prepaid</li>
+        <li>
+          shipping charges may vary by weight, dimensions, destination, and carrier
+          selected
+        </li>
+      </ul>
+      <p>Tracking information will be provided once labels are generated.</p>
+      <p>
+        USA Errands reserves the right to adjust shipping charges if package measurements
+        differ from vendor-provided information.
       </p>
 
-      <h2>9. Liability</h2>
+      <h2>9. Returns Management</h2>
+      <p>Returns handling is optional and must be enabled by Vendor. If enabled:</p>
+      <ul>
+        <li>returned inventory may be inspected</li>
+        <li>additional handling or storage fees may apply</li>
+        <li>USA Errands is not responsible for damaged returned products</li>
+      </ul>
+      <p>Vendor may be charged:</p>
+      <ul>
+        <li>return processing fees</li>
+        <li>restocking fees</li>
+        <li>additional storage fees</li>
+      </ul>
+
+      <h2>10. Inventory Liability</h2>
+      <p>USA Errands will exercise utmost care in handling inventory. However, USA Errands is NOT responsible for:</p>
+      <ul>
+        <li>manufacturer defects</li>
+        <li>hidden product damage</li>
+        <li>loss caused by carriers</li>
+        <li>force majeure events</li>
+        <li>unavoidable operational errors</li>
+        <li>customer misuse of products</li>
+      </ul>
+      <p>Vendor is encouraged to maintain inventory insurance where necessary.</p>
+
+      <h2>11. Abandoned Inventory</h2>
+      <p>Inventory may be considered abandoned if:</p>
+      <ul>
+        <li>Vendor account remains unpaid up to 30 days after due date</li>
+        <li>Vendor becomes unreachable</li>
+        <li>Inventory remains inactive for extended periods</li>
+        <li>Wallet balance remains overdue beyond stated notice periods</li>
+      </ul>
       <p>
-        TO THE MAXIMUM EXTENT PERMITTED BY LAW, USA ERRANDS&apos;S TOTAL LIABILITY UNDER
-        THIS AGREEMENT IS LIMITED TO THE FEES YOU PAID US IN THE TWELVE MONTHS PRECEDING
-        THE EVENT GIVING RISE TO THE CLAIM. NEITHER PARTY IS LIABLE FOR INDIRECT,
-        SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES.
+        USA Errands may dispose of, liquidate, recycle, or donate abandoned inventory
+        after reasonable notice.
+      </p>
+      <p>Any disposal or removal costs may be charged to Vendor.</p>
+
+      <h2>12. Platform Access</h2>
+      <p>Vendor receives limited access to:</p>
+      <ul>
+        <li>inventory dashboard</li>
+        <li>wallet system</li>
+        <li>order system</li>
+        <li>shipment tracking</li>
+      </ul>
+      <p>Vendor may not:</p>
+      <ul>
+        <li>attempt unauthorized system access</li>
+        <li>misuse platform tools</li>
+        <li>interfere with platform operations</li>
+        <li>manipulate wallet or payment systems</li>
+      </ul>
+      <p>
+        USA Errands may suspend accounts for abuse, fraud, suspicious activity, or
+        policy violations.
       </p>
 
-      <h2>10. Governing law and disputes</h2>
+      <h2>13. Limitation of Liability</h2>
+      <p>USA Errands&apos; total liability shall not exceed:</p>
+      <ul>
+        <li>
+          the amount paid by Vendor for the affected services within the previous 30 days
+        </li>
+      </ul>
+      <p>USA Errands shall not be liable for:</p>
+      <ul>
+        <li>indirect damages</li>
+        <li>lost profits</li>
+        <li>business interruption</li>
+        <li>reputational loss</li>
+        <li>carrier-related delivery failures</li>
+      </ul>
+
+      <h2>14. Termination</h2>
       <p>
-        This Agreement is governed by the laws of the State of Delaware, without regard to
-        conflicts of law principles. Any dispute arising from or relating to this
-        Agreement will be resolved exclusively by binding arbitration in New Castle
-        County, Delaware, administered by the AAA under its Commercial Arbitration
-        Rules.
+        Either party may terminate this Agreement at any time, provided there are no
+        overdue or pending payments.
+      </p>
+      <p>Vendor remains responsible for:</p>
+      <ul>
+        <li>outstanding fees</li>
+        <li>inventory removal costs</li>
+        <li>unpaid storage fees</li>
+      </ul>
+      <p>Inventory must be removed within the stated notice period after termination.</p>
+      <p>
+        Storage fees continue accruing until inventory is removed from USA Errands
+        facilities.
       </p>
 
-      <h2>11. Updates to this Agreement</h2>
+      <h2>15. Modifications</h2>
       <p>
-        We may publish revised versions of this Agreement. When we do, we increment the
-        version number visible above. Continued use of your account after the new
-        version&apos;s effective date constitutes acceptance, and the platform will prompt
-        you to formally re-accept on next sign-in. If you do not accept, we will pause
-        write actions on your account until you do.
+        USA Errands may update pricing, policies, platform features, or operational
+        procedures periodically. Continued use of services constitutes acceptance of
+        updated terms.
+      </p>
+
+      <h2>16. Governing Law</h2>
+      <p>
+        This Agreement shall be governed under the laws of the State of Texas, United
+        States.
+      </p>
+
+      <h2>17. Acceptance</h2>
+      <p>
+        By signing up, checking the acceptance box, shipping inventory, funding a wallet,
+        or using USA Errands services, Vendor confirms agreement to all terms stated
+        herein.
       </p>
 
       <p className="mt-10 text-body-sm text-text-muted">
         <em>
-          DRAFT v0 placeholder — replace with your legal team&apos;s final wording
-          before launch. Bumping the legal text here without bumping{" "}
-          <code>agreement_version</code> in <code>/admin/config/policy</code> means
-          existing vendors will NOT be re-prompted.
+          Vendor acceptance — including timestamp, IP address, and the agreement version
+          shown above — is recorded automatically when you tick the acceptance box and
+          submit your full legal name as your e-signature. A downloadable copy of the
+          accepted agreement is available from your account settings at any time.
         </em>
       </p>
     </>
