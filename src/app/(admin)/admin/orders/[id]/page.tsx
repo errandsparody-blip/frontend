@@ -144,16 +144,7 @@ export default function AdminOrderDetailPage() {
           {o.trackingNumber ? (
             <span className="font-mono text-body-sm text-text">Tracking: {o.trackingNumber}</span>
           ) : null}
-          {o.labelUrl ? (
-            <a
-              href={o.labelUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="font-mono text-[11px] uppercase tracking-[1.2px] text-amber hover:text-amber-hi"
-            >
-              Open label PDF →
-            </a>
-          ) : null}
+          {o.labelUrl ? <LabelLink labelUrl={o.labelUrl} /> : null}
         </div>
 
         <div className="mt-6 grid grid-cols-2 gap-6">
@@ -254,5 +245,40 @@ export default function AdminOrderDetailPage() {
         </ul>
       </section>
     </div>
+  );
+}
+
+/**
+ * The EasyPost integration is currently in stub mode (see
+ * `easypost.service.ts:purchaseLabel`). It synthesizes a labelUrl pointing
+ * at `https://stub.easypost.local/...` which doesn't resolve in any
+ * browser — clicking it makes the tab hang on DNS lookup forever, exactly
+ * the symptom you reported.
+ *
+ * Until real EasyPost credentials are wired in, we render a clearly-marked
+ * "Stub mode" pill instead of a broken external link. Real labelUrls
+ * (carrier-issued PDFs over https) still open in a new tab the normal way.
+ */
+function LabelLink({ labelUrl }: { labelUrl: string }): JSX.Element {
+  const isStub = labelUrl.includes("stub.easypost.local");
+  if (isStub) {
+    return (
+      <span
+        className="rounded-sm border border-amber bg-amber/10 px-2 py-0.5 font-mono text-[11px] uppercase tracking-[1.2px] text-amber"
+        title="Carrier integration is in stub mode. Real label PDFs appear here once EasyPost credentials are configured in the API environment."
+      >
+        Stub label · no PDF in dev
+      </span>
+    );
+  }
+  return (
+    <a
+      href={labelUrl}
+      target="_blank"
+      rel="noreferrer"
+      className="font-mono text-[11px] uppercase tracking-[1.2px] text-amber hover:text-amber-hi"
+    >
+      Open label PDF →
+    </a>
   );
 }

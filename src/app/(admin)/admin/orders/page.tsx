@@ -35,7 +35,18 @@ interface AdminOrderRow {
   lines: Array<{ id: string; quantity: number; productName: string }>;
 }
 
+// Tabs the operator sees, in workflow order. Queue = work in front of you;
+// the post-packed statuses are for "where did my order go?" lookups and
+// audit trails. "All" omits the filter entirely (`view=all` on the API).
 const QUEUE_STATUSES = ["ALLOCATED", "LABEL_PURCHASED", "PICKING", "PACKED"] as const;
+const POST_QUEUE_STATUSES = [
+  "SHIPPED",
+  "IN_TRANSIT",
+  "DELIVERED",
+  "EXCEPTION",
+  "CANCELLED",
+  "RETURNED",
+] as const;
 
 const TONE: Record<AdminOrderRow["status"], "info" | "success" | "warning" | "error" | "neutral"> = {
   ALLOCATED: "info",
@@ -54,14 +65,25 @@ function formatCents(cents: number): string {
   return `$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+// Tab values: "queue" (default), "all", or any specific status.
+type TabValue = "queue" | "all" | (typeof QUEUE_STATUSES)[number] | (typeof POST_QUEUE_STATUSES)[number];
+
 export default function AdminOrdersQueuePage() {
-  const [statusFilter, setStatusFilter] = useState<string>("");
+  const [tab, setTab] = useState<TabValue>("queue");
+
+  const params = new URLSearchParams();
+  params.set("limit", "100");
+  if (tab === "all") {
+    params.set("view", "all");
+  } else if (tab !== "queue") {
+    params.set("status", tab);
+  }
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["admin", "orders", { statusFilter }],
+    queryKey: ["admin", "orders", { tab }],
     queryFn: () =>
       api.get<{ items: AdminOrderRow[]; nextCursor: string | null }>(
-        `/admin/orders?limit=100${statusFilter ? `&status=${encodeURIComponent(statusFilter)}` : ""}`,
+        `/admin/orders?${params.toString()}`,
       ),
   });
 
@@ -73,33 +95,26 @@ export default function AdminOrdersQueuePage() {
         description="Buy labels, pick, pack, and ship. Each transition is captured in the order's append-only timeline."
       />
 
-      <div className="flex items-center gap-3 font-mono text-mono-label uppercase">
+      <div className="flex flex-wrap items-center gap-2 font-mono text-mono-label uppercase">
         <span className="text-text-muted">Filter</span>
-        <button
-          type="button"
-          onClick={() => setStatusFilter("")}
-          className={
-            statusFilter === ""
-              ? "rounded-sm bg-ink px-3 py-1 text-text-inv"
-              : "rounded-sm border border-line-strong px-3 py-1 text-text hover:border-ink"
-          }
-        >
+        <TabButton active={tab === "queue"} onClick={() => setTab("queue")}>
           Queue
-        </button>
+        </TabButton>
         {QUEUE_STATUSES.map((s) => (
-          <button
-            key={s}
-            type="button"
-            onClick={() => setStatusFilter(s)}
-            className={
-              statusFilter === s
-                ? "rounded-sm bg-ink px-3 py-1 text-text-inv"
-                : "rounded-sm border border-line-strong px-3 py-1 text-text hover:border-ink"
-            }
-          >
+          <TabButton key={s} active={tab === s} onClick={() => setTab(s)}>
             {s.replace(/_/g, " ")}
-          </button>
+          </TabButton>
         ))}
+        <span className="mx-1 h-5 w-px bg-line-strong" aria-hidden />
+        {POST_QUEUE_STATUSES.map((s) => (
+          <TabButton key={s} active={tab === s} onClick={() => setTab(s)}>
+            {s.replace(/_/g, " ")}
+          </TabButton>
+        ))}
+        <span className="mx-1 h-5 w-px bg-line-strong" aria-hidden />
+        <TabButton active={tab === "all"} onClick={() => setTab("all")}>
+          All
+        </TabButton>
       </div>
 
       {isLoading ? (
@@ -157,5 +172,29 @@ export default function AdminOrdersQueuePage() {
         </DataTable>
       )}
     </div>
+  );
+}
+
+function TabButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}): JSX.Element {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={
+        active
+          ? "rounded-sm bg-ink px-3 py-1 text-text-inv"
+          : "rounded-sm border border-line-strong px-3 py-1 text-text hover:border-ink"
+      }
+    >
+      {children}
+    </button>
   );
 }
