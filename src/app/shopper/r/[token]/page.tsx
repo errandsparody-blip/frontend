@@ -118,6 +118,13 @@ export default function BuyerShopperThreadPage(): JSX.Element {
       </header>
 
       <main className="mx-auto max-w-[64rem] px-8 py-12">
+        {/* "How to come back" notice. The thread has no password — the only
+            way to return is via the magic link in our emails (or a saved
+            bookmark of this URL). Surface that explicitly so a buyer who
+            closes the tab knows what to do. Dismissable per session so we
+            don't pester returning visitors. */}
+        <BookmarkNotice />
+
         {/* Banner messages from URL ("paid", "cancelled" hops back from Stripe) */}
         {search.get("paid") === "1" ? (
           <div
@@ -440,6 +447,64 @@ function buyerCallout(status: ShopperRequestStatus): string | null {
     case "REFUNDED":
       return "This request has been cancelled and refunded.";
   }
+}
+
+/**
+ * BookmarkNotice — explains the "no password, only email link" recovery
+ * model so a buyer who closes the tab knows exactly how to return. Sticks
+ * around per session; dismissing remembers the choice via sessionStorage
+ * so a returning visitor (new tab) sees it again, but a noisy refresh
+ * doesn't keep re-popping it.
+ */
+function BookmarkNotice(): JSX.Element | null {
+  const [dismissed, setDismissed] = useState(false);
+
+  // Honour the user's "don't show again this session" choice. Read on
+  // mount only — sessionStorage is a synchronous DOM API but using
+  // useEffect avoids hydration mismatch warnings between server and client.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (window.sessionStorage.getItem("shopper.bookmarkDismissed") === "1") {
+      setDismissed(true);
+    }
+  }, []);
+
+  if (dismissed) return null;
+
+  function dismiss(): void {
+    setDismissed(true);
+    if (typeof window !== "undefined") {
+      window.sessionStorage.setItem("shopper.bookmarkDismissed", "1");
+    }
+  }
+
+  return (
+    <div
+      role="note"
+      className="mb-6 flex items-start gap-4 rounded-md border border-amber/40 bg-amber/10 px-5 py-4"
+    >
+      <div className="flex-1">
+        <div className="font-mono text-mono-label uppercase text-amber">
+          Save this page
+        </div>
+        <p className="mt-1 text-body-sm text-text">
+          There&apos;s no password — the only way back to this conversation is the
+          link in your email from USA Errands, or a bookmark of this page.
+          If you lose both, search your inbox (including spam) for{" "}
+          <strong>USA Errands</strong> — every email we&apos;ve sent you contains
+          a working link.
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={dismiss}
+        className="font-mono text-mono-label uppercase text-amber hover:text-amber-hi"
+        aria-label="Dismiss notice"
+      >
+        Got it
+      </button>
+    </div>
+  );
 }
 
 function ThreadError({ error }: { error: unknown }): JSX.Element {

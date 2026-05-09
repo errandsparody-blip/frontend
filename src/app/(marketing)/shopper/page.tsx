@@ -391,7 +391,24 @@ export default function ShopperIntakePage(): JSX.Element {
             </Link>
             .
           </p>
-          <label className="mt-3 flex items-center gap-2 text-body-sm">
+
+          {/* Set the recovery expectation up front so a buyer who closes
+              the tab knows exactly what to do. The thread has no password —
+              the only way back is the magic-link email or a saved bookmark
+              of the thread URL. */}
+          <div className="mt-4 rounded-sm border border-amber/40 bg-amber/10 px-4 py-3 text-body-sm text-text">
+            <strong className="font-mono text-mono-label uppercase tracking-[1.2px] text-amber">
+              How to come back
+            </strong>
+            <p className="mt-1">
+              We&apos;ll email a private link to <strong>your address above</strong>. That email
+              (and every later one we send you) is the only way back to your conversation —
+              there&apos;s no password and no login. Bookmark the page when it loads, and keep
+              the email so you can return any time.
+            </p>
+          </div>
+
+          <label className="mt-4 flex items-center gap-2 text-body-sm">
             <input
               type="checkbox"
               checked={confirming}
