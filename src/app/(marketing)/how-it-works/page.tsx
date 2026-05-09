@@ -144,6 +144,57 @@ export default function HowItWorksPage() {
         </div>
       </section>
 
+      {/* PERSONAL SHOPPER — half-step. A separate product line; placed here
+          so anyone reading the seller flow above also sees the buyer-direct
+          option. Distinct visual treatment (amber-tinted card) so it doesn't
+          read as another seller step. */}
+      <section className="mx-auto max-w-[84rem] px-8 py-20">
+        <div className="rounded-md border border-amber/40 bg-amber/5 p-12">
+          <div className="grid gap-10 lg:grid-cols-[1fr_1fr] lg:items-start">
+            <div>
+              <div className="font-mono text-mono-eyebrow uppercase text-amber">
+                [ Sidebar ] Personal Shopper
+              </div>
+              <h2 className="mt-3 text-display font-medium leading-[1.05] tracking-[-0.8px] text-ink">
+                Not a seller? <span className="text-amber">We&apos;ll shop for you.</span>
+              </h2>
+              <p className="mt-5 max-w-md text-body-lg text-text-muted">
+                Paste any U.S. retail link, pay an upfront estimate, and we buy the items + ship to
+                you internationally. No account needed.
+              </p>
+              <div className="mt-6">
+                <Link href="/shopper">
+                  <Button variant="amber" size="lg" withArrow>
+                    Open a shopper request
+                  </Button>
+                </Link>
+              </div>
+            </div>
+            <ul className="grid gap-3 text-body-sm text-text-2">
+              <li className="flex gap-3">
+                <span className="mt-2 inline-block h-px w-4 shrink-0 bg-amber" aria-hidden />
+                <span>Submit your items, pay upfront via Stripe — items + 18% service fee.</span>
+              </li>
+              <li className="flex gap-3">
+                <span className="mt-2 inline-block h-px w-4 shrink-0 bg-amber" aria-hidden />
+                <span>Track procurement and chat with us in a private thread (magic-link, no password).</span>
+              </li>
+              <li className="flex gap-3">
+                <span className="mt-2 inline-block h-px w-4 shrink-0 bg-amber" aria-hidden />
+                <span>
+                  Once procured, we reconcile actual cost + shipping: pay the small difference, or get a
+                  refund if it came in under estimate.
+                </span>
+              </li>
+              <li className="flex gap-3">
+                <span className="mt-2 inline-block h-px w-4 shrink-0 bg-amber" aria-hidden />
+                <span>Tracking number lands in your thread the moment it ships.</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
       {/* CTA */}
       <section className="mx-auto max-w-[84rem] px-8 py-24">
         <div className="rounded-md border border-line bg-ink p-12 text-text-inv">

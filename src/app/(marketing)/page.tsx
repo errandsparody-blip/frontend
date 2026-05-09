@@ -32,6 +32,18 @@ export default function HomePage() {
                 </Button>
               </Link>
             </div>
+            {/* Buyer-side entry. Distinct visual line so the seller CTAs above
+                stay primary, and the buyer audience finds their flow without
+                having to parse seller copy. */}
+            <p className="mt-8 text-body-sm text-text-muted">
+              Just want to buy something from a U.S. store?{" "}
+              <Link
+                href="/shopper"
+                className="font-medium text-amber underline-offset-4 hover:underline"
+              >
+                Open a personal shopper request →
+              </Link>
+            </p>
           </div>
 
           {/* Inline dashboard widget mockup. P1+ replaces this with a real preview. */}
