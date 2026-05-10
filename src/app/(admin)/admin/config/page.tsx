@@ -24,11 +24,13 @@ const FRIENDLY_EDITORS: Record<string, { href: string; label: string }> = {
   quarantine_daily_fee_cents: { href: "/admin/config/policy", label: "Edit policy →" },
   reassessment_threshold: { href: "/admin/config/policy", label: "Edit policy →" },
   agreement_version: { href: "/admin/config/policy", label: "Edit policy →" },
-  // All three shopper-related rows share one friendly editor so admins
-  // can adjust commission, warehouse state, and tax rates in one place.
+  // All four shopper-related rows share one friendly editor so admins
+  // can adjust commission, warehouse state, tax rates, and per-method
+  // freight rates in one place.
   shopper_commission_bps: { href: "/admin/config/shopper", label: "Edit shopper →" },
   shopper_warehouse_state: { href: "/admin/config/shopper", label: "Edit shopper →" },
   shopper_tax_rates: { href: "/admin/config/shopper", label: "Edit shopper →" },
+  shopper_freight_rates: { href: "/admin/config/shopper", label: "Edit shopper →" },
 };
 
 export default function AdminConfigPage() {

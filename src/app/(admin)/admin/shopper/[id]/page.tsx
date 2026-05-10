@@ -34,6 +34,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
 import { api } from "@/lib/api-client";
 import { useApiErrorHandler } from "@/lib/errors";
+import { linkify } from "@/lib/linkify";
 import {
   SHOPPER_LINE_PROCUREMENT_STATUS,
   type ShopperLineProcurementStatus,
@@ -1027,7 +1028,7 @@ function ChatPanel({
               <div className="font-mono text-mono-label uppercase text-text-muted">
                 {m.sender === "ADMIN" ? "You" : "Buyer"} · {fmtTime(m.createdAt)}
               </div>
-              <p className="mt-1 whitespace-pre-wrap text-body text-text">{m.body}</p>
+              <p className="mt-1 whitespace-pre-wrap text-body text-text">{linkify(m.body)}</p>
               {m.attachmentUrls.length > 0 ? (
                 <ul className="mt-2 flex flex-wrap gap-2">
                   {m.attachmentUrls.map((url) => (

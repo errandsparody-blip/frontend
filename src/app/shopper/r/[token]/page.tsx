@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { StatusPill } from "@/components/ui/status-pill";
 import { api } from "@/lib/api-client";
 import { normalizeError, useApiErrorHandler } from "@/lib/errors";
+import { linkify } from "@/lib/linkify";
 import {
   postShopperMessageSchema,
   type PostShopperMessageInput,
@@ -353,7 +354,7 @@ function ThreadView({
                 <div className="font-mono text-mono-label uppercase text-text-muted">
                   {m.sender === "BUYER" ? "You" : "USA Errands"} · {fmtTime(m.createdAt)}
                 </div>
-                <p className="mt-1 whitespace-pre-wrap text-body text-text">{m.body}</p>
+                <p className="mt-1 whitespace-pre-wrap text-body text-text">{linkify(m.body)}</p>
                 {m.attachmentUrls.length > 0 ? (
                   <ul className="mt-2 flex flex-wrap gap-2">
                     {m.attachmentUrls.map((url) => (

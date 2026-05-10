@@ -57,8 +57,14 @@ export function AdminSidebar(): JSX.Element {
       <nav className="flex-1 overflow-y-auto px-3 py-4">
         {NAV.map((item) => {
           const Icon = item.icon;
-          const active =
-            item.href === "/admin" ? pathname === "/admin" : pathname?.startsWith(item.href);
+          // Exact match for /admin and the parent /admin/config item so
+          // the dedicated child links (/admin/config/fees,
+          // /admin/config/shopper) own the active highlight on their
+          // own pages without /admin/config also lighting up.
+          const exactOnly = item.href === "/admin" || item.href === "/admin/config";
+          const active = exactOnly
+            ? pathname === item.href
+            : pathname?.startsWith(item.href);
           const disabledClass = item.disabled
             ? "pointer-events-none text-white/30"
             : "text-white/70 hover:bg-white/5 hover:text-text-inv";

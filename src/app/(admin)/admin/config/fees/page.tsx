@@ -243,9 +243,28 @@ export default function FeeScheduleEditorPage(): JSX.Element {
     <div className="flex flex-col gap-6">
       <PageHeader
         eyebrow="[07] Configuration / Pricing"
-        title="Fee schedule"
-        description="Onboarding, storage, fulfillment, and returns rates. Saving writes a config audit row with the full before/after — every cent change is traceable."
+        title="Fee schedule (3PL)"
+        description="Onboarding, storage, fulfillment, and returns rates for the multi-vendor fulfilment service. Saving writes a config audit row with the full before/after — every cent change is traceable."
       />
+
+      {/* Cross-link — Personal Shopper has its own commission + freight
+          + tax editor on a separate page; surface the link here so an
+          admin landing on Pricing finds it without a sidebar guess. */}
+      <div className="flex items-start gap-3 rounded-md border border-line bg-cream-soft p-4 text-body-sm text-text">
+        <span className="mt-0.5 font-mono text-[11px] uppercase tracking-[1.4px] text-text-muted">
+          Looking for shopper rates?
+        </span>
+        <span className="flex-1">
+          The Personal Shopper feature (commission %, per-state sales tax, per-method freight rates)
+          has its own editor.{" "}
+          <a
+            href="/admin/config/shopper"
+            className="font-mono text-[11px] uppercase tracking-[1.2px] text-amber hover:text-amber-hi"
+          >
+            Open shopper pricing →
+          </a>
+        </span>
+      </div>
 
       <form onSubmit={handleSubmit((v) => saveMut.mutate(v))} noValidate className="flex flex-col gap-8">
         {/* ── Onboarding ──────────────────────────────────────────── */}

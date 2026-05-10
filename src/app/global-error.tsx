@@ -65,8 +65,8 @@ export default function GlobalError({ error, reset }: GlobalErrorProps) {
           <p style={{ marginTop: 16, fontSize: 15, lineHeight: 1.55, color: "#3A3A3A" }}>
             The page couldn&apos;t load. Try refreshing — if the problem persists,
             contact{" "}
-            <a href="mailto:support@usa-errands.com" style={{ color: "#0A0A0A" }}>
-              support@usa-errands.com
+            <a href="mailto:support@usaerrands.com" style={{ color: "#0A0A0A" }}>
+              support@usaerrands.com
             </a>
             .
           </p>
