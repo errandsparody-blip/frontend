@@ -236,6 +236,18 @@ function LinesPanel({
   // Editing is gated to PROCURING — once admin has finalized reconciliation
   // the actuals are snapshotted into the follow-up amount and shouldn't drift.
   const editable = status === "PROCURING";
+
+  // Totals — derived purely from the lines on screen, no extra round trip.
+  // Shown so the admin (and the warehouse) can sanity-check the parcel
+  // weight against the sum-of-lines weight at pack time.
+  const totalUnits = lines.reduce((sum, l) => sum + l.quantity, 0);
+  const linesWithWeight = lines.filter((l) => l.actualWeightOz != null);
+  const totalWeightOz = linesWithWeight.reduce(
+    (sum, l) => sum + (l.actualWeightOz ?? 0) * l.quantity,
+    0,
+  );
+  const allWeighed = linesWithWeight.length === lines.length && lines.length > 0;
+
   return (
     <section className="rounded-md border border-line bg-white p-6">
       <h2 className="mb-4 font-mono text-mono-label uppercase text-text-muted">
@@ -252,6 +264,25 @@ function LinesPanel({
           />
         ))}
       </ul>
+
+      {/* Totals footer — quick reference at pack time. */}
+      <div className="mt-4 grid gap-4 border-t border-line pt-4 md:grid-cols-3">
+        <Stat label="Lines" value={String(lines.length)} />
+        <Stat label="Total units" value={String(totalUnits)} />
+        <Stat
+          label={allWeighed ? "Total weight (oz)" : "Total weight (oz, partial)"}
+          value={
+            linesWithWeight.length === 0
+              ? "—"
+              : `${totalWeightOz.toFixed(2)}${allWeighed ? "" : " *"}`
+          }
+        />
+      </div>
+      {!allWeighed && linesWithWeight.length > 0 ? (
+        <p className="mt-2 text-caption text-text-muted">
+          * Some lines don&apos;t have an actual weight yet. The sum above only counts those that do.
+        </p>
+      ) : null}
     </section>
   );
 }
@@ -275,6 +306,11 @@ function LineRow({
   );
   const [productTitle, setProductTitle] = useState<string>(line.productTitle ?? "");
   const [notes, setNotes] = useState<string>("");
+  // Per-line actual weight (oz, per unit — multiplied by quantity for the
+  // total). Float string so warehouse can enter fractional ounces.
+  const [actualWeight, setActualWeight] = useState<string>(
+    line.actualWeightOz != null ? line.actualWeightOz.toString() : "",
+  );
   const { bannerError, handle, clear } = useApiErrorHandler();
 
   const save = useMutation({
@@ -296,6 +332,15 @@ function LineRow({
       if (notes.trim().length > 0) {
         body.procurementNotes = notes.trim();
       }
+      const trimmedWeight = actualWeight.trim();
+      if (trimmedWeight.length > 0) {
+        const oz = Number(trimmedWeight);
+        if (Number.isFinite(oz) && oz >= 0) {
+          body.actualWeightOz = oz;
+        }
+      } else if (line.actualWeightOz != null) {
+        body.actualWeightOz = null;
+      }
       return api.patch<ShopperLineSnapshot>(`/admin/shopper/${requestId}/lines/${line.id}`, body);
     },
     onSuccess: () => {
@@ -306,7 +351,7 @@ function LineRow({
   });
 
   return (
-    <li className="grid gap-3 py-4 md:grid-cols-[2fr_120px_140px_160px_auto]">
+    <li className="grid gap-3 py-4 md:grid-cols-[2fr_80px_120px_140px_120px_160px_auto]">
       <div className="min-w-0">
         <a
           href={line.productUrl}
@@ -353,6 +398,20 @@ function LineRow({
             value={actualDollars}
             disabled={!editable}
             onChange={(e) => setActualDollars(e.target.value)}
+            placeholder="0.00"
+          />
+        </Field>
+      </div>
+
+      <div>
+        <Field label="Weight (oz, per unit)">
+          <Input
+            type="number"
+            step="0.01"
+            min={0}
+            value={actualWeight}
+            disabled={!editable}
+            onChange={(e) => setActualWeight(e.target.value)}
             placeholder="0.00"
           />
         </Field>
@@ -450,6 +509,20 @@ function WorkflowPanel({
   const [actualTaxDollars, setActualTaxDollars] = useState(
     r.actualTaxCents != null ? (r.actualTaxCents / 100).toFixed(2) : "",
   );
+  // Parcel dimensions + total weight — pre-populated from the row so an
+  // admin who's editing a previously-saved value sees them.
+  const [parcelLength, setParcelLength] = useState(
+    r.parcelLengthIn != null ? r.parcelLengthIn.toString() : "",
+  );
+  const [parcelWidth, setParcelWidth] = useState(
+    r.parcelWidthIn != null ? r.parcelWidthIn.toString() : "",
+  );
+  const [parcelHeight, setParcelHeight] = useState(
+    r.parcelHeightIn != null ? r.parcelHeightIn.toString() : "",
+  );
+  const [parcelWeight, setParcelWeight] = useState(
+    r.parcelWeightOz != null ? r.parcelWeightOz.toString() : "",
+  );
   const [carrier, setCarrier] = useState("");
   const [trackingNumber, setTrackingNumber] = useState("");
   const [cancelReason, setCancelReason] = useState("");
@@ -488,10 +561,10 @@ function WorkflowPanel({
 
         {actions.includes("shipping") ? (
           <Action
-            title="Set shipping cost &amp; sales tax"
-            description={`Captured from carrier and the retailer's receipt. Required before finalizing reconciliation. Tax estimate at intake: ${dollars(r.estimatedTaxCents)} (${r.effectiveTaxState ?? "unknown state"}, ${(r.estimatedTaxRateBps / 100).toFixed(2)}%).`}
+            title="Set shipping cost, sales tax &amp; parcel"
+            description={`Captured from carrier, retailer's receipt, and the packed box. Required before finalizing reconciliation. Tax estimate at intake: ${dollars(r.estimatedTaxCents)} (${r.effectiveTaxState ?? "unknown state"}, ${(r.estimatedTaxRateBps / 100).toFixed(2)}%).`}
             disabled={post.isPending}
-            cta="Save shipping &amp; tax"
+            cta="Save shipping, tax &amp; parcel"
             onClick={() => {
               clear();
               const cents = Math.round(Number(shippingDollars) * 100);
@@ -506,6 +579,20 @@ function WorkflowPanel({
                 if (Number.isFinite(taxCents) && taxCents >= 0) {
                   body.actualTaxCents = taxCents;
                 }
+              }
+              // Parcel dimensions — each one independently. Empty stays
+              // unset; a number sets; a typo (NaN) is silently dropped
+              // rather than blocking the rest of the save.
+              for (const [key, raw] of [
+                ["parcelLengthIn", parcelLength],
+                ["parcelWidthIn", parcelWidth],
+                ["parcelHeightIn", parcelHeight],
+                ["parcelWeightOz", parcelWeight],
+              ] as const) {
+                const v = raw.trim();
+                if (v.length === 0) continue;
+                const n = Number(v);
+                if (Number.isFinite(n) && n >= 0) body[key] = n;
               }
               post.mutate({ path: "/shipping", body });
             }}
@@ -544,6 +631,53 @@ function WorkflowPanel({
                   <option value="BUYER_FORWARDER">Buyer forwarder</option>
                   <option value="PICKUP">Pickup</option>
                 </select>
+              </Field>
+            </div>
+
+            {/* Packed-parcel dimensions — captured at pack time. Used by
+                the warehouse to sanity-check the carrier rate, by ops to
+                feed an EasyPost auto-quote (future), and by the buyer
+                thread to show the box that's actually shipping. */}
+            <div className="mt-4 grid gap-3 md:grid-cols-4">
+              <Field label="Length (in)">
+                <Input
+                  type="number"
+                  step="0.1"
+                  min={0}
+                  value={parcelLength}
+                  onChange={(e) => setParcelLength(e.target.value)}
+                  placeholder="—"
+                />
+              </Field>
+              <Field label="Width (in)">
+                <Input
+                  type="number"
+                  step="0.1"
+                  min={0}
+                  value={parcelWidth}
+                  onChange={(e) => setParcelWidth(e.target.value)}
+                  placeholder="—"
+                />
+              </Field>
+              <Field label="Height (in)">
+                <Input
+                  type="number"
+                  step="0.1"
+                  min={0}
+                  value={parcelHeight}
+                  onChange={(e) => setParcelHeight(e.target.value)}
+                  placeholder="—"
+                />
+              </Field>
+              <Field label="Total weight (oz)">
+                <Input
+                  type="number"
+                  step="0.01"
+                  min={0}
+                  value={parcelWeight}
+                  onChange={(e) => setParcelWeight(e.target.value)}
+                  placeholder="—"
+                />
               </Field>
             </div>
           </Action>

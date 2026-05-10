@@ -178,6 +178,8 @@ export interface ShopperLineSnapshot {
   quantity: number;
   estimatedUnitPriceCents: number;
   actualUnitPriceCents: number | null;
+  // Migration 0016 — actual per-line weight in ounces, captured at receive.
+  actualWeightOz: number | null;
   procurementStatus: ShopperLineProcurementStatus | null;
 }
 
@@ -211,6 +213,11 @@ export interface ShopperRequestSnapshot {
   shippingCostCents: number | null;
   followupAmountCents: number | null;
   followupResolvedAt: string | null;
+  // Migration 0016 — packed parcel dimensions + total weight.
+  parcelLengthIn: number | null;
+  parcelWidthIn: number | null;
+  parcelHeightIn: number | null;
+  parcelWeightOz: number | null;
   createdAt: string;
   lines: ShopperLineSnapshot[];
 }
