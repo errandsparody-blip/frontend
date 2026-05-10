@@ -2,9 +2,10 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 
 import { api } from "@/lib/api-client";
+import { encodeCode128B } from "@/lib/barcode";
 import type { PublicProduct } from "@/lib/schemas/products";
 
 interface PublicSku {
@@ -17,10 +18,18 @@ interface PublicSku {
 }
 
 /**
- * Printable label page. Sized for a 4×6 thermal label by default; also
- * prints to A4 cleanly (one label per sheet for now). Uses pure CSS @media
- * print rules — vendors hit Cmd-P / Ctrl-P. Real PDF generation lands in P2
- * when the label-API endpoint stabilizes.
+ * Printable SKU label page. Sized for a 4×6 thermal label by default; also
+ * prints to A4 cleanly (one label per sheet for now).
+ *
+ * Print-mode CSS: this page lives under the `(portal)` route group, which
+ * wraps it in the vendor portal sidebar. We can't easily opt out of the
+ * parent layout in Next.js without changing the URL, so the print
+ * stylesheet hides EVERYTHING with `visibility: hidden` and then
+ * explicitly shows the label card. This works regardless of the
+ * surrounding layout structure and is robust to future sidebar changes.
+ *
+ * The barcode is Code128B (lib/barcode.ts), encoding the full SKU id.
+ * Renders as inline SVG so the print path stays vector-perfect at any DPI.
  */
 export default function SkuLabelPage() {
   const params = useParams<{ skuId: string }>();
@@ -48,25 +57,64 @@ export default function SkuLabelPage() {
   const sku = skuQ.data;
   const product = productQ.data;
 
+  // Encode the SKU id as Code128B once both are available. Memoised so
+  // re-renders don't re-encode on every paint. Failures (non-ASCII char in
+  // a SKU id, which shouldn't happen) collapse to an empty string and the
+  // label still renders the human-readable id below.
+  const barcodeSvg = useMemo(() => {
+    if (!sku) return "";
+    try {
+      return encodeCode128B(sku.id, { moduleWidth: 2, height: 70, quietZone: 14 });
+    } catch {
+      return "";
+    }
+  }, [sku]);
+
   return (
     <>
       <style jsx global>{`
+        /* Print-only rules: hide every element on the page, then re-show
+           ONLY the label card (and its descendants). The label is given
+           position: absolute + top: 0 / left: 0 to anchor it at the
+           page corner regardless of where it lived in normal flow. */
         @media print {
           @page {
             size: 4in 6in;
             margin: 0.2in;
           }
+          html,
           body {
             background: white !important;
+            margin: 0 !important;
+            padding: 0 !important;
           }
-          .no-print {
-            display: none !important;
+          body * {
+            visibility: hidden !important;
+          }
+          .label-card,
+          .label-card * {
+            visibility: visible !important;
+          }
+          .label-card {
+            position: absolute !important;
+            top: 0 !important;
+            left: 0 !important;
+            box-shadow: none !important;
+            border: none !important;
           }
         }
         .label-card {
           width: 4in;
           height: 6in;
           padding: 0.3in;
+        }
+        /* Inline SVG sizing — without this the SVG fills its parent and
+           the barcode either stretches or gets cropped depending on the
+           outer flex direction. */
+        .label-barcode svg {
+          display: block;
+          width: 100%;
+          height: auto;
         }
       `}</style>
 
@@ -91,7 +139,21 @@ export default function SkuLabelPage() {
                   <div className="mt-1 max-w-full truncate font-sans text-[14px] font-medium text-text">
                     {product.name}
                   </div>
-                  <div className="mt-3 break-all text-[18px] font-bold tabular-nums text-ink">{sku.id}</div>
+
+                  {/* Barcode + human-readable SKU underneath. The
+                      barcode IS the scannable element; the text is the
+                      human eyeball fallback. */}
+                  {barcodeSvg ? (
+                    <div
+                      className="label-barcode mt-3 w-full"
+                      // SVG is sanitised (we generated it ourselves from
+                      // a known-safe character set + escaped attribute);
+                      // safe to inject directly.
+                      dangerouslySetInnerHTML={{ __html: barcodeSvg }}
+                    />
+                  ) : null}
+                  <div className="mt-1 break-all text-[11px] tabular-nums text-ink">{sku.id}</div>
+
                   <div className="mt-2 text-[11px] uppercase tracking-[1.4px] text-text-muted">
                     Variant {sku.variant}
                   </div>
