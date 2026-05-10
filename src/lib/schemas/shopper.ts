@@ -135,6 +135,16 @@ export const createShopperRequestSchema = z.object({
     .max(5000)
     .optional()
     .or(z.literal("").transform(() => undefined)),
+  // Optional link to a previous order by the same buyer ("I forgot something,
+  // here's an addition to SHP-000041"). The server verifies the parent
+  // exists AND belongs to the same email.
+  parentReference: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .regex(/^SHP-[A-Z0-9-]{3,32}$/, "Reference looks like SHP-000042.")
+    .optional()
+    .or(z.literal("").transform(() => undefined)),
 });
 export type CreateShopperRequestInput = z.infer<typeof createShopperRequestSchema>;
 
@@ -173,6 +183,11 @@ export interface ShopperLineSnapshot {
 
 export interface ShopperRequestSnapshot {
   id: string;
+  // Migration 0015 — short human-readable reference (SHP-000042).
+  reference: string;
+  parentRequestId: string | null;
+  /** Resolved parent reference for display ("addition to SHP-000041"). */
+  parentReference: string | null;
   status: ShopperRequestStatus;
   buyerEmail: string;
   buyerName: string | null;
@@ -215,6 +230,7 @@ export interface ShopperThreadResponse {
 
 export interface CreateShopperRequestResponse {
   requestId: string;
+  reference: string;
   threadUrl: string;
   payUrl: string;
   intakeTotalCents: number;

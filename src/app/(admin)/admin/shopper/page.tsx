@@ -24,6 +24,8 @@ import {
 
 interface AdminShopperRow {
   id: string;
+  reference: string;
+  parentRequestId: string | null;
   status: ShopperRequestStatus;
   buyerEmail: string;
   buyerName: string | null;
@@ -165,7 +167,14 @@ export default function AdminShopperQueuePage(): JSX.Element {
           <TBody>
             {data.items.map((r) => (
               <TR key={r.id}>
-                <Td mono>{r.id.slice(0, 8)}</Td>
+                <Td mono>
+                  {r.reference}
+                  {r.parentRequestId ? (
+                    <span className="ml-1 font-mono text-[10px] text-amber" title="Linked to a previous order">
+                      ↳
+                    </span>
+                  ) : null}
+                </Td>
                 <Td strong>
                   {r.buyerEmail}
                   {r.buyerName ? (

@@ -222,7 +222,14 @@ function ThreadView({
       <section className="rounded-md border border-line bg-white p-8">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <div className="font-mono text-mono-eyebrow uppercase text-amber">[ Request ]</div>
+            <div className="font-mono text-mono-eyebrow uppercase text-amber">
+              [ Request {r.reference} ]
+              {r.parentReference ? (
+                <span className="ml-2 text-text-muted">
+                  · addition to {r.parentReference}
+                </span>
+              ) : null}
+            </div>
             <h1 className="mt-1 text-h1 font-semibold tracking-[-0.4px] text-ink">
               {r.lines.length} {r.lines.length === 1 ? "item" : "items"} · {dollars(r.itemsSubtotalCents)} estimate
             </h1>

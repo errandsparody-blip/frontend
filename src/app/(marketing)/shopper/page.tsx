@@ -49,6 +49,7 @@ type FormShape = {
   buyerName?: string;
   lines: LineFormShape[];
   initialMessage?: string;
+  parentReference?: string;
   // Address fields kept flat for simpler form binding; we re-nest on submit.
   shipToggle: boolean;
   recipientName?: string;
@@ -141,6 +142,10 @@ export default function ShopperIntakePage(): JSX.Element {
       initialMessage:
         values.initialMessage?.trim() && values.initialMessage.trim().length > 0
           ? values.initialMessage.trim()
+          : undefined,
+      parentReference:
+        values.parentReference?.trim() && values.parentReference.trim().length > 0
+          ? values.parentReference.trim().toUpperCase()
           : undefined,
     };
     if (values.shipToggle) {
@@ -364,6 +369,30 @@ export default function ShopperIntakePage(): JSX.Element {
               </Field>
             </div>
           ) : null}
+        </section>
+
+        {/* Add to a previous order (optional) */}
+        <section className="rounded-md border border-line bg-white p-8">
+          <h2 className="mb-1 font-mono text-mono-label uppercase text-text-muted">
+            Adding to a previous order? (optional)
+          </h2>
+          <p className="mb-4 text-body-sm text-text-muted">
+            If you forgot something on a previous order, type the reference (e.g.{" "}
+            <span className="font-mono">SHP-000041</span>) here and we&apos;ll link the two
+            so we can ship them together if practical. Must be your own order — we verify
+            the email matches.
+          </p>
+          <Field
+            label="Previous order reference"
+            error={errors.parentReference?.message}
+          >
+            <Input
+              type="text"
+              placeholder="SHP-000041"
+              maxLength={32}
+              {...register("parentReference")}
+            />
+          </Field>
         </section>
 
         {/* Initial message */}
