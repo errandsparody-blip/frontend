@@ -26,6 +26,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { ErrorBanner } from "@/components/errors/error-banner";
 import { AttachmentUploader } from "@/components/portal/attachment-uploader";
+import { ReferenceDisplay } from "@/components/portal/reference-display";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -115,13 +116,21 @@ export default function AdminShopperDetailPage(): JSX.Element {
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
-        eyebrow={`[08] Shopper / ${request.reference}${
-          request.parentReference ? ` · addition to ${request.parentReference}` : ""
-        }`}
+        eyebrow="[08] Personal Shopper"
         title={`${request.lines.length} ${request.lines.length === 1 ? "item" : "items"} · ${request.buyerEmail}`}
         description={`Created ${fmtTime(request.createdAt)} · ${request.buyerName ?? "no buyer name"}`}
         actions={<StatusPill tone={TONE[request.status]}>{request.status.replace(/_/g, " ")}</StatusPill>}
       />
+
+      {/* Reference panel — admins quote this to support / link from
+          notes / paste into Slack threads. Keep it directly under the
+          page header so it's the first thing they see. */}
+      <section className="rounded-md border border-line bg-white p-6">
+        <ReferenceDisplay
+          reference={request.reference}
+          parentReference={request.parentReference}
+        />
+      </section>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_minmax(360px,420px)]">
         <div className="flex flex-col gap-6">

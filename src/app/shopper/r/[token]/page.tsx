@@ -19,6 +19,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { ErrorBanner } from "@/components/errors/error-banner";
 import { AttachmentUploader } from "@/components/portal/attachment-uploader";
+import { ReferenceDisplay } from "@/components/portal/reference-display";
 import { Button } from "@/components/ui/button";
 import { StatusPill } from "@/components/ui/status-pill";
 import { api } from "@/lib/api-client";
@@ -222,14 +223,7 @@ function ThreadView({
       <section className="rounded-md border border-line bg-white p-8">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <div className="font-mono text-mono-eyebrow uppercase text-amber">
-              [ Request {r.reference} ]
-              {r.parentReference ? (
-                <span className="ml-2 text-text-muted">
-                  · addition to {r.parentReference}
-                </span>
-              ) : null}
-            </div>
+            <div className="font-mono text-mono-eyebrow uppercase text-amber">[ Request ]</div>
             <h1 className="mt-1 text-h1 font-semibold tracking-[-0.4px] text-ink">
               {r.lines.length} {r.lines.length === 1 ? "item" : "items"} · {dollars(r.itemsSubtotalCents)} estimate
             </h1>
@@ -238,6 +232,16 @@ function ThreadView({
             </p>
           </div>
           <StatusPill tone={STATUS_TONE[r.status]}>{STATUS_LABEL[r.status]}</StatusPill>
+        </div>
+
+        {/* Reference is the human-shareable id for this order — keep it
+            prominent so the buyer can quote it to support, paste it into
+            a follow-up order's "previous order" field, etc. */}
+        <div className="mt-6 rounded-sm border border-line bg-cream-soft px-5 py-4">
+          <ReferenceDisplay
+            reference={r.reference}
+            parentReference={r.parentReference}
+          />
         </div>
 
         {callout ? (

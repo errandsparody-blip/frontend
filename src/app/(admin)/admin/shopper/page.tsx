@@ -103,6 +103,14 @@ export default function AdminShopperQueuePage(): JSX.Element {
         eyebrow="[08] Personal Shopper"
         title="Shopper queue"
         description="Buyer-paid procurement requests. Each request tracks a buyer thread, intake payment, line reconciliation, and shipping."
+        actions={
+          <Link
+            href="/admin/config/shopper"
+            className="font-mono text-mono-label uppercase tracking-[1.2px] text-amber hover:text-amber-hi"
+          >
+            Settings →
+          </Link>
+        }
       />
 
       <div className="flex flex-wrap items-center gap-2 font-mono text-mono-label uppercase">
