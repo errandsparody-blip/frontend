@@ -383,9 +383,12 @@ export default function ShopperIntakePage(): JSX.Element {
         {/* Confirm + submit */}
         <section className="rounded-md border border-line bg-cream-soft p-6">
           <p className="text-body-sm text-text-muted">
-            You&apos;ll be redirected to Stripe to pay <strong>${(itemsTotalCents / 100).toFixed(2)} + service fee</strong>{" "}
-            up front. After we procure your items we&apos;ll either invoice the actual difference + shipping, or
-            refund you. By submitting, you agree to our{" "}
+            You&apos;ll be redirected to Stripe to pay{" "}
+            <strong>${(itemsTotalCents / 100).toFixed(2)} + service fee + estimated U.S. sales tax</strong>{" "}
+            up front. The U.S. retailer charges sales tax on every purchase based on where they ship to —
+            we estimate it at intake using the rate for our warehouse state, then reconcile against the
+            actual tax we paid. After we procure your items we&apos;ll either invoice any remaining
+            difference + shipping, or refund you. By submitting, you agree to our{" "}
             <Link href="/legal/terms" className="underline">
               Terms
             </Link>

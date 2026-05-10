@@ -152,13 +152,22 @@ function MoneyPanel({ request }: { request: ShopperRequestSnapshot }): JSX.Eleme
   return (
     <section className="rounded-md border border-line bg-white p-6">
       <h2 className="mb-4 font-mono text-mono-label uppercase text-text-muted">Money</h2>
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-4">
         <Stat label="Items estimate" value={dollars(r.itemsSubtotalCents)} />
         <Stat label="Service fee" value={dollars(r.commissionCents)} />
+        <Stat
+          label={
+            r.effectiveTaxState
+              ? `Est. ${r.effectiveTaxState} tax (${(r.estimatedTaxRateBps / 100).toFixed(2)}%)`
+              : "Est. sales tax"
+          }
+          value={dollars(r.estimatedTaxCents)}
+        />
         <Stat label="Intake total" value={dollars(r.intakeTotalCents)} emphasis />
       </div>
-      <div className="mt-3 grid gap-4 md:grid-cols-3">
+      <div className="mt-3 grid gap-4 md:grid-cols-4">
         <Stat label="Items actual" value={dollars(r.itemsActualSubtotalCents)} />
+        <Stat label="Actual sales tax" value={dollars(r.actualTaxCents)} />
         <Stat label="Shipping cost" value={dollars(r.shippingCostCents)} />
         <Stat
           label={
@@ -425,6 +434,11 @@ function WorkflowPanel({
   // Local form state (shipping cost, ship action carrier+tracking, cancel reason)
   const [shippingDollars, setShippingDollars] = useState("");
   const [shippingMethod, setShippingMethod] = useState<"" | "PLATFORM_FREIGHT" | "BUYER_FORWARDER" | "PICKUP">("");
+  // Pre-populate the actual-tax input with whatever's already on the row,
+  // so an admin who's editing a previously-saved value sees it.
+  const [actualTaxDollars, setActualTaxDollars] = useState(
+    r.actualTaxCents != null ? (r.actualTaxCents / 100).toFixed(2) : "",
+  );
   const [carrier, setCarrier] = useState("");
   const [trackingNumber, setTrackingNumber] = useState("");
   const [cancelReason, setCancelReason] = useState("");
@@ -463,24 +477,29 @@ function WorkflowPanel({
 
         {actions.includes("shipping") ? (
           <Action
-            title="Set shipping cost"
-            description="Captured from carrier. Required before finalizing reconciliation."
+            title="Set shipping cost &amp; sales tax"
+            description={`Captured from carrier and the retailer's receipt. Required before finalizing reconciliation. Tax estimate at intake: ${dollars(r.estimatedTaxCents)} (${r.effectiveTaxState ?? "unknown state"}, ${(r.estimatedTaxRateBps / 100).toFixed(2)}%).`}
             disabled={post.isPending}
-            cta="Save shipping"
+            cta="Save shipping &amp; tax"
             onClick={() => {
               clear();
               const cents = Math.round(Number(shippingDollars) * 100);
               if (!Number.isFinite(cents) || cents < 0) return;
-              post.mutate({
-                path: "/shipping",
-                body: {
-                  shippingCostCents: cents,
-                  shippingMethod: shippingMethod || undefined,
-                },
-              });
+              const body: Record<string, unknown> = {
+                shippingCostCents: cents,
+                shippingMethod: shippingMethod || undefined,
+              };
+              const trimmedTax = actualTaxDollars.trim();
+              if (trimmedTax.length > 0) {
+                const taxCents = Math.round(Number(trimmedTax) * 100);
+                if (Number.isFinite(taxCents) && taxCents >= 0) {
+                  body.actualTaxCents = taxCents;
+                }
+              }
+              post.mutate({ path: "/shipping", body });
             }}
           >
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="grid gap-3 md:grid-cols-3">
               <Field label="Shipping cost ($)">
                 <Input
                   type="number"
@@ -489,6 +508,16 @@ function WorkflowPanel({
                   value={shippingDollars}
                   onChange={(e) => setShippingDollars(e.target.value)}
                   placeholder={r.shippingCostCents != null ? (r.shippingCostCents / 100).toFixed(2) : "0.00"}
+                />
+              </Field>
+              <Field label="Actual sales tax ($)">
+                <Input
+                  type="number"
+                  step="0.01"
+                  min={0}
+                  value={actualTaxDollars}
+                  onChange={(e) => setActualTaxDollars(e.target.value)}
+                  placeholder={(r.estimatedTaxCents / 100).toFixed(2)}
                 />
               </Field>
               <Field label="Method">

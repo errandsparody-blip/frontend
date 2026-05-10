@@ -19,20 +19,13 @@ export default function ProductDetailPage() {
     enabled: !!params.id,
   });
 
-  // Are there any SKUs against this product? If yes, variant is locked
-  // because changing it would mint future SKU ids in a new format while
-  // leaving existing SKUs on the old format. We use the existing SKU list
-  // endpoint with a productId filter — the response shape is already
-  // typed and we only need a presence check.
-  const skuQ = useQuery({
-    queryKey: ["skus", { productId: params.id }],
-    queryFn: () =>
-      api.get<{ items: unknown[]; nextCursor: string | null }>(
-        `/skus?productId=${encodeURIComponent(params.id)}&limit=1`,
-      ),
-    enabled: !!params.id,
-  });
-  const variantLocked = (skuQ.data?.items.length ?? 0) > 0;
+  // The backend's GET /products/:id now returns a `locked` boolean computed
+  // from `count(skus where productId)`. Once any stock has been received,
+  // the entire product becomes immutable except for `status` (so vendors
+  // can still archive). The form mirrors this — every input renders
+  // disabled — and a backend patch that tries to change a lockable field
+  // returns 400 `product_locked` regardless. Defence in depth.
+  const locked = product?.locked ?? false;
 
   async function onSubmit(values: CreateProductInput): Promise<void> {
     // Strip code (immutable) before sending PATCH.
@@ -64,7 +57,7 @@ export default function ProductDetailPage() {
       <div className="rounded-md border border-line bg-white p-8">
         <ProductForm
           showCode={false}
-          variantLocked={variantLocked}
+          locked={locked}
           initial={{
             name: product.name,
             variant: product.variant,

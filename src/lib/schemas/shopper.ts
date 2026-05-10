@@ -184,6 +184,12 @@ export interface ShopperRequestSnapshot {
   deliveredAt: string | null;
   itemsSubtotalCents: number;
   commissionCents: number;
+  // Migration 0013/0014 — U.S. sales tax. Estimated at intake from the
+  // state-keyed rate map; actual captured at procurement.
+  estimatedTaxRateBps: number;
+  estimatedTaxCents: number;
+  actualTaxCents: number | null;
+  effectiveTaxState: string | null;
   intakeTotalCents: number;
   intakePaidAt: string | null;
   itemsActualSubtotalCents: number | null;

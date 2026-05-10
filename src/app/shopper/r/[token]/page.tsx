@@ -239,14 +239,23 @@ function ThreadView({
           </div>
         ) : null}
 
-        <div className="mt-6 grid gap-4 border-t border-line pt-6 md:grid-cols-3">
+        <div className="mt-6 grid gap-4 border-t border-line pt-6 md:grid-cols-4">
           <Stat label="Items estimate" value={dollars(r.itemsSubtotalCents)} />
           <Stat label="Service fee" value={dollars(r.commissionCents)} />
+          <Stat
+            label={
+              r.effectiveTaxState
+                ? `Est. ${r.effectiveTaxState} sales tax`
+                : "Est. sales tax"
+            }
+            value={dollars(r.estimatedTaxCents)}
+          />
           <Stat label="Paid up front" value={dollars(r.intakeTotalCents)} emphasis />
         </div>
         {r.followupAmountCents != null ? (
-          <div className="mt-2 grid gap-4 md:grid-cols-3">
+          <div className="mt-2 grid gap-4 md:grid-cols-4">
             <Stat label="Items actual" value={dollars(r.itemsActualSubtotalCents)} />
+            <Stat label="Actual sales tax" value={dollars(r.actualTaxCents)} />
             <Stat label="Shipping" value={dollars(r.shippingCostCents)} />
             <Stat
               label={r.followupAmountCents > 0 ? "You owe" : r.followupAmountCents < 0 ? "We refund" : "Final"}

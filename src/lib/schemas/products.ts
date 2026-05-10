@@ -74,4 +74,11 @@ export interface PublicProduct {
   status: "ACTIVE" | "ARCHIVED";
   createdAt: string;
   updatedAt: string;
+  /**
+   * True once any SKU exists for this product (i.e. stock has been
+   * received). Locks all fields except `status` — vendors can still
+   * archive. Optional in the schema because the list endpoint omits
+   * the SKU-count round trip.
+   */
+  locked?: boolean;
 }

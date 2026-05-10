@@ -23,10 +23,21 @@ interface ProductFormProps {
   /** Hide the immutable code field on edit. */
   showCode?: boolean;
   /**
-   * When true, the variant input is rendered disabled with an inline
-   * note explaining the lock. Set this on edit pages where at least one
-   * SKU has been received under the product (the variant is part of the
-   * SKU id format and can't change once SKUs exist).
+   * When true, EVERY field is rendered disabled and a banner explains the
+   * lock. Set this on edit pages where at least one SKU has been received
+   * under the product. The backend mirrors this — patches that change any
+   * lockable field return 400 with code `product_locked`.
+   *
+   * Vendors who need to change a locked product archive it (status field
+   * stays editable for that purpose) and create a new product with the
+   * updated details.
+   */
+  locked?: boolean;
+  /**
+   * Legacy alias kept for the variant-only lock that pre-dated the
+   * full-product lock. Treated identically to `locked` going forward —
+   * once any SKU exists, every field is off-limits, not just variant.
+   * @deprecated use `locked` instead
    */
   variantLocked?: boolean;
 }
@@ -166,8 +177,13 @@ export function ProductForm({
   onSubmit,
   submitLabel,
   showCode = true,
+  locked: lockedProp = false,
   variantLocked = false,
 }: ProductFormProps): JSX.Element {
+  // Either the new full-product lock OR the legacy variant-only flag
+  // disables every editable field. Both end up at the same place: an
+  // immutable product with stock under it.
+  const locked = lockedProp || variantLocked;
   const [serverError, setServerError] = useState<string | null>(null);
 
   const {
@@ -282,6 +298,25 @@ export function ProductForm({
 
   return (
     <form onSubmit={handleSubmit(submit)} className="flex flex-col gap-6" noValidate>
+      {locked ? (
+        <div
+          role="note"
+          className="rounded-sm border-l-4 border-amber bg-amber/10 px-5 py-4 text-body-sm"
+        >
+          <div className="font-mono text-mono-label uppercase tracking-[1.4px] text-amber">
+            Locked — stock has been received
+          </div>
+          <p className="mt-1 text-text">
+            Once any inventory has been received under a product, the product details
+            (name, weight, dimensions, declared value, country of origin, HS code,
+            storage tier) become read-only. This protects shipping rates, customs
+            declarations, and storage billing on the orders we&apos;ve already
+            processed for you. To change these details, archive this product and
+            create a new one.
+          </p>
+        </div>
+      ) : null}
+
       <section className="grid gap-5 md:grid-cols-2">
         {showCode ? (
           <Field
@@ -294,6 +329,7 @@ export function ProductForm({
               autoComplete="off"
               placeholder="TSH-BLK-M"
               invalid={!!errors.code}
+              disabled={locked}
               {...register("code")}
             />
           </Field>
@@ -302,8 +338,8 @@ export function ProductForm({
           label="Variant"
           error={errors.variant?.message}
           hint={
-            variantLocked
-              ? "Locked — already used in SKU ids. Archive this product and create a new one to change."
+            locked
+              ? "Locked — already used in SKU ids. Archive and create a new product to change."
               : "Default: STD."
           }
         >
@@ -311,7 +347,7 @@ export function ProductForm({
             type="text"
             placeholder="STD"
             invalid={!!errors.variant}
-            disabled={variantLocked}
+            disabled={locked}
             {...register("variant")}
           />
         </Field>
@@ -320,6 +356,7 @@ export function ProductForm({
             type="text"
             placeholder="T-shirt — Black, M"
             invalid={!!errors.name}
+            disabled={locked}
             {...register("name")}
           />
         </Field>
@@ -338,6 +375,7 @@ export function ProductForm({
             step="0.01"
             placeholder="15.00"
             invalid={!!errors.declaredValueDollars}
+            disabled={locked}
             {...register("declaredValueDollars")}
           />
         </Field>
@@ -347,11 +385,18 @@ export function ProductForm({
             maxLength={2}
             placeholder="NG"
             invalid={!!errors.countryOfOrigin}
+            disabled={locked}
             {...register("countryOfOrigin")}
           />
         </Field>
         <Field label="HS code (optional)" error={errors.hsCode?.message}>
-          <Input type="text" placeholder="610910" invalid={!!errors.hsCode} {...register("hsCode")} />
+          <Input
+            type="text"
+            placeholder="610910"
+            invalid={!!errors.hsCode}
+            disabled={locked}
+            {...register("hsCode")}
+          />
         </Field>
       </section>
 
@@ -375,13 +420,15 @@ export function ProductForm({
                 step="0.01"
                 invalid={!!errors.weightValue}
                 className="flex-1"
+                disabled={locked}
                 {...register("weightValue")}
               />
               <select
                 aria-label="Weight unit"
                 value={weightUnit ?? "oz"}
                 onChange={(e) => onChangeWeightUnit(e.target.value as WeightUnit)}
-                className="h-11 rounded-sm border border-line-strong bg-white px-2 font-mono text-body-sm uppercase text-text outline-none focus:border-ink"
+                disabled={locked}
+                className="h-11 rounded-sm border border-line-strong bg-white px-2 font-mono text-body-sm uppercase text-text outline-none focus:border-ink disabled:opacity-60"
               >
                 {WEIGHT_UNITS.map((u) => (
                   <option key={u.value} value={u.value}>
@@ -402,6 +449,7 @@ export function ProductForm({
               step={0.1}
               placeholder="—"
               invalid={!!errors.lengthIn}
+              disabled={locked}
               {...register("lengthIn")}
             />
           </Field>
@@ -416,6 +464,7 @@ export function ProductForm({
               step={0.1}
               placeholder="—"
               invalid={!!errors.widthIn}
+              disabled={locked}
               {...register("widthIn")}
             />
           </Field>
@@ -430,6 +479,7 @@ export function ProductForm({
               step={0.1}
               placeholder="—"
               invalid={!!errors.heightIn}
+              disabled={locked}
               {...register("heightIn")}
             />
           </Field>
@@ -441,10 +491,10 @@ export function ProductForm({
           label="Storage tier"
           error={errors.storageTier?.message}
           hint={
-            suggestedTier && suggestedTier !== storageTier
-              ? `Based on the dimensions and weight you entered, we'd suggest ${suggestedTier.replace("_", "-")}.`
-              : variantLocked
-                ? "Future PSN receipts will land in this tier. SKUs already in inventory keep their current tier — use Inventory → Adjust if you need to move them."
+            locked
+              ? "Locked — storage tier drives billing. Archive this product and create a new one to change."
+              : suggestedTier && suggestedTier !== storageTier
+                ? `Based on the dimensions and weight you entered, we'd suggest ${suggestedTier.replace("_", "-")}.`
                 : "What size bin each unit of this product lives in. Drives monthly storage billing."
           }
         >
@@ -452,7 +502,8 @@ export function ProductForm({
             <select
               aria-label="Storage tier"
               {...register("storageTier")}
-              className="h-11 max-w-xs rounded-sm border border-line-strong bg-white px-3 font-sans text-body text-text outline-none focus:border-ink"
+              disabled={locked}
+              className="h-11 max-w-xs rounded-sm border border-line-strong bg-white px-3 font-sans text-body text-text outline-none focus:border-ink disabled:opacity-60"
             >
               {storageTierSchema.options.map((t) => (
                 <option key={t} value={t}>
@@ -461,7 +512,7 @@ export function ProductForm({
                 </option>
               ))}
             </select>
-            {suggestedTier && suggestedTier !== storageTier ? (
+            {!locked && suggestedTier && suggestedTier !== storageTier ? (
               <button
                 type="button"
                 onClick={() =>
@@ -486,8 +537,15 @@ export function ProductForm({
       ) : null}
 
       <div className="flex justify-end">
-        <Button type="submit" variant="primary" size="lg" withArrow loading={isSubmitting}>
-          {isSubmitting ? "Saving…" : submitLabel}
+        <Button
+          type="submit"
+          variant="primary"
+          size="lg"
+          withArrow
+          loading={isSubmitting}
+          disabled={locked || isSubmitting}
+        >
+          {isSubmitting ? "Saving…" : locked ? "Locked" : submitLabel}
         </Button>
       </div>
     </form>
