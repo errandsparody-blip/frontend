@@ -49,7 +49,15 @@ export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 export const resetPasswordSchema = z.object({
   token: z.string().min(20),
   newPassword: passwordSchema,
-  mfaCode: totpCodeSchema.optional(),
+  // The MFA input is only rendered after the API responds with mfa_required,
+  // but the form initializes mfaCode to "" so React Hook Form has a defined
+  // default value. Plain `.optional()` would still run the regex on the
+  // empty string and fail validation — silently, because the field isn't
+  // mounted to surface the error — leaving the Update password button doing
+  // nothing. Coerce "" to undefined so the optional path is honoured.
+  mfaCode: totpCodeSchema
+    .optional()
+    .or(z.literal("").transform(() => undefined)),
 });
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 
