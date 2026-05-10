@@ -379,8 +379,8 @@ export default function ShopperIntakePage(): JSX.Element {
           <p className="mb-4 text-body-sm text-text-muted">
             If you forgot something on a previous order, type the reference (e.g.{" "}
             <span className="font-mono">SHP-000041</span>) here and we&apos;ll link the two
-            so we can ship them together if practical. Must be your own order — we verify
-            the email matches.
+            so we can ship them together if the order has not been shipped. Must be your own
+            order — we verify the email matches.
           </p>
           <Field
             label="Previous order reference"
