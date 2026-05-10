@@ -5,12 +5,46 @@
  *   - Credentials: include for refresh cookie
  *   - Idempotency-Key support on writes
  *   - RFC 7807 problem-details parsing
+ *
+ * SINGLE-FLIGHT REFRESH:
+ * When several parallel requests all get 401 simultaneously (typical on
+ * admin landing pages that fire 3–5 queries on mount), we MUST NOT fire
+ * 3–5 parallel refresh requests. The backend's refresh-token rotation
+ * has theft detection — a second refresh arriving with the previous
+ * (now rotated) token reads as a stolen-token replay and revokes every
+ * active session for the user.
+ *
+ * `refreshInflight` holds the in-progress refresh promise; concurrent
+ * 401-handlers await the same promise and reuse its result. Cleared in
+ * a `finally` so a failed refresh doesn't permanently block future
+ * attempts.
  */
 
 let accessToken: string | null = null;
+let refreshInflight: Promise<{ accessToken: string }> | null = null;
 
 export function setAccessToken(token: string | null): void {
   accessToken = token;
+}
+
+/**
+ * Refresh the access token, single-flighted. Concurrent callers receive
+ * the same promise. After settle (success or fail) the inflight slot is
+ * cleared so the next 401 starts a fresh refresh.
+ */
+function refreshAccessToken(): Promise<{ accessToken: string }> {
+  if (refreshInflight) return refreshInflight;
+  refreshInflight = (async () => {
+    try {
+      return await request<{ accessToken: string }>("/auth/refresh", {
+        method: "POST",
+        noRefresh: true,
+      });
+    } finally {
+      refreshInflight = null;
+    }
+  })();
+  return refreshInflight;
 }
 
 export interface ApiError extends Error {
@@ -45,12 +79,12 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   const res = await fetch(`${baseUrl}${path}`, init);
 
   if (res.status === 401 && !opts.noRefresh && path !== "/auth/refresh") {
-    // Try to refresh once.
+    // Try to refresh once. Single-flighted via `refreshAccessToken()` —
+    // a parallel request that also got 401 will await the same promise
+    // rather than firing its own /auth/refresh and tripping the backend's
+    // rotated-token theft detection.
     try {
-      const refreshed = await request<{ accessToken: string }>("/auth/refresh", {
-        method: "POST",
-        noRefresh: true,
-      });
+      const refreshed = await refreshAccessToken();
       setAccessToken(refreshed.accessToken);
       // Retry original request once.
       return request<T>(path, opts);
@@ -104,11 +138,8 @@ async function downloadFile(path: string, suggestedName: string): Promise<void> 
   let res = await fetch(`${baseUrl}${path}`, { headers, credentials: "include" });
 
   if (res.status === 401) {
-    // Try to refresh once.
-    const refreshed = await request<{ accessToken: string }>("/auth/refresh", {
-      method: "POST",
-      noRefresh: true,
-    });
+    // Single-flighted refresh — see the comment at the top of this file.
+    const refreshed = await refreshAccessToken();
     setAccessToken(refreshed.accessToken);
     headers.set("Authorization", `Bearer ${refreshed.accessToken}`);
     res = await fetch(`${baseUrl}${path}`, { headers, credentials: "include" });
