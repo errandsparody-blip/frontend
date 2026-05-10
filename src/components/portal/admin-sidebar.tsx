@@ -11,6 +11,7 @@ import {
   Settings,
   ShoppingBag,
   Tag,
+  Undo2,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -30,6 +31,7 @@ const NAV: NavItem[] = [
   { href: "/admin/vendors", label: "Vendors", icon: Building2 },
   { href: "/admin/inventory", label: "Inventory", icon: Package },
   { href: "/admin/orders", label: "Orders", icon: ClipboardList },
+  { href: "/admin/returns", label: "Returns", icon: Undo2 },
   { href: "/admin/shopper", label: "Shopper", icon: ShoppingBag },
   { href: "/admin/finance", label: "Finance", icon: CreditCard },
   { href: "/admin/config/fees", label: "Pricing (3PL)", icon: Tag },

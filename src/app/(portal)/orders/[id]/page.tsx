@@ -6,12 +6,21 @@ import { useState } from "react";
 
 import { ErrorBanner } from "@/components/errors/error-banner";
 import { Button } from "@/components/ui/button";
+import { Field } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
 import { DataTable, TBody, THead, Th, TR, Td } from "@/components/ui/table";
 import { api } from "@/lib/api-client";
 import { normalizeError, useApiErrorHandler } from "@/lib/errors";
 import { ORDER_CANCEL_REASON, type OrderStatus, type PublicOrder } from "@/lib/schemas/orders";
+import {
+  RETURN_REASON,
+  RETURN_REASON_LABEL,
+  type CreateReturnInput,
+  type ReturnReason,
+  type ReturnSnapshot,
+} from "@/lib/schemas/returns";
 
 const TONE: Record<OrderStatus, "neutral" | "info" | "success" | "warning" | "error"> = {
   DRAFT: "neutral",
@@ -29,6 +38,11 @@ const TONE: Record<OrderStatus, "neutral" | "info" | "success" | "warning" | "er
 };
 
 const CANCELLABLE: OrderStatus[] = ["DRAFT", "SUBMITTED", "ALLOCATED"];
+// Server-side rule (return.service.ts:68): an RMA can only be opened
+// against orders the carrier has confirmed as DELIVERED, or that hit
+// EXCEPTION (delivery problem). Anything earlier in the lifecycle goes
+// through cancel-order, not return.
+const RETURNABLE: OrderStatus[] = ["DELIVERED", "EXCEPTION"];
 
 function formatCents(cents: number): string {
   return `$${(cents / 100).toLocaleString("en-US", {
@@ -52,6 +66,13 @@ export default function OrderDetailPage() {
   const [cancelReason, setCancelReason] = useState<(typeof ORDER_CANCEL_REASON)[number]>("VENDOR_REQUEST");
   const [cancelNote, setCancelNote] = useState("");
 
+  // Request-return state. The form lets vendors pick which lines + how
+  // many units to return. Defaults to 0 per line so they have to opt-in
+  // to each one — easier than having to remove unwanted lines.
+  const [showReturn, setShowReturn] = useState(false);
+  const [returnReason, setReturnReason] = useState<ReturnReason>("DEFECTIVE");
+  const [returnQty, setReturnQty] = useState<Record<string, number>>({});
+
   const { bannerError, handle, clear } = useApiErrorHandler();
 
   const cancelMut = useMutation({
@@ -65,6 +86,28 @@ export default function OrderDetailPage() {
       setShowCancel(false);
       setCancelNote("");
       await qc.invalidateQueries({ queryKey: ["orders"] });
+    },
+    onError: (err) => handle(err),
+  });
+
+  /**
+   * Open an RMA. Builds the body from the per-line qty map (lines with
+   * 0 are excluded so the user-facing "I want 2 of A, none of B" maps
+   * to the wire shape directly). On success, navigates to the new
+   * return's detail page so the vendor sees the inbound label as soon
+   * as EasyPost returns.
+   */
+  const returnMut = useMutation({
+    mutationFn: (body: CreateReturnInput) => api.post<ReturnSnapshot>("/returns", body),
+    onMutate: clear,
+    onSuccess: async (created) => {
+      setShowReturn(false);
+      setReturnQty({});
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["orders"] }),
+        qc.invalidateQueries({ queryKey: ["returns"] }),
+      ]);
+      router.push(`/returns/${created.id}`);
     },
     onError: (err) => handle(err),
   });
@@ -212,6 +255,150 @@ export default function OrderDetailPage() {
           ) : null}
         </ul>
       </section>
+
+      {/* Request return — only when order has been delivered (or hit
+          an exception). Server enforces this too; the UI hide-when-not-
+          eligible is just to keep the surface clean. */}
+      {RETURNABLE.includes(o.status) ? (
+        <section className="rounded-md border border-line bg-white p-6">
+          {!showReturn ? (
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="font-mono text-mono-label uppercase text-text-muted">
+                  Request a return
+                </h2>
+                <p className="mt-1 text-body-sm text-text-muted">
+                  We&apos;ll generate a prepaid inbound label and email it to the customer.
+                  Inspection happens at our warehouse — your wallet is credited automatically.
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  // Pre-seed the qty map with 0 for every line so the
+                  // controlled inputs render correctly on first paint.
+                  const seed: Record<string, number> = {};
+                  for (const ln of o.lines) seed[ln.id] = 0;
+                  setReturnQty(seed);
+                  setShowReturn(true);
+                }}
+              >
+                Request return
+              </Button>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-4">
+              <h2 className="text-h3 font-semibold text-ink">Request return</h2>
+
+              <Field label="Reason">
+                <select
+                  value={returnReason}
+                  onChange={(e) => setReturnReason(e.target.value as ReturnReason)}
+                  className="h-11 w-full rounded-sm border border-line-strong bg-white px-3 font-sans text-body text-text outline-none focus:border-ink"
+                >
+                  {RETURN_REASON.map((r) => (
+                    <option key={r} value={r}>
+                      {RETURN_REASON_LABEL[r]}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+
+              <div>
+                <div className="mb-2 font-mono text-mono-label uppercase text-text-muted">
+                  Pick lines
+                </div>
+                <p className="mb-3 text-body-sm text-text-muted">
+                  Set the quantity to return for each line. Leave at 0 to skip a line. You can
+                  return at most the quantity that was originally ordered.
+                </p>
+                <DataTable>
+                  <THead>
+                    <Th>SKU</Th>
+                    <Th>Product</Th>
+                    <Th align="right">Ordered</Th>
+                    <Th align="right">Return qty</Th>
+                  </THead>
+                  <TBody>
+                    {o.lines.map((l) => (
+                      <TR key={l.id}>
+                        <Td mono>{l.skuId}</Td>
+                        <Td>
+                          {l.productName}{" "}
+                          <span className="text-text-muted">({l.variant})</span>
+                        </Td>
+                        <Td num>{l.quantity}</Td>
+                        <Td align="right">
+                          <Input
+                            type="number"
+                            min={0}
+                            max={l.quantity}
+                            step={1}
+                            value={String(returnQty[l.id] ?? 0)}
+                            onChange={(e) => {
+                              const n = Math.max(
+                                0,
+                                Math.min(l.quantity, Math.floor(Number(e.target.value) || 0)),
+                              );
+                              setReturnQty((prev) => ({ ...prev, [l.id]: n }));
+                            }}
+                            className="ml-auto h-9 w-24 text-right"
+                          />
+                        </Td>
+                      </TR>
+                    ))}
+                  </TBody>
+                </DataTable>
+              </div>
+
+              <ErrorBanner
+                error={bannerError}
+                onAction={(handler) => {
+                  if (handler === "support") {
+                    window.location.href = "mailto:support@usa-errands.com";
+                  }
+                }}
+              />
+
+              <div className="flex items-center justify-between">
+                <span className="font-mono text-body-sm text-text-muted">
+                  {Object.values(returnQty).reduce((sum, n) => sum + n, 0)} unit(s) across{" "}
+                  {Object.values(returnQty).filter((n) => n > 0).length} line(s)
+                </span>
+                <div className="flex gap-3">
+                  <Button variant="outline" onClick={() => setShowReturn(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="amber"
+                    loading={returnMut.isPending}
+                    disabled={
+                      returnMut.isPending ||
+                      Object.values(returnQty).every((n) => !n || n <= 0)
+                    }
+                    onClick={() => {
+                      const lines = o.lines
+                        .map((l) => ({
+                          orderLineId: l.id,
+                          requestedQty: returnQty[l.id] ?? 0,
+                        }))
+                        .filter((line) => line.requestedQty > 0);
+                      if (lines.length === 0) return;
+                      returnMut.mutate({
+                        orderId: o.id,
+                        reason: returnReason,
+                        lines,
+                      });
+                    }}
+                  >
+                    {returnMut.isPending ? "Opening RMA…" : "Open return"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+        </section>
+      ) : null}
 
       {CANCELLABLE.includes(o.status) ? (
         <section className="rounded-md border border-line bg-white p-6">

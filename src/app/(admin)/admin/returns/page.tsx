@@ -1,15 +1,17 @@
 "use client";
 
 /**
- * Vendor returns — list page.
+ * Admin returns — operator queue.
  *
- * Lists every RMA the signed-in vendor has opened, newest first. Status
- * pill, reason, refund total, inbound tracking. Each row links to
- * /returns/[id] for the full detail (line breakdown, cancel button,
- * inbound label url).
+ * Lists every RMA across every vendor, newest first. Operators use the
+ * status filter to triage:
  *
- * Status filter is a query-string param so an admin debugging "show me
- * all the AUTHORIZED ones" can deep-link, and the URL is shareable.
+ *   - AUTHORIZED / IN_TRANSIT — waiting for the box to arrive
+ *   - RECEIVED                — needs inspection
+ *   - INSPECTED / RESTOCKED   — done, kept for the audit trail
+ *
+ * Click a row to drill into the detail page where the receive +
+ * inspect actions live.
  */
 
 import { useQuery } from "@tanstack/react-query";
@@ -49,17 +51,17 @@ function formatCents(cents: number): string {
   })}`;
 }
 
-export default function VendorReturnsPage(): JSX.Element {
+export default function AdminReturnsPage(): JSX.Element {
   const router = useRouter();
   const searchParams = useSearchParams();
   const statusFilter = (searchParams.get("status") ?? "") as ReturnStatus | "";
 
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ["returns", { status: statusFilter }],
+    queryKey: ["admin", "returns", { status: statusFilter }],
     queryFn: () => {
       const qs = new URLSearchParams({ limit: "50" });
       if (statusFilter) qs.set("status", statusFilter);
-      return api.get<ReturnListResponse>(`/returns?${qs.toString()}`);
+      return api.get<ReturnListResponse>(`/admin/returns?${qs.toString()}`);
     },
   });
 
@@ -67,7 +69,7 @@ export default function VendorReturnsPage(): JSX.Element {
     const sp = new URLSearchParams(searchParams);
     if (next) sp.set("status", next);
     else sp.delete("status");
-    router.replace(`/returns${sp.toString() ? `?${sp.toString()}` : ""}`);
+    router.replace(`/admin/returns${sp.toString() ? `?${sp.toString()}` : ""}`);
   }
 
   const normalized = error ? normalizeError(error) : null;
@@ -75,13 +77,11 @@ export default function VendorReturnsPage(): JSX.Element {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        eyebrow="[06] Returns"
-        title="Return authorisations"
-        description="Open an RMA against a delivered order. We'll send the customer a prepaid label; once the box arrives we inspect and refund your wallet."
+        eyebrow="[06] Returns / Queue"
+        title="Returns queue"
+        description="Inbound RMAs across every vendor. Triage with the status filter; click a row to receive or inspect."
       />
 
-      {/* Status filter — quick-toggles + reset button. Quick-toggles use
-          the same chip style as the rest of the portal so this fits in. */}
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-mono text-mono-label uppercase text-text-muted">Status</span>
         <button
@@ -115,29 +115,33 @@ export default function VendorReturnsPage(): JSX.Element {
         />
       ) : !data || data.items.length === 0 ? (
         <EmptyState
-          title={statusFilter ? `No returns in ${statusFilter.replace(/_/g, " ").toLowerCase()}` : "No returns yet"}
+          title="Queue is empty"
           description={
             statusFilter
-              ? "Try a different status filter, or clear it to see everything."
-              : "Open one from the order detail page when a customer needs to send something back."
+              ? `No returns currently in ${statusFilter.replace(/_/g, " ").toLowerCase()}.`
+              : "No returns have been opened yet."
           }
         />
       ) : (
         <DataTable>
           <THead>
             <Th>RMA</Th>
+            <Th>Vendor</Th>
             <Th>Status</Th>
             <Th>Reason</Th>
             <Th align="right">Lines</Th>
             <Th align="right">Refund</Th>
             <Th>Inbound</Th>
-            <Th>Resolved</Th>
+            <Th>Opened</Th>
             <Th align="right">{""}</Th>
           </THead>
           <TBody>
             {data.items.map((r) => (
               <TR key={r.id}>
                 <Td mono>{r.rmaCode}</Td>
+                <Td mono className="text-text-muted">
+                  {r.vendorId.slice(0, 8)}
+                </Td>
                 <Td>
                   <StatusPill tone={TONE[r.status]}>{r.status.replace(/_/g, " ")}</StatusPill>
                 </Td>
@@ -150,11 +154,11 @@ export default function VendorReturnsPage(): JSX.Element {
                   {r.inboundTracking ?? "—"}
                 </Td>
                 <Td mono className="text-text-muted">
-                  {r.resolvedAt ? new Date(r.resolvedAt).toLocaleDateString() : "—"}
+                  {new Date(r.createdAt).toLocaleDateString()}
                 </Td>
                 <Td align="right">
                   <Link
-                    href={`/returns/${r.id}`}
+                    href={`/admin/returns/${r.id}`}
                     className="font-mono text-[11px] uppercase tracking-[1.2px] text-amber hover:text-amber-hi"
                   >
                     Open →
