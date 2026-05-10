@@ -218,6 +218,11 @@ export interface ShopperRequestSnapshot {
   parcelWidthIn: number | null;
   parcelHeightIn: number | null;
   parcelWeightOz: number | null;
+  // Migration 0017 — freight rate snapshot + system-calculated cost.
+  // Receipt shows "weight × rate = calc · charged X" so any operator
+  // override is visible to the buyer.
+  freightRateCentsPerLb: number | null;
+  shippingCalculatedCents: number | null;
   createdAt: string;
   lines: ShopperLineSnapshot[];
 }

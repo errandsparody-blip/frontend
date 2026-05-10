@@ -82,7 +82,189 @@ export default function AdminShopperConfigPage(): JSX.Element {
       <CommissionCard />
       <WarehouseStateCard />
       <TaxRatesCard />
+      <FreightRatesCard />
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Freight rates per shipping method (migration 0017)
+//
+// Each method has a single per-lb rate in cents. The admin shipping form
+// reads these to live-calculate cost as the operator enters total weight,
+// and the service uses them at save time to snapshot rate × weight onto
+// the request row.
+// ---------------------------------------------------------------------------
+
+const SHIPPING_METHODS: ReadonlyArray<{ code: string; name: string; hint: string }> = [
+  {
+    code: "PLATFORM_FREIGHT",
+    name: "Platform freight",
+    hint: "We arrange and pay the carrier; buyer pays the rate × weight on the receipt.",
+  },
+  {
+    code: "BUYER_FORWARDER",
+    name: "Buyer forwarder",
+    hint: "Buyer's own freight forwarder picks up at our warehouse. Usually cheaper.",
+  },
+  {
+    code: "PICKUP",
+    name: "Warehouse pickup",
+    hint: "In-person pickup. Should be $0 unless you charge handling.",
+  },
+];
+
+function FreightRatesCard(): JSX.Element {
+  const qc = useQueryClient();
+  const { bannerError, handle, clear } = useApiErrorHandler();
+
+  const q = useQuery({
+    queryKey: ["admin", "config", "shopper_freight_rates"],
+    queryFn: () =>
+      api.get<ConfigRow<Record<string, number>>>("/admin/config/shopper_freight_rates"),
+  });
+
+  // Editable copy keyed by method code; dollar-string values so the
+  // input can be empty mid-typing. Re-seeded whenever the loaded value
+  // changes (e.g. after a save).
+  const [rates, setRates] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (q.data) {
+      const seeded: Record<string, string> = {};
+      for (const m of SHIPPING_METHODS) {
+        const cents = q.data.value[m.code];
+        seeded[m.code] = cents != null ? (cents / 100).toFixed(2) : "";
+      }
+      setRates(seeded);
+    }
+  }, [q.data]);
+
+  const save = useMutation({
+    mutationFn: (next: Record<string, number>) =>
+      api.patch<ConfigRow<Record<string, number>>>("/admin/config/shopper_freight_rates", {
+        value: next,
+      }),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["admin", "config", "shopper_freight_rates"] });
+    },
+    onError: (err) => handle(err),
+  });
+
+  function onSave(): void {
+    clear();
+    const out: Record<string, number> = {};
+    for (const m of SHIPPING_METHODS) {
+      const raw = (rates[m.code] ?? "").trim();
+      if (raw.length === 0) {
+        // Empty = treat as $0/lb. Cleaner than omitting the key, since
+        // the backend's `out[method] ?? 0` semantics rely on PICKUP
+        // explicitly sitting at zero.
+        out[m.code] = 0;
+        continue;
+      }
+      const dollars = Number(raw);
+      // 0 to $1,000/lb. Anything outside is almost certainly a typo.
+      if (!Number.isFinite(dollars) || dollars < 0 || dollars > 1000) continue;
+      out[m.code] = Math.round(dollars * 100);
+    }
+    save.mutate(out);
+  }
+
+  return (
+    <section className="rounded-md border border-line bg-white p-8">
+      <header className="mb-4 flex flex-wrap items-baseline justify-between gap-3">
+        <div>
+          <h2 className="text-h2 font-semibold text-ink">Freight rates per pound</h2>
+          <p className="mt-1 max-w-prose text-body-sm text-text-muted">
+            Per-method rate the system uses to calculate shipping cost from total parcel weight.
+            Operators can still override the calculated number on individual orders — the receipt
+            shows both so buyers see exactly how the cost was reached.
+          </p>
+        </div>
+        {q.data ? (
+          <StatusPill tone="info">
+            Saved · {Object.keys(q.data.value).length} methods ·{" "}
+            {new Date(q.data.updatedAt).toLocaleString()}
+          </StatusPill>
+        ) : null}
+      </header>
+
+      {bannerError ? (
+        <div className="mb-4">
+          <ErrorBanner error={bannerError} />
+        </div>
+      ) : null}
+
+      {q.isLoading ? (
+        <div className="font-mono text-mono-label uppercase text-text-muted">Loading…</div>
+      ) : (
+        <>
+          <div className="flex flex-col gap-4">
+            {SHIPPING_METHODS.map((m) => {
+              const rateStr = rates[m.code] ?? "";
+              const rateCents = (() => {
+                const n = Number(rateStr);
+                return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) : 0;
+              })();
+              // Live preview against a 2-lb parcel, the typical mid-
+              // range single-package weight.
+              const previewCents = Math.round((32 / 16) * rateCents);
+              return (
+                <div
+                  key={m.code}
+                  className="grid gap-4 border-b border-line pb-4 md:grid-cols-[1fr_auto_auto]"
+                >
+                  <div>
+                    <div className="font-mono text-mono-label uppercase text-text">{m.code}</div>
+                    <div className="mt-1 text-body-sm text-ink">{m.name}</div>
+                    <div className="mt-1 max-w-prose text-body-sm text-text-muted">{m.hint}</div>
+                  </div>
+                  <Field label="Rate $/lb">
+                    <div className="flex items-center gap-1">
+                      <span className="font-mono text-mono-label uppercase text-text-muted">$</span>
+                      <Input
+                        type="number"
+                        inputMode="decimal"
+                        min={0}
+                        max={1000}
+                        step={0.01}
+                        value={rateStr}
+                        onChange={(e) =>
+                          setRates((prev) => ({ ...prev, [m.code]: e.target.value }))
+                        }
+                        placeholder="0.00"
+                        className="h-9 w-28 text-right"
+                      />
+                      <span className="font-mono text-mono-label uppercase text-text-muted">/ lb</span>
+                    </div>
+                  </Field>
+                  <div>
+                    <div className="font-mono text-mono-label uppercase text-text-muted">
+                      2 lb parcel
+                    </div>
+                    <div className="mt-1 font-mono text-h3 tabular-nums text-ink">
+                      ${(previewCents / 100).toFixed(2)}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="mt-6 flex justify-end">
+            <Button
+              type="button"
+              onClick={onSave}
+              variant="amber"
+              size="lg"
+              loading={save.isPending}
+              disabled={save.isPending || !q.data}
+            >
+              Save freight rates
+            </Button>
+          </div>
+        </>
+      )}
+    </section>
   );
 }
 

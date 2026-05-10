@@ -501,9 +501,33 @@ function WorkflowPanel({
   // Per-status workflow buttons
   const actions = useMemo(() => statusActions(r.status), [r.status]);
 
+  // Freight rates — used to live-calculate the system shipping cost as
+  // the operator changes weight or method. Same map the backend uses at
+  // save time, so frontend preview and persisted number agree.
+  const freightRatesQuery = useQuery({
+    queryKey: ["admin", "shopper", "freight-rates"],
+    queryFn: () =>
+      api.get<{ rates: Record<string, number>; methods: ReadonlyArray<string> }>(
+        "/admin/shopper/freight-rates",
+      ),
+    // Rates change at most a few times per quarter; an hour of cache
+    // saves a query per detail-page open without making the calc stale.
+    staleTime: 60 * 60 * 1000,
+  });
+  const freightRates = freightRatesQuery.data?.rates ?? {};
+
   // Local form state (shipping cost, ship action carrier+tracking, cancel reason)
   const [shippingDollars, setShippingDollars] = useState("");
-  const [shippingMethod, setShippingMethod] = useState<"" | "PLATFORM_FREIGHT" | "BUYER_FORWARDER" | "PICKUP">("");
+  // Default the method picker to whatever's already saved on the row so
+  // the operator doesn't have to re-pick on every save (and so the live
+  // calc has a method to multiply against on first render).
+  const [shippingMethod, setShippingMethod] = useState<"" | "PLATFORM_FREIGHT" | "BUYER_FORWARDER" | "PICKUP">(
+    (r.shippingMethod as "" | "PLATFORM_FREIGHT" | "BUYER_FORWARDER" | "PICKUP") ?? "",
+  );
+  // Migration 0017 — admin can either trust the system calc or override
+  // it with a manual cost. Default to "use calculated" so the new flow
+  // is the path of least resistance.
+  const [useCalculated, setUseCalculated] = useState(true);
   // Pre-populate the actual-tax input with whatever's already on the row,
   // so an admin who's editing a previously-saved value sees it.
   const [actualTaxDollars, setActualTaxDollars] = useState(
@@ -560,54 +584,145 @@ function WorkflowPanel({
         ) : null}
 
         {actions.includes("shipping") ? (
-          <Action
-            title="Set shipping cost, sales tax &amp; parcel"
-            description={`Captured from carrier, retailer's receipt, and the packed box. Required before finalizing reconciliation. Tax estimate at intake: ${dollars(r.estimatedTaxCents)} (${r.effectiveTaxState ?? "unknown state"}, ${(r.estimatedTaxRateBps / 100).toFixed(2)}%).`}
-            disabled={post.isPending}
-            cta="Save shipping, tax &amp; parcel"
-            onClick={() => {
-              clear();
-              const cents = Math.round(Number(shippingDollars) * 100);
-              if (!Number.isFinite(cents) || cents < 0) return;
-              const body: Record<string, unknown> = {
-                shippingCostCents: cents,
-                shippingMethod: shippingMethod || undefined,
-              };
-              const trimmedTax = actualTaxDollars.trim();
-              if (trimmedTax.length > 0) {
-                const taxCents = Math.round(Number(trimmedTax) * 100);
-                if (Number.isFinite(taxCents) && taxCents >= 0) {
-                  body.actualTaxCents = taxCents;
-                }
-              }
-              // Parcel dimensions — each one independently. Empty stays
-              // unset; a number sets; a typo (NaN) is silently dropped
-              // rather than blocking the rest of the save.
-              for (const [key, raw] of [
-                ["parcelLengthIn", parcelLength],
-                ["parcelWidthIn", parcelWidth],
-                ["parcelHeightIn", parcelHeight],
-                ["parcelWeightOz", parcelWeight],
-              ] as const) {
-                const v = raw.trim();
-                if (v.length === 0) continue;
-                const n = Number(v);
-                if (Number.isFinite(n) && n >= 0) body[key] = n;
-              }
-              post.mutate({ path: "/shipping", body });
-            }}
-          >
-            <div className="grid gap-3 md:grid-cols-3">
-              <Field label="Shipping cost ($)">
+          (() => {
+            // Live freight calculation. Mirrors the backend formula:
+            //   cost (cents) = (weight_oz / 16) × rate_cents_per_lb
+            // Re-runs every render as the operator types weight or
+            // changes method, so the displayed preview always tracks
+            // what the server will actually charge.
+            const liveWeightOz = (() => {
+              const n = Number(parcelWeight);
+              return Number.isFinite(n) && n >= 0 ? n : 0;
+            })();
+            const liveRateCentsPerLb = shippingMethod
+              ? freightRates[shippingMethod] ?? 0
+              : 0;
+            const liveCalculatedCents =
+              liveWeightOz > 0
+                ? Math.round((liveWeightOz / 16) * liveRateCentsPerLb)
+                : 0;
+            return (
+              <Action
+                title="Set shipping cost, sales tax &amp; parcel"
+                description={`Pick a method, enter the parcel weight, and the system computes the shipping cost from the per-lb rate. Override below if a real-world surcharge applies — the receipt shows both numbers. Tax estimate at intake: ${dollars(r.estimatedTaxCents)} (${r.effectiveTaxState ?? "unknown state"}, ${(r.estimatedTaxRateBps / 100).toFixed(2)}%).`}
+                disabled={post.isPending}
+                cta="Save shipping, tax &amp; parcel"
+                onClick={() => {
+                  clear();
+                  const body: Record<string, unknown> = {
+                    shippingMethod: shippingMethod || undefined,
+                    useCalculated,
+                  };
+                  if (!useCalculated) {
+                    const cents = Math.round(Number(shippingDollars) * 100);
+                    if (!Number.isFinite(cents) || cents < 0) return;
+                    body.shippingCostCents = cents;
+                  }
+                  const trimmedTax = actualTaxDollars.trim();
+                  if (trimmedTax.length > 0) {
+                    const taxCents = Math.round(Number(trimmedTax) * 100);
+                    if (Number.isFinite(taxCents) && taxCents >= 0) {
+                      body.actualTaxCents = taxCents;
+                    }
+                  }
+                  // Parcel dimensions — each one independently. Empty stays
+                  // unset; a number sets; a typo (NaN) is silently dropped.
+                  for (const [key, raw] of [
+                    ["parcelLengthIn", parcelLength],
+                    ["parcelWidthIn", parcelWidth],
+                    ["parcelHeightIn", parcelHeight],
+                    ["parcelWeightOz", parcelWeight],
+                  ] as const) {
+                    const v = raw.trim();
+                    if (v.length === 0) continue;
+                    const n = Number(v);
+                    if (Number.isFinite(n) && n >= 0) body[key] = n;
+                  }
+                  post.mutate({ path: "/shipping", body });
+                }}
+              >
+            <div className="grid gap-3 md:grid-cols-[1fr_1fr_1fr]">
+              <Field label="Method">
+                <select
+                  value={shippingMethod}
+                  onChange={(e) =>
+                    setShippingMethod(e.target.value as typeof shippingMethod)
+                  }
+                  className="h-11 w-full rounded-sm border border-line-strong bg-cream-soft px-3 text-body text-text outline-none focus:border-ink focus:ring-2 focus:ring-ink/10"
+                >
+                  <option value="">— pick a method —</option>
+                  <option value="PLATFORM_FREIGHT">
+                    Platform freight {liveRateCentsPerLb || freightRates.PLATFORM_FREIGHT
+                      ? `(${dollars(freightRates.PLATFORM_FREIGHT ?? 0)}/lb)`
+                      : ""}
+                  </option>
+                  <option value="BUYER_FORWARDER">
+                    Buyer forwarder {freightRates.BUYER_FORWARDER != null
+                      ? `(${dollars(freightRates.BUYER_FORWARDER)}/lb)`
+                      : ""}
+                  </option>
+                  <option value="PICKUP">
+                    Pickup {freightRates.PICKUP != null ? `(${dollars(freightRates.PICKUP)}/lb)` : ""}
+                  </option>
+                </select>
+              </Field>
+              <Field label="Total weight (oz)">
                 <Input
                   type="number"
                   step="0.01"
                   min={0}
-                  value={shippingDollars}
-                  onChange={(e) => setShippingDollars(e.target.value)}
-                  placeholder={r.shippingCostCents != null ? (r.shippingCostCents / 100).toFixed(2) : "0.00"}
+                  value={parcelWeight}
+                  onChange={(e) => setParcelWeight(e.target.value)}
+                  placeholder={r.parcelWeightOz != null ? r.parcelWeightOz.toString() : "0"}
                 />
               </Field>
+              <Field label="Calculated cost">
+                <div className="flex h-11 items-center justify-between rounded-sm border border-line bg-cream-soft px-3 font-mono text-body tabular-nums text-ink">
+                  <span>{dollars(liveCalculatedCents)}</span>
+                  <span className="font-mono text-mono-label uppercase text-text-muted">
+                    {liveWeightOz > 0 && liveRateCentsPerLb > 0
+                      ? `${(liveWeightOz / 16).toFixed(2)} lb × ${dollars(liveRateCentsPerLb)}/lb`
+                      : shippingMethod
+                        ? "enter weight"
+                        : "pick a method"}
+                  </span>
+                </div>
+              </Field>
+            </div>
+
+            {/* Override toggle. Default is ON — admin trusts the system
+                calc. Flipping it OFF reveals a manual cost input that
+                lands in shippingCostCents instead. */}
+            <div className="mt-4 flex items-start gap-3 rounded-sm border border-line bg-cream-soft p-3">
+              <input
+                type="checkbox"
+                checked={useCalculated}
+                onChange={(e) => setUseCalculated(e.target.checked)}
+                id={`use-calc-${id}`}
+                className="mt-1 h-4 w-4 accent-amber"
+              />
+              <label htmlFor={`use-calc-${id}`} className="flex-1 text-body-sm text-text">
+                <span className="font-medium text-ink">Charge the calculated amount</span>
+                <span className="block text-text-muted">
+                  Uncheck to override with a manual cost (carrier surcharge, partner pricing, etc.).
+                  Receipt always shows both numbers so the buyer sees any adjustment.
+                </span>
+              </label>
+            </div>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              {!useCalculated ? (
+                <Field label="Override cost ($)">
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min={0}
+                    value={shippingDollars}
+                    onChange={(e) => setShippingDollars(e.target.value)}
+                    placeholder={(liveCalculatedCents / 100).toFixed(2)}
+                  />
+                </Field>
+              ) : null}
               <Field label="Actual sales tax ($)">
                 <Input
                   type="number"
@@ -618,27 +733,14 @@ function WorkflowPanel({
                   placeholder={(r.estimatedTaxCents / 100).toFixed(2)}
                 />
               </Field>
-              <Field label="Method">
-                <select
-                  value={shippingMethod}
-                  onChange={(e) =>
-                    setShippingMethod(e.target.value as typeof shippingMethod)
-                  }
-                  className="h-11 w-full rounded-sm border border-line-strong bg-cream-soft px-3 text-body text-text outline-none focus:border-ink focus:ring-2 focus:ring-ink/10"
-                >
-                  <option value="">— unchanged —</option>
-                  <option value="PLATFORM_FREIGHT">Platform freight</option>
-                  <option value="BUYER_FORWARDER">Buyer forwarder</option>
-                  <option value="PICKUP">Pickup</option>
-                </select>
-              </Field>
             </div>
 
             {/* Packed-parcel dimensions — captured at pack time. Used by
-                the warehouse to sanity-check the carrier rate, by ops to
-                feed an EasyPost auto-quote (future), and by the buyer
-                thread to show the box that's actually shipping. */}
-            <div className="mt-4 grid gap-3 md:grid-cols-4">
+                the warehouse to sanity-check the carrier rate and by the
+                buyer thread to show the box that's actually shipping.
+                Total weight lives in the top row above so the live calc
+                can reference it. */}
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
               <Field label="Length (in)">
                 <Input
                   type="number"
@@ -669,18 +771,10 @@ function WorkflowPanel({
                   placeholder="—"
                 />
               </Field>
-              <Field label="Total weight (oz)">
-                <Input
-                  type="number"
-                  step="0.01"
-                  min={0}
-                  value={parcelWeight}
-                  onChange={(e) => setParcelWeight(e.target.value)}
-                  placeholder="—"
-                />
-              </Field>
             </div>
           </Action>
+            );
+          })()
         ) : null}
 
         {actions.includes("finalize") ? (
