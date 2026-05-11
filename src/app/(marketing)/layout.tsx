@@ -1,8 +1,8 @@
 import Link from "next/link";
 
 import { SiteLogo } from "@/components/brand/site-logo";
+import { HeaderCTA } from "@/components/marketing/header-cta";
 import { MobileNav } from "@/components/marketing/mobile-nav";
-import { Button } from "@/components/ui/button";
 
 function FooterCol({
   heading,
@@ -57,20 +57,11 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
             <Link href="/security" className="hover:text-amber transition-colors">Security</Link>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
-            <Link
-              href="/login"
-              className="hidden font-mono text-[11px] font-medium uppercase tracking-[1.2px] text-text hover:text-amber md:inline"
-            >
-              Log in
-            </Link>
-            <Link href="/signup">
-              <Button variant="amber" size="md" withArrow>
-                Get started
-              </Button>
-            </Link>
-            {/* Hamburger + drawer · only renders below md. Lives in its
-                own client component so the rest of the marketing
-                layout stays a server component. */}
+            {/* Auth-aware: signed-out shows Log in + Get started,
+                signed-in shows Open dashboard / Open admin. Client
+                component so the rest of the layout stays SSR. */}
+            <HeaderCTA />
+            {/* Hamburger + drawer · only renders below md. */}
             <MobileNav />
           </div>
         </nav>
@@ -80,7 +71,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
         <div className="mx-auto flex max-w-[84rem] flex-col gap-10 px-8">
           <div className="grid gap-10 sm:grid-cols-[2fr_1fr_1fr_1fr]">
             <div>
-              <SiteLogo tone="ink" showTagline />
+              <SiteLogo tone="ink" />
               <p className="mt-3 max-w-md text-body-sm text-text-muted">
                 U.S.-based logistics infrastructure for international sellers, plus a personal-shopper service for buyers anywhere.
               </p>
