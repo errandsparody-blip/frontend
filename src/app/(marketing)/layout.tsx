@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { MobileNav } from "@/components/marketing/mobile-nav";
 import { Button } from "@/components/ui/button";
 
 function FooterCol({
@@ -36,7 +37,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
   return (
     <>
       <header className="sticky top-0 z-50 border-b border-line bg-cream-soft/90 backdrop-blur">
-        <nav className="mx-auto flex h-[72px] max-w-[84rem] items-center justify-between px-8">
+        <nav className="mx-auto flex h-[72px] max-w-[84rem] items-center justify-between px-4 sm:px-6 md:px-8">
           <Link href="/" className="text-[18px] font-bold tracking-[0.5px] text-ink">
             USA ERRANDS
           </Link>
@@ -54,10 +55,10 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
             <Link href="/integrations" className="hover:text-amber transition-colors">Integrations</Link>
             <Link href="/security" className="hover:text-amber transition-colors">Security</Link>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <Link
               href="/login"
-              className="hidden font-mono text-[11px] font-medium uppercase tracking-[1.2px] text-text hover:text-amber sm:inline"
+              className="hidden font-mono text-[11px] font-medium uppercase tracking-[1.2px] text-text hover:text-amber md:inline"
             >
               Log in
             </Link>
@@ -66,6 +67,10 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
                 Get started
               </Button>
             </Link>
+            {/* Hamburger + drawer · only renders below md. Lives in its
+                own client component so the rest of the marketing
+                layout stays a server component. */}
+            <MobileNav />
           </div>
         </nav>
       </header>
