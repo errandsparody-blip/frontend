@@ -15,7 +15,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import { EmptyState } from "@/components/ui/empty-state";
 import { Field } from "@/components/ui/field";
@@ -24,6 +24,12 @@ import { PageHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
 import { DataTable, TBody, THead, Th, TR, Td } from "@/components/ui/table";
 import { api } from "@/lib/api-client";
+
+/** Minimal shape of an admin vendor row — only the bits the picker needs. */
+interface VendorOption {
+  id: string;
+  businessName: string;
+}
 
 type Tier = "SMALL" | "MEDIUM" | "LARGE" | "X_LARGE" | "PALLET";
 type Status = "ACTIVE" | "RESERVED" | "DAMAGED" | "QUARANTINED" | "OUT_OF_STOCK";
@@ -66,6 +72,25 @@ export default function AdminInventoryPage(): JSX.Element {
   const [tier, setTier] = useState<Tier | "">("");
   const [status, setStatus] = useState<Status | "">("");
   const [zeroOnly, setZeroOnly] = useState(false);
+  const [vendorId, setVendorId] = useState<string>("");
+
+  // Pull the vendor list once for the dropdown. 100 is plenty for v1 — when
+  // the vendor count grows past that we'll swap to a searchable combobox.
+  // Failure is tolerable; if vendors fail to load the picker just stays
+  // empty (the "All vendors" option still works as a no-filter default).
+  const vendorsQ = useQuery({
+    queryKey: ["admin", "vendors", "picker"],
+    queryFn: () =>
+      api.get<{ items: VendorOption[] }>(`/admin/vendors?limit=100`),
+    staleTime: 60_000,
+  });
+  const vendorOptions = useMemo(() => {
+    const items = vendorsQ.data?.items ?? [];
+    // Alphabetical so the dropdown is scannable.
+    return [...items].sort((a, b) =>
+      a.businessName.localeCompare(b.businessName, "en", { sensitivity: "base" }),
+    );
+  }, [vendorsQ.data]);
 
   const params = new URLSearchParams();
   params.set("limit", "100");
@@ -73,9 +98,10 @@ export default function AdminInventoryPage(): JSX.Element {
   if (tier) params.set("storageTier", tier);
   if (status) params.set("status", status);
   if (zeroOnly) params.set("zeroOnly", "true");
+  if (vendorId) params.set("vendorId", vendorId);
 
   const listQ = useQuery({
-    queryKey: ["admin", "skus", { search, tier, status, zeroOnly }],
+    queryKey: ["admin", "skus", { search, tier, status, zeroOnly, vendorId }],
     queryFn: () => api.get<ListResponse>(`/admin/skus?${params.toString()}`),
   });
 
@@ -88,7 +114,9 @@ export default function AdminInventoryPage(): JSX.Element {
       />
 
       <section className="rounded-md border border-line bg-white p-5">
-        <div className="grid gap-4 md:grid-cols-[1fr_180px_180px_140px]">
+        {/* Filter grid: search takes the remaining flex, vendor + tier + status
+            + zero-only are fixed-width pickers. On mobile they stack. */}
+        <div className="grid gap-4 md:grid-cols-[1fr_220px_180px_180px_140px]">
           <Field label="Search" hint="By SKU id, product, or vendor name">
             <Input
               type="search"
@@ -96,6 +124,22 @@ export default function AdminInventoryPage(): JSX.Element {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
+          </Field>
+          <Field label="Vendor">
+            <select
+              value={vendorId}
+              onChange={(e) => setVendorId(e.target.value)}
+              className="h-11 w-full rounded-sm border border-line-strong bg-white px-3 font-sans text-body text-text outline-none focus:border-ink"
+              disabled={vendorsQ.isLoading}
+              aria-label="Filter by vendor"
+            >
+              <option value="">All vendors</option>
+              {vendorOptions.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.businessName}
+                </option>
+              ))}
+            </select>
           </Field>
           <Field label="Storage tier">
             <select
@@ -154,7 +198,7 @@ export default function AdminInventoryPage(): JSX.Element {
         <EmptyState
           title="No SKUs match those filters"
           description={
-            search || tier || status || zeroOnly
+            search || tier || status || zeroOnly || vendorId
               ? "Loosen the filters or clear the search."
               : "Once a vendor's PSN is received, SKUs will appear here automatically."
           }

@@ -12,7 +12,7 @@ import { DataTable, TBody, THead, Th, TR, Td } from "@/components/ui/table";
 import { api } from "@/lib/api-client";
 import { normalizeError, useApiErrorHandler } from "@/lib/errors";
 import type { PublicProduct } from "@/lib/schemas/products";
-import type { PsnStatus, PublicPsn } from "@/lib/schemas/psn";
+import type { ActiveHold, PsnStatus, PublicPsn } from "@/lib/schemas/psn";
 
 const TONE: Record<PsnStatus, "neutral" | "info" | "success" | "warning" | "error"> = {
   DRAFT: "neutral",
@@ -22,7 +22,16 @@ const TONE: Record<PsnStatus, "neutral" | "info" | "success" | "warning" | "erro
   RECEIVED: "success",
   DISCREPANCY: "warning",
   CANCELLED: "error",
+  // Migration 0020 outcomes — Hold needs attention from the vendor, the
+  // other two are terminal failure states from the vendor's POV.
+  HOLD: "warning",
+  REJECTED: "error",
+  RETURN_REQUESTED: "error",
 };
+
+function formatUSD(cents: number): string {
+  return `$${(cents / 100).toFixed(2)}`;
+}
 
 export default function PsnDetailPage() {
   const params = useParams<{ id: string }>();
@@ -60,6 +69,26 @@ export default function PsnDetailPage() {
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["psns"] });
       await qc.invalidateQueries({ queryKey: ["psns", params.id] });
+    },
+    onError: (err) => handle(err),
+  });
+
+  // Phase 2 — fetch the active hold (returns null unless PSN is in HOLD).
+  // Enabled only when status === HOLD so we don't poll on every PSN view.
+  const activeHoldQ = useQuery({
+    queryKey: ["psns", params.id, "active-hold"],
+    queryFn: () => api.get<ActiveHold | null>(`/psns/${params.id}/active-hold`),
+    enabled: !!psn && psn.status === "HOLD",
+  });
+
+  const payHoldMut = useMutation({
+    mutationFn: () => api.post(`/psns/${params.id}/pay-hold`),
+    onMutate: clear,
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["psns"] });
+      await qc.invalidateQueries({ queryKey: ["psns", params.id] });
+      await qc.invalidateQueries({ queryKey: ["psns", params.id, "active-hold"] });
+      await qc.invalidateQueries({ queryKey: ["wallet"] });
     },
     onError: (err) => handle(err),
   });
@@ -124,6 +153,70 @@ export default function PsnDetailPage() {
       />
 
       <ErrorBanner error={bannerError} onAction={onAction} />
+
+      {/* Phase 2 — Hold banner. Only shows when an admin has placed a hold
+          requiring extra payment to release the package. The Pay button
+          debits the wallet; insufficient funds bubbles up via the
+          ErrorBanner above (with a Top up CTA already wired). */}
+      {psn.status === "HOLD" && activeHoldQ.data ? (
+        <div
+          role="region"
+          aria-label="Receiving hold"
+          className="rounded-md border-l-4 border-amber bg-amber/10 px-5 py-4"
+        >
+          <div className="font-mono text-mono-label uppercase tracking-[1.4px] text-amber">
+            Payment required to release your package
+          </div>
+          <p className="mt-2 text-body-sm text-text">{activeHoldQ.data.reasonNote}</p>
+          <div className="mt-3 flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <div className="font-mono text-mono-label uppercase text-text-muted">
+                Amount due
+              </div>
+              <div className="text-h2 font-medium tabular-nums text-ink">
+                {formatUSD(activeHoldQ.data.extraChargeCents)}
+              </div>
+              <div className="mt-1 font-mono text-[11px] uppercase tracking-[1.2px] text-text-muted">
+                Auto-return after{" "}
+                {new Date(activeHoldQ.data.releaseAfter).toLocaleDateString()}
+              </div>
+            </div>
+            <Button
+              variant="amber"
+              size="md"
+              withArrow
+              onClick={() => payHoldMut.mutate()}
+              loading={payHoldMut.isPending}
+            >
+              Pay from wallet
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Phase 2 — rejected / return states are terminal; show a clear
+          notice rather than a CTA. The vendor still sees the line table
+          below so they can see what the PSN was for. */}
+      {psn.status === "REJECTED" ? (
+        <div className="rounded-md border-l-4 border-error bg-error/10 px-5 py-4">
+          <div className="font-mono text-mono-label uppercase text-error">PSN rejected</div>
+          <p className="mt-1 text-body-sm text-text">
+            The warehouse refused this PSN. Onboarding fee remains debited; reply to
+            support@myusaerrands.com if you believe this is in error.
+          </p>
+        </div>
+      ) : null}
+      {psn.status === "RETURN_REQUESTED" ? (
+        <div className="rounded-md border-l-4 border-error bg-error/10 px-5 py-4">
+          <div className="font-mono text-mono-label uppercase text-error">
+            Return shipment in progress
+          </div>
+          <p className="mt-1 text-body-sm text-text">
+            Your package is being shipped back. Return shipping was debited from your
+            wallet. Tracking will appear in your dashboard when the carrier picks it up.
+          </p>
+        </div>
+      ) : null}
 
       {/* Summary panel */}
       <section className="grid gap-6 rounded-md border border-line bg-white p-6 md:grid-cols-3">

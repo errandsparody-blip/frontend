@@ -22,6 +22,9 @@ const TONE: Record<PsnStatus, "neutral" | "info" | "success" | "warning" | "erro
   RECEIVED: "success",
   DISCREPANCY: "warning",
   CANCELLED: "error",
+  HOLD: "warning",
+  REJECTED: "error",
+  RETURN_REQUESTED: "error",
 };
 
 export default function AdminPsnQueuePage() {

@@ -46,12 +46,20 @@ export default function FinanceLandingPage() {
         title="Vendors & wallets"
         description="Search a vendor to credit a manual deposit (Wise / Payoneer) or open the reconciliation report."
         actions={
-          <Link
-            href="/admin/finance/reconciliation"
-            className="font-mono text-[11px] uppercase tracking-[1.2px] text-amber hover:text-amber-hi"
-          >
-            Reconciliation report →
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link
+              href="/admin/finance/transactions"
+              className="font-mono text-[11px] uppercase tracking-[1.2px] text-amber hover:text-amber-hi"
+            >
+              Transactions →
+            </Link>
+            <Link
+              href="/admin/finance/reconciliation"
+              className="font-mono text-[11px] uppercase tracking-[1.2px] text-amber hover:text-amber-hi"
+            >
+              Reconciliation report →
+            </Link>
+          </div>
         }
       />
 

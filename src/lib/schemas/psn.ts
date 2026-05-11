@@ -37,8 +37,21 @@ export const PSN_STATUS = [
   "RECEIVED",
   "DISCREPANCY",
   "CANCELLED",
+  // Migration 0020 — Phase 2 admin receiving outcomes.
+  "HOLD",
+  "REJECTED",
+  "RETURN_REQUESTED",
 ] as const;
 export type PsnStatus = (typeof PSN_STATUS)[number];
+
+/** Shape of the active-hold response from GET /v1/psns/:id/active-hold. */
+export interface ActiveHold {
+  id: string;
+  extraChargeCents: number;
+  reasonCode: string;
+  reasonNote: string;
+  releaseAfter: string;
+}
 
 export interface PublicPsn {
   id: string;
