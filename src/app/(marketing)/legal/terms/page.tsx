@@ -181,8 +181,8 @@ export default function TermsPage(): JSX.Element {
           <h2>13. Contact</h2>
           <p>
             Questions about these Terms? Email{" "}
-            <a href="mailto:legal@usa-errands.com" className="underline">
-              legal@usa-errands.com
+            <a href="mailto:legal@myusaerrands.com" className="underline">
+              legal@myusaerrands.com
             </a>
             . For privacy specifically, see our{" "}
             <Link href="/legal/privacy" className="underline">Privacy Policy</Link>.
@@ -191,7 +191,7 @@ export default function TermsPage(): JSX.Element {
 
         <footer className="rounded-md border-l-4 border-line-strong bg-cream-soft p-5 text-body-sm text-text-muted">
           These Terms reflect the current published version. Earlier versions and the full revision
-          history are kept in our compliance archive — email legal@usa-errands.com to request a
+          history are kept in our compliance archive — email legal@myusaerrands.com to request a
           copy.
         </footer>
       </div>

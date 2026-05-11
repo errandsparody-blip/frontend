@@ -16,6 +16,7 @@ import {
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { SiteLogo } from "@/components/brand/site-logo";
 import { cn } from "@/lib/utils";
 
 interface NavItem {
@@ -48,9 +49,9 @@ export function AdminSidebar(): JSX.Element {
   return (
     <aside className="flex h-screen w-60 shrink-0 flex-col border-r border-line bg-ink text-text-inv">
       <div className="border-b border-white/10 px-6 py-5">
-        <Link href="/admin" className="block">
-          <div className="text-[16px] font-bold tracking-[0.5px] text-text-inv">USA ERRANDS</div>
-          <div className="mt-0.5 font-mono text-[10px] uppercase tracking-[1.6px] text-amber">
+        <Link href="/admin" className="block" aria-label="USA Errands · Admin home">
+          <SiteLogo tone="inverse" markClassName="h-6 w-6" />
+          <div className="mt-1 font-mono text-[10px] uppercase tracking-[1.6px] text-amber">
             Admin console
           </div>
         </Link>

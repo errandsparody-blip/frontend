@@ -207,10 +207,10 @@ export default function SecurityPage() {
           <p className="mt-3 max-w-2xl text-body-lg text-text">
             Email{" "}
             <a
-              href="mailto:security@usa-errands.com"
+              href="mailto:security@myusaerrands.com"
               className="text-amber underline-offset-2 hover:underline"
             >
-              security@usa-errands.com
+              security@myusaerrands.com
             </a>{" "}
             — we triage within one business day, acknowledge within three, and patch on the same
             severity-tiered SLA we use internally (P0 ≤ 24h, P1 ≤ 1 week). Bounty program coming with

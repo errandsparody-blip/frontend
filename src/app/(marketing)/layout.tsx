@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { SiteLogo } from "@/components/brand/site-logo";
 import { MobileNav } from "@/components/marketing/mobile-nav";
 import { Button } from "@/components/ui/button";
 
@@ -38,8 +39,8 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
     <>
       <header className="sticky top-0 z-50 border-b border-line bg-cream-soft/90 backdrop-blur">
         <nav className="mx-auto flex h-[72px] max-w-[84rem] items-center justify-between px-4 sm:px-6 md:px-8">
-          <Link href="/" className="text-[18px] font-bold tracking-[0.5px] text-ink">
-            USA ERRANDS
+          <Link href="/" aria-label="USA Errands — home">
+            <SiteLogo tone="ink" />
           </Link>
           <div className="hidden gap-10 font-mono text-[11px] font-medium uppercase tracking-[1.2px] text-text md:flex">
             <Link href="/how-it-works" className="hover:text-amber transition-colors">How it works</Link>
@@ -79,8 +80,8 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
         <div className="mx-auto flex max-w-[84rem] flex-col gap-10 px-8">
           <div className="grid gap-10 sm:grid-cols-[2fr_1fr_1fr_1fr]">
             <div>
-              <div className="text-[18px] font-bold tracking-[0.5px] text-ink">USA ERRANDS</div>
-              <p className="mt-2 max-w-md text-body-sm text-text-muted">
+              <SiteLogo tone="ink" showTagline />
+              <p className="mt-3 max-w-md text-body-sm text-text-muted">
                 U.S.-based logistics infrastructure for international sellers, plus a personal-shopper service for buyers anywhere.
               </p>
             </div>

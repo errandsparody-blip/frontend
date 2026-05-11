@@ -83,10 +83,10 @@ function VendorAgreementInner(): JSX.Element {
         <footer className="rounded-md border-l-4 border-line-strong bg-cream-soft p-5 text-body-sm text-text-muted">
           Questions about these terms? Contact{" "}
           <a
-            href="mailto:legal@usa-errands.com"
+            href="mailto:legal@myusaerrands.com"
             className="font-medium text-ink underline-offset-4 hover:underline"
           >
-            legal@usa-errands.com
+            legal@myusaerrands.com
           </a>
           .
         </footer>

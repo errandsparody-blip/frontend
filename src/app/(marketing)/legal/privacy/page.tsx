@@ -138,8 +138,8 @@ export default function PrivacyPage(): JSX.Element {
             Depending on your jurisdiction you may have rights to access, correct, port, restrict,
             or delete your personal information; to object to certain processing; and to withdraw
             consent where we relied on it. Email{" "}
-            <a href="mailto:privacy@usa-errands.com" className="underline">
-              privacy@usa-errands.com
+            <a href="mailto:privacy@myusaerrands.com" className="underline">
+              privacy@myusaerrands.com
             </a>{" "}
             and we&apos;ll respond within 30 days.
           </p>
@@ -174,8 +174,8 @@ export default function PrivacyPage(): JSX.Element {
             The platform isn&apos;t directed at children under 16, and we don&apos;t knowingly
             collect personal information from anyone under 16. If you believe a child has provided
             us with personal information, contact{" "}
-            <a href="mailto:privacy@usa-errands.com" className="underline">
-              privacy@usa-errands.com
+            <a href="mailto:privacy@myusaerrands.com" className="underline">
+              privacy@myusaerrands.com
             </a>{" "}
             and we&apos;ll delete it.
           </p>
@@ -190,8 +190,8 @@ export default function PrivacyPage(): JSX.Element {
           <h2>11. Contact</h2>
           <p>
             Questions about this Policy or about how we handle your data? Email{" "}
-            <a href="mailto:privacy@usa-errands.com" className="underline">
-              privacy@usa-errands.com
+            <a href="mailto:privacy@myusaerrands.com" className="underline">
+              privacy@myusaerrands.com
             </a>
             . For terms-of-service questions see our{" "}
             <Link href="/legal/terms" className="underline">Terms of Service</Link>.
@@ -200,7 +200,7 @@ export default function PrivacyPage(): JSX.Element {
 
         <footer className="rounded-md border-l-4 border-line-strong bg-cream-soft p-5 text-body-sm text-text-muted">
           This Policy reflects the current published version. Earlier versions are kept in our
-          compliance archive — email privacy@usa-errands.com to request a copy.
+          compliance archive — email privacy@myusaerrands.com to request a copy.
         </footer>
       </div>
 

@@ -428,7 +428,7 @@ export const errorCatalog: Record<string, ErrorEntry> = {
   },
   network_timeout: {
     title: "The request took too long",
-    body: "Retry in a moment. If it keeps happening, check status.usa-errands.com.",
+    body: "Retry in a moment. If it keeps happening, check status.myusaerrands.com.",
     action: { label: "Retry", handler: "retry" },
   },
   network_5xx: {
