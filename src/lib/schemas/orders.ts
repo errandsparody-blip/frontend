@@ -38,14 +38,41 @@ export type OrderCancelReason = (typeof ORDER_CANCEL_REASON)[number];
 // Recipient — shared by quote + create.
 // ---------------------------------------------------------------------------
 
+// Stricter street line — must include a space (number + name), at least 4
+// chars. Single-token garbage like "ADE" gets rejected at the format layer
+// before we burn a Shippo address-validation API call.
+const streetLine = z
+  .string()
+  .trim()
+  .min(4, "Street is too short.")
+  .max(120)
+  .refine((s) => /\s/.test(s), "Street must include a number and a street name.");
+
+// Phone validator — 10 US digits, ignoring formatting noise. Reject the
+// obvious placeholders (long runs of repeated digits, classic sequences)
+// because vendors typing those clearly aren't entering a real number.
+const phoneUS10 = z
+  .string()
+  .trim()
+  .transform((s) => s.replace(/[^\d+]/g, ""))
+  .pipe(z.string().regex(/^(\+?1)?\d{10}$/, "US phone must be 10 digits."))
+  .refine((s) => {
+    const digits = s.replace(/[^\d]/g, "").slice(-10);
+    if (/(\d)\1{4,}/.test(digits)) return false;
+    if (/01234567|12345678|23456789|98765432|87654321/.test(digits)) return false;
+    return true;
+  }, "Phone number looks like a placeholder.")
+  .optional()
+  .or(z.literal("").transform(() => undefined));
+
 export const recipientAddressSchema = z.object({
-  recipientName: z.string().trim().min(1, "Required.").max(120),
-  recipientPhone: z
+  recipientName: z
     .string()
     .trim()
-    .regex(/^\+?[0-9]{10,15}$/, "10–15 digits, optional leading +.")
-    .optional()
-    .or(z.literal("").transform(() => undefined)),
+    .min(2, "Recipient name is too short.")
+    .max(120)
+    .refine((s) => /\s|[A-Za-z]{3,}/.test(s), "Use a real name (first + last)."),
+  recipientPhone: phoneUS10,
   recipientEmail: z
     .string()
     .trim()
@@ -54,19 +81,41 @@ export const recipientAddressSchema = z.object({
     .max(254)
     .optional()
     .or(z.literal("").transform(() => undefined)),
-  shipAddressLine1: z.string().trim().min(1, "Required.").max(120),
+  shipAddressLine1: streetLine,
   shipAddressLine2: z
     .string()
     .trim()
     .max(120)
     .optional()
     .or(z.literal("").transform(() => undefined)),
-  shipCity: z.string().trim().min(1, "Required.").max(80),
+  shipCity: z
+    .string()
+    .trim()
+    .min(2, "City is too short.")
+    .max(80)
+    .regex(/[A-Za-z]/, "City must contain letters."),
   shipState: z.string().trim().toUpperCase().regex(/^[A-Z]{2}$/, "2-letter state."),
   shipPostalCode: z.string().trim().toUpperCase().min(3).max(12),
   shipCountry: z.string().trim().toUpperCase().regex(/^[A-Z]{2}$/, "2-letter country.").default("US"),
 });
 export type RecipientAddress = z.infer<typeof recipientAddressSchema>;
+
+// ---------------------------------------------------------------------------
+// Address-only validation result — server returns this from /orders/validate-address
+// ---------------------------------------------------------------------------
+
+export interface AddressValidationResponse {
+  outcome: "ACCEPTED" | "NEEDS_VERIFICATION" | "REJECTED";
+  detail?: string;
+  suggested?: {
+    line1: string;
+    line2?: string;
+    city: string;
+    state: string;
+    postalCode: string;
+    country: string;
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Line + create
