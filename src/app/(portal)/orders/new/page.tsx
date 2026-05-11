@@ -22,6 +22,7 @@ import {
   type QuoteResult,
   type RecipientAddress,
 } from "@/lib/schemas/orders";
+import { US_STATES } from "@/lib/us-states";
 
 type Step = "lines" | "address" | "rates" | "review";
 
@@ -640,14 +641,27 @@ function AddressForm({
           />
         </Field>
         <Field label="State" error={fieldErrors.shipState}>
-          <Input
-            type="text"
+          {/* US-only in v1 — see PRD §6.6 and the backend regex
+              `^[A-Z]{2}$` in order.schema.ts. A native <select> keeps
+              keyboard navigation + native mobile pickers without
+              pulling in a combobox library. Sorted alphabetically by
+              the constant; an empty first option forces an explicit
+              choice (no silent default to "AL"). */}
+          <select
+            aria-label="State"
             value={address.shipState}
-            invalid={!!fieldErrors.shipState}
-            onChange={(e) => patch("shipState", e.target.value.toUpperCase())}
-            maxLength={2}
-            placeholder="FL"
-          />
+            onChange={(e) => patch("shipState", e.target.value)}
+            className={`h-11 w-full rounded-sm border bg-cream-soft px-3 text-body text-text outline-none transition-colors duration-fast ease-out focus:ring-2 focus:ring-ink/10 ${
+              fieldErrors.shipState ? "border-error" : "border-line-strong hover:border-text/40 focus:border-ink"
+            }`}
+          >
+            <option value="">Select a state…</option>
+            {US_STATES.map((s) => (
+              <option key={s.code} value={s.code}>
+                {s.name} ({s.code})
+              </option>
+            ))}
+          </select>
         </Field>
         <Field label="ZIP" error={fieldErrors.shipPostalCode}>
           <Input
