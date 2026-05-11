@@ -123,7 +123,7 @@ const REQUEST: IntegrationCard[] = [
     name: "TikTok Shop",
     category: "Marketplace",
     blurb: "Vote for it.",
-    detail: "Email support@usa-errands.com if this is a blocker for you.",
+    detail: "Email support@myusaerrands.com if this is a blocker for you.",
     status: "request",
   },
   {
@@ -206,53 +206,15 @@ export default function IntegrationsPage() {
         </div>
         <p className="mt-8 max-w-2xl text-body text-text-muted">
           Email{" "}
-          <a href="mailto:support@usa-errands.com" className="text-amber underline-offset-2 hover:underline">
-            support@usa-errands.com
+          <a href="mailto:support@myusaerrands.com" className="text-amber underline-offset-2 hover:underline">
+            support@myusaerrands.com
           </a>{" "}
           with the integration name + your monthly volume. Three vendors with the same ask is enough to
           schedule it.
         </p>
       </section>
 
-      {/* API CARD */}
-      <section className="border-y border-line bg-cream-soft">
-        <div className="mx-auto max-w-[84rem] px-8 py-20">
-          <div className="grid gap-10 lg:grid-cols-[1fr_1.4fr] lg:items-start">
-            <div>
-              <div className="font-mono text-mono-eyebrow uppercase text-amber">[ 08 ] Build your own</div>
-              <h2 className="mt-3 text-display font-medium leading-[1.05] tracking-[-0.8px] text-ink">
-                Direct API access for the curious.
-              </h2>
-              <p className="mt-5 max-w-md text-body-lg text-text-muted">
-                Every dashboard action goes through the same REST API your integration would use. JWT
-                bearer auth, RFC 7807 problem-detail responses, Idempotency-Key on every state-changing
-                endpoint that moves money or stock.
-              </p>
-            </div>
-            <div className="rounded-md border border-line bg-ink p-6 font-mono text-body-sm text-text-inv">
-              <div className="text-amber">{"// Submit an order"}</div>
-              <pre className="mt-2 overflow-x-auto whitespace-pre">
-{`curl -X POST https://api.usa-errands.com/v1/orders \\
-  -H "Authorization: Bearer $ACCESS_TOKEN" \\
-  -H "Idempotency-Key: $(uuidgen)" \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "recipient": {
-      "recipientName": "Jane Doe",
-      "shipAddressLine1": "1 Main St",
-      "shipCity": "Miami",
-      "shipState": "FL",
-      "shipPostalCode": "33101",
-      "shipCountry": "US"
-    },
-    "lines": [{ "skuId": "UER-A1B2C3-TSH-BLK-M", "quantity": 2 }],
-    "carrierService": "USPS Priority"
-  }'`}
-              </pre>
-            </div>
-          </div>
-        </div>
-      </section>
+     
 
       {/* CTA */}
       <section className="mx-auto max-w-[84rem] px-8 py-24">

@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
 
 import { ErrorBanner } from "@/components/errors/error-banner";
+import { BackButton } from "@/components/portal/back-button";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
@@ -74,7 +75,7 @@ export default function PsnDetailPage() {
   });
 
   function onAction(handler: NonNullable<NonNullable<typeof bannerError>["entry"]["action"]>["handler"]) {
-    if (handler === "support") window.location.href = "mailto:support@usa-errands.com";
+    if (handler === "support") window.location.href = "mailto:support@myusaerrands.com";
     else if (handler === "topUp") router.push("/wallet/fund");
   }
 
@@ -114,7 +115,12 @@ export default function PsnDetailPage() {
             ? `Submitted ${new Date(psn.submittedAt).toLocaleDateString()}.`
             : "Saved as draft."
         }
-        actions={<StatusPill tone={TONE[psn.status]}>{psn.status.replace(/_/g, " ")}</StatusPill>}
+        actions={
+          <div className="flex items-center gap-3">
+            <BackButton fallback="/psn" />
+            <StatusPill tone={TONE[psn.status]}>{psn.status.replace(/_/g, " ")}</StatusPill>
+          </div>
+        }
       />
 
       <ErrorBanner error={bannerError} onAction={onAction} />

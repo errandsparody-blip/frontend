@@ -69,7 +69,7 @@ export default function MfaEnrollPage() {
 
   function onAction(handler: NonNullable<NonNullable<typeof bannerError>["entry"]["action"]>["handler"]) {
     if (handler === "signin") router.push("/login");
-    else if (handler === "support") window.location.href = "mailto:support@usa-errands.com";
+    else if (handler === "support") window.location.href = "mailto:support@myusaerrands.com";
   }
 
   if (step === "loading") {

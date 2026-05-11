@@ -32,6 +32,7 @@ import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
+import { BackButton } from "@/components/portal/back-button";
 import { api } from "@/lib/api-client";
 import { useApiErrorHandler } from "@/lib/errors";
 import { linkify } from "@/lib/linkify";
@@ -120,7 +121,12 @@ export default function AdminShopperDetailPage(): JSX.Element {
         eyebrow="[08] Personal Shopper"
         title={`${request.lines.length} ${request.lines.length === 1 ? "item" : "items"} · ${request.buyerEmail}`}
         description={`Created ${fmtTime(request.createdAt)} · ${request.buyerName ?? "no buyer name"}`}
-        actions={<StatusPill tone={TONE[request.status]}>{request.status.replace(/_/g, " ")}</StatusPill>}
+        actions={
+          <div className="flex items-center gap-3">
+            <BackButton fallback="/admin/shopper" />
+            <StatusPill tone={TONE[request.status]}>{request.status.replace(/_/g, " ")}</StatusPill>
+          </div>
+        }
       />
 
       {/* Reference panel — admins quote this to support / link from
@@ -563,7 +569,7 @@ function WorkflowPanel({
           <ErrorBanner
             error={bannerError}
             onAction={(handler) => {
-              if (handler === "support") window.location.href = "mailto:support@usa-errands.com";
+              if (handler === "support") window.location.href = "mailto:support@myusaerrands.com";
               else if (handler === "retry") clear();
             }}
           />

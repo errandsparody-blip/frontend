@@ -72,7 +72,7 @@ export default function LoginPage() {
     if (handler === "verifyEmail") {
       router.push("/signup/verify-email");
     } else if (handler === "support") {
-      window.location.href = "mailto:support@usa-errands.com";
+      window.location.href = "mailto:support@myusaerrands.com";
     } else if (handler === "retry") {
       // Re-submit with the current form state.
       void handleSubmit(onSubmit)();

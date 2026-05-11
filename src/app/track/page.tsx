@@ -146,10 +146,10 @@ export default function TrackLandingPage(): JSX.Element {
           Can&apos;t find your tracking number? Check the order or shipment confirmation email
           from your seller, or contact support at{" "}
           <a
-            href="mailto:support@usa-errands.com"
+            href="mailto:support@myusaerrands.com"
             className="font-medium text-ink underline-offset-4 hover:underline"
           >
-            support@usa-errands.com
+            support@myusaerrands.com
           </a>
           .
         </p>

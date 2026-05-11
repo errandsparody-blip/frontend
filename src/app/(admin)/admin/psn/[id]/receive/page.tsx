@@ -94,7 +94,7 @@ export default function ReceivePsnPage() {
 
   function onAction(handler: NonNullable<NonNullable<typeof bannerError>["entry"]["action"]>["handler"]) {
     if (handler === "retry") void submitMut.mutate();
-    else if (handler === "support") window.location.href = "mailto:support@usa-errands.com";
+    else if (handler === "support") window.location.href = "mailto:support@myusaerrands.com";
   }
 
   if (isLoading) return <div className="font-mono text-mono-label uppercase text-text-muted">Loading…</div>;

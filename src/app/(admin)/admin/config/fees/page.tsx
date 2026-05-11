@@ -219,7 +219,7 @@ export default function FeeScheduleEditorPage(): JSX.Element {
   });
 
   function onAction(handler: NonNullable<NonNullable<typeof bannerError>["entry"]["action"]>["handler"]) {
-    if (handler === "support") window.location.href = "mailto:support@usa-errands.com";
+    if (handler === "support") window.location.href = "mailto:support@myusaerrands.com";
   }
 
   if (configQ.isLoading) {

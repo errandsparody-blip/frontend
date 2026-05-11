@@ -13,12 +13,13 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { ErrorBanner } from "@/components/errors/error-banner";
+import { BackButton } from "@/components/portal/back-button";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -82,7 +83,6 @@ const MOVEMENT_TONE: Record<string, "neutral" | "info" | "success" | "warning" |
 
 export default function AdminInventoryDetailPage(): JSX.Element {
   const params = useParams<{ skuId: string }>();
-  const router = useRouter();
   const skuId = params.skuId;
 
   const skuQ = useQuery({
@@ -125,15 +125,7 @@ export default function AdminInventoryDetailPage(): JSX.Element {
         eyebrow={`[03] Inventory / ${s.id}`}
         title={s.productName}
         description={`${s.vendorBusinessName} · ${s.productCode} · ${s.variant}`}
-        actions={
-          <button
-            type="button"
-            onClick={() => router.push("/admin/inventory")}
-            className="font-mono text-[11px] uppercase tracking-[1.2px] text-text-muted hover:text-ink"
-          >
-            ← Back to inventory
-          </button>
-        }
+        actions={<BackButton fallback="/admin/inventory" label="← Back to inventory" />}
       />
 
       <section className="grid gap-6 rounded-md border border-line bg-white p-6 md:grid-cols-4">
@@ -301,7 +293,7 @@ function AdjustForm({ sku }: { sku: AdminSku }): JSX.Element {
   });
 
   function onAction(handler: NonNullable<NonNullable<typeof bannerError>["entry"]["action"]>["handler"]) {
-    if (handler === "support") window.location.href = "mailto:support@usa-errands.com";
+    if (handler === "support") window.location.href = "mailto:support@myusaerrands.com";
   }
 
   const delta = Number(watch("delta") ?? 0);

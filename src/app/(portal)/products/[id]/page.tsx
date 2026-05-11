@@ -3,6 +3,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
 
+import { BackButton } from "@/components/portal/back-button";
 import { ProductForm } from "@/components/portal/product-form";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
@@ -52,7 +53,12 @@ export default function ProductDetailPage() {
         eyebrow={`[02] Catalogue / ${product.code}`}
         title={product.name}
         description={`Variant ${product.variant} · ${product.countryOfOrigin}`}
-        actions={<StatusPill tone={product.status === "ACTIVE" ? "success" : "neutral"}>{product.status}</StatusPill>}
+        actions={
+          <div className="flex items-center gap-3">
+            <BackButton fallback="/products" />
+            <StatusPill tone={product.status === "ACTIVE" ? "success" : "neutral"}>{product.status}</StatusPill>
+          </div>
+        }
       />
       <div className="rounded-md border border-line bg-white p-8">
         <ProductForm

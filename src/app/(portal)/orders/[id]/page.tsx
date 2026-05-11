@@ -6,6 +6,7 @@ import { useState } from "react";
 
 import { ErrorBanner } from "@/components/errors/error-banner";
 import { AttachmentUploader } from "@/components/portal/attachment-uploader";
+import { BackButton } from "@/components/portal/back-button";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -119,7 +120,7 @@ export default function OrderDetailPage() {
 
   function onAction(handler: NonNullable<NonNullable<typeof bannerError>["entry"]["action"]>["handler"]) {
     if (handler === "retry") void cancelMut.mutate();
-    else if (handler === "support") window.location.href = "mailto:support@usa-errands.com";
+    else if (handler === "support") window.location.href = "mailto:support@myusaerrands.com";
   }
 
   if (orderQ.isLoading) {
@@ -154,15 +155,7 @@ export default function OrderDetailPage() {
         eyebrow={`[05] Orders / ${o.id.slice(0, 8)}`}
         title={o.externalReference ?? `Order ${o.id.slice(0, 8)}`}
         description="Status, line items, money breakdown, and timeline."
-        actions={
-          <button
-            type="button"
-            onClick={() => router.push("/orders")}
-            className="font-mono text-[11px] uppercase tracking-[1.2px] text-text-muted hover:text-ink"
-          >
-            ← Back
-          </button>
-        }
+        actions={<BackButton fallback="/orders" />}
       />
 
       <section className="rounded-md border border-line bg-white p-6">
@@ -417,7 +410,7 @@ export default function OrderDetailPage() {
                 error={bannerError}
                 onAction={(handler) => {
                   if (handler === "support") {
-                    window.location.href = "mailto:support@usa-errands.com";
+                    window.location.href = "mailto:support@myusaerrands.com";
                   }
                 }}
               />

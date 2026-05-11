@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { ErrorBanner } from "@/components/errors/error-banner";
+import { BackButton } from "@/components/portal/back-button";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { PageHeader } from "@/components/ui/page-header";
@@ -73,7 +74,7 @@ export default function AdminConfigEditPage() {
 
   function onAction(handler: NonNullable<NonNullable<typeof bannerError>["entry"]["action"]>["handler"]) {
     if (handler === "retry") void save.mutate();
-    else if (handler === "support") window.location.href = "mailto:support@usa-errands.com";
+    else if (handler === "support") window.location.href = "mailto:support@myusaerrands.com";
   }
 
   function tryParse(): void {
@@ -108,15 +109,7 @@ export default function AdminConfigEditPage() {
         eyebrow={`[07] Configuration / ${data.key}`}
         title={data.key}
         description={data.description ?? "Edit the JSON value. The change is recorded in the audit log."}
-        actions={
-          <button
-            type="button"
-            onClick={() => router.push("/admin/config")}
-            className="font-mono text-[11px] uppercase tracking-[1.2px] text-text-muted hover:text-ink"
-          >
-            ← Back
-          </button>
-        }
+        actions={<BackButton fallback="/admin/config" />}
       />
 
       <Field label="JSON value" error={parseError ?? undefined} hint="Click Validate JSON to syntax-check before saving.">

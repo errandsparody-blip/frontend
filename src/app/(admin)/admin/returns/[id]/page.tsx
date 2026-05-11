@@ -24,10 +24,11 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { ErrorBanner } from "@/components/errors/error-banner";
+import { BackButton } from "@/components/portal/back-button";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -73,7 +74,6 @@ interface InspectLineState {
 
 export default function AdminReturnDetailPage(): JSX.Element {
   const params = useParams<{ id: string }>();
-  const router = useRouter();
   const qc = useQueryClient();
 
   const returnQ = useQuery({
@@ -176,15 +176,7 @@ export default function AdminReturnDetailPage(): JSX.Element {
         eyebrow={`[06] Returns / ${r.rmaCode}`}
         title={r.rmaCode}
         description={`Vendor ${r.vendorId.slice(0, 8)} · Order ${r.orderId.slice(0, 8)} · ${RETURN_REASON_LABEL[r.reason]}`}
-        actions={
-          <button
-            type="button"
-            onClick={() => router.push("/admin/returns")}
-            className="font-mono text-[11px] uppercase tracking-[1.2px] text-text-muted hover:text-ink"
-          >
-            ← Back
-          </button>
-        }
+        actions={<BackButton fallback="/admin/returns" />}
       />
 
       <section className="rounded-md border border-line bg-white p-6">
@@ -279,7 +271,7 @@ export default function AdminReturnDetailPage(): JSX.Element {
             else if (canInspect)
               void inspectMut.mutate(buildInspectPayload(r, inspectLines, refundDollars, restockFeeDollars, inspectorNotes));
           } else if (handler === "support") {
-            window.location.href = "mailto:support@usa-errands.com";
+            window.location.href = "mailto:support@myusaerrands.com";
           }
         }}
       />

@@ -1,9 +1,10 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 
 import { ErrorBanner } from "@/components/errors/error-banner";
+import { BackButton } from "@/components/portal/back-button";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
@@ -77,7 +78,6 @@ function formatCents(cents: number): string {
 
 export default function AdminOrderDetailPage() {
   const params = useParams<{ id: string }>();
-  const router = useRouter();
   const qc = useQueryClient();
 
   const orderQ = useQuery({
@@ -98,7 +98,7 @@ export default function AdminOrderDetailPage() {
   });
 
   function onAction(handler: NonNullable<NonNullable<typeof bannerError>["entry"]["action"]>["handler"]) {
-    if (handler === "support") window.location.href = "mailto:support@usa-errands.com";
+    if (handler === "support") window.location.href = "mailto:support@myusaerrands.com";
   }
 
   if (orderQ.isLoading) {
@@ -126,15 +126,7 @@ export default function AdminOrderDetailPage() {
         eyebrow={`[04] Fulfillment / ${o.id.slice(0, 8)}`}
         title={o.externalReference ?? `Order ${o.id.slice(0, 8)}`}
         description={`${o.vendor.businessName} → ${o.recipientName}, ${o.shipCity}, ${o.shipState}`}
-        actions={
-          <button
-            type="button"
-            onClick={() => router.push("/admin/orders")}
-            className="font-mono text-[11px] uppercase tracking-[1.2px] text-text-muted hover:text-ink"
-          >
-            ← Queue
-          </button>
-        }
+        actions={<BackButton fallback="/admin/orders" label="← Queue" />}
       />
 
       <section className="rounded-md border border-line bg-white p-6">

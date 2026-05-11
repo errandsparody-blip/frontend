@@ -150,7 +150,7 @@ function VerifyEmailInner() {
           error={bannerError}
           onAction={(handler) => {
             if (handler === "verifyEmail") void onResend();
-            else if (handler === "support") window.location.href = "mailto:support@usa-errands.com";
+            else if (handler === "support") window.location.href = "mailto:support@myusaerrands.com";
           }}
         />
 

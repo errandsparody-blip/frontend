@@ -21,10 +21,11 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useState } from "react";
 
 import { ErrorBanner } from "@/components/errors/error-banner";
+import { BackButton } from "@/components/portal/back-button";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
@@ -60,7 +61,6 @@ function formatCents(cents: number): string {
 
 export default function VendorReturnDetailPage(): JSX.Element {
   const params = useParams<{ id: string }>();
-  const router = useRouter();
   const qc = useQueryClient();
 
   const returnQ = useQuery({
@@ -118,15 +118,7 @@ export default function VendorReturnDetailPage(): JSX.Element {
         eyebrow={`[06] Returns / ${r.rmaCode}`}
         title={r.rmaCode}
         description={`RMA against order ${r.orderId.slice(0, 8)} — reason: ${RETURN_REASON_LABEL[r.reason]}.`}
-        actions={
-          <button
-            type="button"
-            onClick={() => router.push("/returns")}
-            className="font-mono text-[11px] uppercase tracking-[1.2px] text-text-muted hover:text-ink"
-          >
-            ← Back
-          </button>
-        }
+        actions={<BackButton fallback="/returns" />}
       />
 
       {/* Status + headline numbers */}
@@ -320,7 +312,7 @@ export default function VendorReturnDetailPage(): JSX.Element {
                 error={bannerError}
                 onAction={(handler) => {
                   if (handler === "retry") void cancelMut.mutate();
-                  else if (handler === "support") window.location.href = "mailto:support@usa-errands.com";
+                  else if (handler === "support") window.location.href = "mailto:support@myusaerrands.com";
                 }}
               />
               <div className="flex justify-end gap-3">

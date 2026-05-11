@@ -19,12 +19,13 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { ErrorBanner } from "@/components/errors/error-banner";
+import { BackButton } from "@/components/portal/back-button";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { PageHeader } from "@/components/ui/page-header";
@@ -86,7 +87,6 @@ function formatCents(cents: number): string {
 
 export default function AdminVendorDetailPage() {
   const params = useParams<{ id: string }>();
-  const router = useRouter();
   const qc = useQueryClient();
 
   const detailQ = useQuery({
@@ -161,7 +161,7 @@ export default function AdminVendorDetailPage() {
   });
 
   function onAction(handler: NonNullable<NonNullable<typeof bannerError>["entry"]["action"]>["handler"]) {
-    if (handler === "support") window.location.href = "mailto:support@usa-errands.com";
+    if (handler === "support") window.location.href = "mailto:support@myusaerrands.com";
   }
 
   if (detailQ.isLoading) {
@@ -190,15 +190,7 @@ export default function AdminVendorDetailPage() {
         eyebrow="[02] Vendor review"
         title={v.businessName}
         description={`Signed up ${new Date(v.createdAt).toLocaleDateString()} · ${v.country}`}
-        actions={
-          <button
-            type="button"
-            onClick={() => router.push("/admin/vendors")}
-            className="font-mono text-[11px] uppercase tracking-[1.2px] text-text-muted hover:text-ink"
-          >
-            ← Back to queue
-          </button>
-        }
+        actions={<BackButton fallback="/admin/vendors" label="← Back to queue" />}
       />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">

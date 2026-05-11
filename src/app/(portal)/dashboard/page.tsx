@@ -181,7 +181,7 @@ function copyForStatus(
         eyebrow: "Verification · Declined",
         title: "We couldn't verify your account.",
         body: "Reach out if you have additional documentation that addresses our reviewer's note.",
-        cta: { label: "Contact support →", href: "mailto:support@usa-errands.com" },
+        cta: { label: "Contact support →", href: "mailto:support@myusaerrands.com" },
       };
     case "EXPIRED":
       return {

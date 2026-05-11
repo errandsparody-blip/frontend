@@ -193,7 +193,7 @@ export default function ShopperIntakePage(): JSX.Element {
             error={bannerError}
             onAction={(handler) => {
               if (handler === "support") {
-                window.location.href = "mailto:support@usa-errands.com";
+                window.location.href = "mailto:support@myusaerrands.com";
               } else if (handler === "retry") {
                 clear();
               }

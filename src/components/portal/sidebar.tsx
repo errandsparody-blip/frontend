@@ -120,7 +120,6 @@ export function Sidebar(): JSX.Element {
       </nav>
 
       <div className="border-t border-line px-6 py-4 font-mono text-[10px] uppercase tracking-[1.4px] text-text-subtle">
-        v0.1 · P3
       </div>
     </aside>
   );
