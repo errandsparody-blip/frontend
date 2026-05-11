@@ -204,55 +204,10 @@ export default function PrivacyPage(): JSX.Element {
         </footer>
       </div>
 
-      <style jsx global>{`
-        .prose-legal h2 {
-          font-family: var(--font-sans);
-          font-weight: 600;
-          font-size: 22px;
-          color: var(--ink, #0f0f0e);
-          margin-top: 2.25rem;
-          margin-bottom: 0.75rem;
-          letter-spacing: -0.2px;
-        }
-        .prose-legal h3 {
-          font-family: var(--font-sans);
-          font-weight: 600;
-          font-size: 16px;
-          color: var(--ink, #0f0f0e);
-          margin-top: 1.5rem;
-          margin-bottom: 0.5rem;
-        }
-        .prose-legal p,
-        .prose-legal li {
-          color: var(--text, #2b2b29);
-          line-height: 1.65;
-          font-size: 15px;
-        }
-        .prose-legal p {
-          margin-top: 0.75rem;
-          margin-bottom: 0.75rem;
-        }
-        .prose-legal ul,
-        .prose-legal ol {
-          margin: 0.75rem 0;
-          padding-left: 1.5rem;
-          list-style: disc;
-        }
-        .prose-legal ol {
-          list-style: decimal;
-        }
-        .prose-legal li + li {
-          margin-top: 0.4rem;
-        }
-        .prose-legal strong {
-          font-weight: 600;
-          color: var(--ink, #0f0f0e);
-        }
-        .prose-legal a {
-          color: var(--ink, #0f0f0e);
-          text-underline-offset: 4px;
-        }
-      `}</style>
+      {/* `.prose-legal` styles live in src/styles/globals.css.
+          styled-jsx is a client-only feature in the App Router, and
+          this page is a server component (it exports `metadata`),
+          so per-page <style jsx> would break the Vercel build. */}
     </div>
   );
 }
