@@ -236,6 +236,41 @@ export default function AdminReturnDetailPage(): JSX.Element {
         </div>
       </section>
 
+      {/* Photo evidence the vendor attached at RMA-creation. Inspectors
+          should review these before deciding refund vs reject. */}
+      {r.attachmentUrls.length > 0 ? (
+        <section className="rounded-md border border-line bg-white p-6">
+          <h2 className="font-mono text-mono-label uppercase text-text-muted">
+            Vendor evidence
+          </h2>
+          <p className="mt-1 text-body-sm text-text-muted">
+            Attached when the vendor opened this RMA. Compare against the inbound box before
+            settling the refund.
+          </p>
+          <ul className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
+            {r.attachmentUrls.map((url) => (
+              <li key={url}>
+                <a
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block aspect-square overflow-hidden rounded-sm border border-line bg-cream-soft hover:border-ink"
+                  title={url}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={url}
+                    alt="RMA evidence"
+                    className="h-full w-full object-cover"
+                    loading="lazy"
+                  />
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
       <ErrorBanner
         error={bannerError}
         onAction={(handler) => {

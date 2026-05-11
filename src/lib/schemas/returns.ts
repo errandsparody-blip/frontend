@@ -81,6 +81,13 @@ export const createReturnSchema = z.object({
     .array(createReturnLineSchema)
     .min(1, "Pick at least one line to return.")
     .max(50, "Up to 50 lines per RMA."),
+  // Migration 0018 — optional photo / receipt evidence (max 5 R2 URLs).
+  // Vendors upload via the AttachmentUploader presigning to /returns/uploads.
+  attachmentUrls: z
+    .array(z.string().url().max(2048))
+    .max(5, "Up to 5 attachments per RMA.")
+    .optional()
+    .default([]),
 });
 export type CreateReturnInput = z.infer<typeof createReturnSchema>;
 
@@ -164,6 +171,15 @@ export interface ReturnSnapshot {
   inboundTracking: string | null;
   inboundLabelUrl: string | null;
   inspectorNotes: string | null;
+  /** Migration 0018 — vendor-supplied photo evidence URLs (R2 public). */
+  attachmentUrls: string[];
+  /**
+   * Server-computed best-case refund based on requested qty × order-line
+   * unit price. Surfaced on the detail GET only (controller adds it on
+   * top of the bare row). Informational pre-INSPECTED; once the actual
+   * refund lands the truth is `refundAmountCents`.
+   */
+  potentialRefundCents?: number;
   createdAt: string;
   authorizedAt: string | null;
   receivedAt: string | null;

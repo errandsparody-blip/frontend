@@ -141,6 +141,13 @@ export interface PublicOrder {
   cancelledAt: string | null;
   createdAt: string;
   updatedAt: string;
+  /**
+   * Migration 0018 — when the vendor's return window expires for this
+   * order. Computed server-side as `deliveredAt + returns_window_days`.
+   * Null if the order isn't delivered yet (no return possible anyway).
+   * Frontend hides the "Request return" CTA when this is in the past.
+   */
+  returnableUntil: string | null;
   lines: Array<{
     id: string;
     skuId: string;

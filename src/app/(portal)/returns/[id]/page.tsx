@@ -179,13 +179,59 @@ export default function VendorReturnDetailPage(): JSX.Element {
               <dd className="text-right text-h3 font-semibold text-ink">{formatCents(net)}</dd>
             </dl>
             {r.status !== "RESTOCKED" && r.status !== "DISPOSED" && r.status !== "REJECTED" ? (
-              <p className="mt-2 text-body-sm text-text-muted">
-                Final amount confirmed after our warehouse team inspects the inbound box.
-              </p>
+              <>
+                <p className="mt-2 text-body-sm text-text-muted">
+                  Final amount confirmed after our warehouse team inspects the inbound box.
+                </p>
+                {r.potentialRefundCents != null && r.potentialRefundCents > 0 ? (
+                  <div className="mt-3 rounded-sm border border-amber/40 bg-amber/5 px-3 py-2 font-mono text-body-sm">
+                    <span className="text-text-muted">Potential refund:</span>{" "}
+                    <span className="font-semibold text-ink">
+                      {formatCents(r.potentialRefundCents)}
+                    </span>
+                    <span className="ml-1 text-text-muted">(if everything restocks at full value)</span>
+                  </div>
+                ) : null}
+              </>
             ) : null}
           </div>
         </div>
       </section>
+
+      {/* Attached photo evidence (Migration 0018). Only renders when
+          the vendor uploaded something at RMA-creation. Each thumbnail
+          opens the original in a new tab. */}
+      {r.attachmentUrls.length > 0 ? (
+        <section className="rounded-md border border-line bg-white p-6">
+          <h2 className="font-mono text-mono-label uppercase text-text-muted">
+            Photo evidence
+          </h2>
+          <p className="mt-1 text-body-sm text-text-muted">
+            Attached when this RMA was opened. Inspector will review these alongside the inbound box.
+          </p>
+          <ul className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
+            {r.attachmentUrls.map((url) => (
+              <li key={url}>
+                <a
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block aspect-square overflow-hidden rounded-sm border border-line bg-cream-soft hover:border-ink"
+                  title={url}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={url}
+                    alt="RMA evidence"
+                    className="h-full w-full object-cover"
+                    loading="lazy"
+                  />
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {/* Per-line breakdown */}
       <section className="rounded-md border border-line bg-white p-6">

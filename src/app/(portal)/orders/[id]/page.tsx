@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { ErrorBanner } from "@/components/errors/error-banner";
+import { AttachmentUploader } from "@/components/portal/attachment-uploader";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -72,6 +73,9 @@ export default function OrderDetailPage() {
   const [showReturn, setShowReturn] = useState(false);
   const [returnReason, setReturnReason] = useState<ReturnReason>("DEFECTIVE");
   const [returnQty, setReturnQty] = useState<Record<string, number>>({});
+  // Migration 0018 — vendor-supplied photo evidence at RMA-creation
+  // time. Up to 5 R2 URLs from the AttachmentUploader.
+  const [returnAttachments, setReturnAttachments] = useState<string[]>([]);
 
   const { bannerError, handle, clear } = useApiErrorHandler();
 
@@ -103,6 +107,7 @@ export default function OrderDetailPage() {
     onSuccess: async (created) => {
       setShowReturn(false);
       setReturnQty({});
+      setReturnAttachments([]);
       await Promise.all([
         qc.invalidateQueries({ queryKey: ["orders"] }),
         qc.invalidateQueries({ queryKey: ["returns"] }),
@@ -257,11 +262,41 @@ export default function OrderDetailPage() {
       </section>
 
       {/* Request return — only when order has been delivered (or hit
-          an exception). Server enforces this too; the UI hide-when-not-
-          eligible is just to keep the surface clean. */}
-      {RETURNABLE.includes(o.status) ? (
+          an exception) AND inside the configurable return window.
+          Server enforces both rules too; the UI hide-when-not-eligible
+          is just to keep the surface clean. */}
+      {RETURNABLE.includes(o.status) ? (() => {
+        const windowExpired =
+          o.returnableUntil != null && new Date(o.returnableUntil).getTime() < Date.now();
+        const daysLeft = o.returnableUntil
+          ? Math.max(
+              0,
+              Math.ceil((new Date(o.returnableUntil).getTime() - Date.now()) / (1000 * 60 * 60 * 24)),
+            )
+          : null;
+        // Live refund preview · sum of (returnQty × unit price) where
+        // unit price = declaredValueCents / quantity. Mirrors the
+        // backend's potentialRefundCents math exactly.
+        const livePreviewCents = o.lines.reduce((sum, ln) => {
+          const qty = returnQty[ln.id] ?? 0;
+          if (qty <= 0 || ln.quantity <= 0) return sum;
+          const unitCents = Math.floor(ln.declaredValueCents / ln.quantity);
+          return sum + unitCents * qty;
+        }, 0);
+        return (
         <section className="rounded-md border border-line bg-white p-6">
-          {!showReturn ? (
+          {windowExpired ? (
+            <div>
+              <h2 className="font-mono text-mono-label uppercase text-text-muted">
+                Request a return
+              </h2>
+              <p className="mt-1 text-body-sm text-text-muted">
+                Returns can&apos;t be opened — this order&apos;s return window expired on{" "}
+                {new Date(o.returnableUntil!).toLocaleDateString()}. Contact support if there&apos;s an
+                exceptional reason this needs to be reopened.
+              </p>
+            </div>
+          ) : !showReturn ? (
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="font-mono text-mono-label uppercase text-text-muted">
@@ -270,6 +305,11 @@ export default function OrderDetailPage() {
                 <p className="mt-1 text-body-sm text-text-muted">
                   We&apos;ll generate a prepaid inbound label and email it to the customer.
                   Inspection happens at our warehouse — your wallet is credited automatically.
+                  {daysLeft != null ? (
+                    <span className="ml-1 font-medium text-ink">
+                      {daysLeft} day{daysLeft === 1 ? "" : "s"} left in window.
+                    </span>
+                  ) : null}
                 </p>
               </div>
               <Button
@@ -280,6 +320,7 @@ export default function OrderDetailPage() {
                   const seed: Record<string, number> = {};
                   for (const ln of o.lines) seed[ln.id] = 0;
                   setReturnQty(seed);
+                  setReturnAttachments([]);
                   setShowReturn(true);
                 }}
               >
@@ -351,6 +392,27 @@ export default function OrderDetailPage() {
                 </DataTable>
               </div>
 
+              {/* Photo evidence — optional but strongly recommended for
+                  defective / damaged claims. Up to 5 attachments, R2-
+                  hosted public URLs. The same uploader is used in the
+                  shopper thread; this presigns against /returns/uploads. */}
+              <div>
+                <div className="mb-2 font-mono text-mono-label uppercase text-text-muted">
+                  Photo evidence (optional)
+                </div>
+                <p className="mb-3 text-body-sm text-text-muted">
+                  Attach up to 5 photos or receipts. Our inspector reviews these alongside the
+                  inbound box, so claims like &quot;arrived damaged&quot; or &quot;defective&quot; are settled
+                  faster.
+                </p>
+                <AttachmentUploader
+                  value={returnAttachments}
+                  onChange={setReturnAttachments}
+                  presignEndpoint="/returns/uploads"
+                  disabled={returnMut.isPending}
+                />
+              </div>
+
               <ErrorBanner
                 error={bannerError}
                 onAction={(handler) => {
@@ -360,11 +422,18 @@ export default function OrderDetailPage() {
                 }}
               />
 
-              <div className="flex items-center justify-between">
-                <span className="font-mono text-body-sm text-text-muted">
-                  {Object.values(returnQty).reduce((sum, n) => sum + n, 0)} unit(s) across{" "}
-                  {Object.values(returnQty).filter((n) => n > 0).length} line(s)
-                </span>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-col">
+                  <span className="font-mono text-body-sm text-text-muted">
+                    {Object.values(returnQty).reduce((sum, n) => sum + n, 0)} unit(s) across{" "}
+                    {Object.values(returnQty).filter((n) => n > 0).length} line(s)
+                  </span>
+                  <span className="font-mono text-body-sm text-ink">
+                    Potential refund:{" "}
+                    <span className="font-semibold">{formatCents(livePreviewCents)}</span>
+                    <span className="ml-1 text-text-muted">(subject to inspection)</span>
+                  </span>
+                </div>
                 <div className="flex gap-3">
                   <Button variant="outline" onClick={() => setShowReturn(false)}>
                     Cancel
@@ -388,6 +457,7 @@ export default function OrderDetailPage() {
                         orderId: o.id,
                         reason: returnReason,
                         lines,
+                        attachmentUrls: returnAttachments,
                       });
                     }}
                   >
@@ -398,7 +468,8 @@ export default function OrderDetailPage() {
             </div>
           )}
         </section>
-      ) : null}
+        );
+      })() : null}
 
       {CANCELLABLE.includes(o.status) ? (
         <section className="rounded-md border border-line bg-white p-6">
