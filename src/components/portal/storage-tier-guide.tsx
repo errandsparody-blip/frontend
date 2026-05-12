@@ -87,12 +87,23 @@ function tierView(
   if (!onboarding) return null;
   const meta = TIER_METADATA[tier];
   const isNegotiated = "negotiated" in onboarding && onboarding.negotiated === true;
+  // Dimensions resolution order:
+  //   1. admin's `tier_dimensions` config row (live, editable on the
+  //      /admin/config/box-tiers page).
+  //   2. seed defaults from `lib/storage-tiers.ts` if a tier isn't in
+  //      the config row. The current admin editor only covers Small /
+  //      Medium / Large / X-Large — Pallet was deliberately left out
+  //      because its dims are fixed by industry standard, but the
+  //      vendor still needs to see the cubic numbers for a Standard
+  //      Pallet. Without this fallback the Pallet row's cubic in / ft
+  //      cells would be empty.
+  const dims = data.dimensions?.[tier] ?? FALLBACK_TIERS.dimensions?.[tier];
   return {
     label: meta.label,
     scale: meta.scale,
     onboarding,
     monthlyStorageCents: data.monthlyStorage[tier],
-    dims: data.dimensions?.[tier],
+    dims,
     isNegotiated,
     stockingCents: isNegotiated ? null : (onboarding as { stockingCents: number }).stockingCents,
     firstMonthStorageCents: isNegotiated
@@ -219,20 +230,23 @@ export function StorageTierGuide({
                         <Td align="right">{ci != null ? ci.toLocaleString() : "—"}</Td>
                         <Td align="right">{cf != null ? `${cf.toFixed(2)} ft³` : "—"}</Td>
                         <Td align="right">
-                          {v.isNegotiated ? "Negotiated" : formatCentsAsDollars(v.stockingCents)}
+                          {v.isNegotiated ? "Negotiable" : formatCentsAsDollars(v.stockingCents)}
                         </Td>
                         <Td align="right">
                           {v.isNegotiated
-                            ? "Negotiated"
+                            ? "Negotiable"
                             : formatCentsAsDollars(v.firstMonthStorageCents)}
                         </Td>
                         <Td align="right">
                           {v.monthlyStorageCents == null
-                            ? "Negotiated"
+                            ? "Negotiable"
                             : `${formatCentsAsDollars(v.monthlyStorageCents)} / mo`}
                         </Td>
                         <Td align="right" strong>
-                          {v.isNegotiated ? "—" : formatCentsAsDollars(v.totalCents)}
+                          {/* "—" replaced with "Negotiable" so the total
+                              cell reads as a deliberate per-vendor rate
+                              rather than a missing value. */}
+                          {v.isNegotiated ? "Negotiable" : formatCentsAsDollars(v.totalCents)}
                         </Td>
                       </tr>
                     );
@@ -413,13 +427,13 @@ function TierCard({
       <dl className="mt-3 flex flex-col gap-2 border-t border-line pt-3 font-mono text-body-sm tabular-nums">
         <Row
           label="Stocking"
-          value={view.isNegotiated ? "Negotiated" : formatCentsAsDollars(view.stockingCents)}
+          value={view.isNegotiated ? "Negotiable" : formatCentsAsDollars(view.stockingCents)}
           muted={view.isNegotiated}
         />
         <Row
           label="First-month storage"
           value={
-            view.isNegotiated ? "Negotiated" : formatCentsAsDollars(view.firstMonthStorageCents)
+            view.isNegotiated ? "Negotiable" : formatCentsAsDollars(view.firstMonthStorageCents)
           }
           muted={view.isNegotiated}
         />
@@ -427,7 +441,7 @@ function TierCard({
           label="Storage / month"
           value={
             view.monthlyStorageCents == null
-              ? "Negotiated"
+              ? "Negotiable"
               : formatCentsAsDollars(view.monthlyStorageCents)
           }
           muted={view.monthlyStorageCents == null}
@@ -444,7 +458,10 @@ function TierCard({
             (isPallet ? "text-amber" : "text-ink")
           }
         >
-          {view.isNegotiated ? "—" : formatCentsAsDollars(view.totalCents)}
+          {/* "—" replaced with "Negotiable" — same fix as the modal
+              table. The card's Total cell now reads as a real label
+              rather than a missing value. */}
+          {view.isNegotiated ? "Negotiable" : formatCentsAsDollars(view.totalCents)}
         </span>
       </div>
     </article>

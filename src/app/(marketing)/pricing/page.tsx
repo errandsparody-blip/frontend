@@ -29,11 +29,13 @@ const ONBOARDING = STORAGE_TIER_ORDER.map((tier) => {
   return {
     tier: TIER_METADATA[tier].label,
     size: `Up to ${formatDimensionsLabel(dims)}`,
-    stocking: negotiated ? "Negotiated" : formatCentsAsDollars((o as { stockingCents: number }).stockingCents),
+    stocking: negotiated ? "Negotiable" : formatCentsAsDollars((o as { stockingCents: number }).stockingCents),
     storage: negotiated
-      ? "Negotiated"
+      ? "Negotiable"
       : formatCentsAsDollars((o as { firstMonthStorageCents: number }).firstMonthStorageCents),
-    total: negotiated ? "—" : formatCentsAsDollars((o as { totalCents: number }).totalCents),
+    // "Negotiable" instead of "—" so the total reads as a real label,
+    // matching the storage tier guide's wording.
+    total: negotiated ? "Negotiable" : formatCentsAsDollars((o as { totalCents: number }).totalCents),
   };
 });
 
