@@ -84,15 +84,61 @@ export function ProductImageUploader({ value, onChange, disabled }: Props): JSX.
         body: file,
       });
       if (!putRes.ok) {
-        throw new Error(`Upload rejected (${putRes.status})`);
+        // R2 PUT can reject for a few reasons — CORS not configured on
+        // the bucket, a presigned-URL signature mismatch, or the file
+        // being clamped by the proxy. The status code is the most
+        // useful first hint for triage.
+        throw new Error(`R2 rejected the upload (HTTP ${putRes.status}).`);
       }
 
       onChange(presigned.publicUrl);
       setStatus("idle");
     } catch (err) {
       setStatus("error");
-      setErrorMsg(err instanceof Error ? err.message : "Upload failed — please try again.");
+      setErrorMsg(friendlyUploadError(err));
     }
+  }
+
+  /**
+   * Map any error from the presign POST or the R2 PUT into a single
+   * line a vendor can act on. The api-client throws errors with `status`
+   * and (when the API returns ProblemDetails) `detail`. We special-case
+   * the most common failure modes:
+   *
+   *   404 — endpoint doesn't exist yet on this deploy. Tells the
+   *         operator to redeploy the API rather than puzzle over the
+   *         raw NestJS "Cannot POST …" 404 body.
+   *   503 — R2 isn't configured. Already returned with `code:
+   *         r2_not_configured`; show it as-is.
+   *   401/403 — auth / role mismatch.
+   *   other — surface message + status so admins can copy it into a
+   *         bug report.
+   */
+  function friendlyUploadError(err: unknown): string {
+    if (!err) return "Upload failed — please try again.";
+    const e =
+      err instanceof Error
+        ? (err as Error & { status?: number; code?: string; detail?: string })
+        : (err as { status?: number; code?: string; message?: string; detail?: string });
+    const status = (e as { status?: number }).status;
+    const code = (e as { code?: string }).code;
+    const message =
+      (e as { message?: string }).message ?? (e as { detail?: string }).detail;
+
+    if (status === 404) {
+      return "Image uploads aren't available on the server yet. Ask the team to redeploy the API; the endpoint /v1/products/uploads is missing.";
+    }
+    if (status === 503 || code === "r2_not_configured") {
+      return "Image uploads aren't configured for this environment. Contact support.";
+    }
+    if (status === 401 || status === 403) {
+      return "You don't have permission to upload product images. Sign out and back in, or contact your account owner.";
+    }
+    const parts: string[] = [];
+    if (status) parts.push(`HTTP ${status}`);
+    if (code) parts.push(`[${code}]`);
+    if (message) parts.push(message);
+    return parts.length > 0 ? parts.join(" · ") : "Upload failed — please try again.";
   }
 
   // Trigger via button + programmatic .click() rather than `<label htmlFor>`
