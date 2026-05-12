@@ -18,7 +18,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { api } from "@/lib/api-client";
-import { useUnreadCounts, type NotificationCategory } from "@/lib/notifications";
+import {
+  useMarkCategoryRead,
+  useUnreadCounts,
+  type NotificationCategory,
+} from "@/lib/notifications";
 import { cn } from "@/lib/utils";
 
 interface NavItem {
@@ -84,11 +88,22 @@ export function Sidebar(): JSX.Element {
   // sidebar and the dropdown stay in sync.
   const countsQ = useUnreadCounts();
   const counts = countsQ.data;
+  // Auto-ack on click: clicking a tab with unread notifications drops
+  // the badge to zero immediately. The Notifications tab itself
+  // (category __total__) is exempt — that's where users go *to look at*
+  // notifications, so clearing them on entry would defeat the point.
+  const markCategoryRead = useMarkCategoryRead();
 
   function badgeFor(item: NavItem): number {
     if (!item.category || !counts) return 0;
     if (item.category === "__total__") return counts.total;
     return counts.byCategory[item.category] ?? 0;
+  }
+
+  function handleNavClick(item: NavItem): void {
+    if (!item.category || item.category === "__total__") return;
+    if (badgeFor(item) === 0) return;
+    markCategoryRead.mutate(item.category);
   }
 
   return (
@@ -117,6 +132,7 @@ export function Sidebar(): JSX.Element {
             <Link
               key={item.href}
               href={item.disabled ? "#" : item.href}
+              onClick={() => handleNavClick(item)}
               className={cn(
                 "mb-0.5 flex items-center gap-3 rounded-sm px-3 py-2 text-body-sm font-medium transition-colors duration-fast ease-out",
                 disabledClass,

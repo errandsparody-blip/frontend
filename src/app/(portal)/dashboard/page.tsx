@@ -148,13 +148,18 @@ function copyForStatus(
     case "APPROVED":
       if (!agreementAcceptedAt) {
         // KYC done, but the vendor agreement is still unsigned — they're
-        // still locked out of shipping. Surface this clearly.
+        // still locked out of shipping. Route the operator straight to
+        // the page that *actually accepts the agreement* (the legal
+        // vendor-agreement view, which has a sign + accept button). The
+        // older copy here sent them to /settings, which only displays
+        // the acceptance status and has no signing action — vendors
+        // reported it felt like a dead-end "page isn't here" moment.
         return {
           tone: "amber",
           eyebrow: "Verification · One step left",
           title: "Accept the vendor agreement to activate your account.",
-          body: "Your KYC is approved. Sign the vendor agreement on the settings page to unlock shipments and orders.",
-          cta: { label: "Open settings →", href: "/settings" },
+          body: "Your KYC is approved. Read and accept the vendor agreement to unlock shipments and orders.",
+          cta: { label: "Read & accept →", href: "/legal/vendor-agreement" },
         };
       }
       // Verified + agreement signed — no need to nag. Card is hidden.

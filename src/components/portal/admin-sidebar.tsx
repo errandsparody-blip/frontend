@@ -19,7 +19,11 @@ import { usePathname } from "next/navigation";
 
 import { SiteLogo } from "@/components/brand/site-logo";
 import { cn } from "@/lib/utils";
-import { useUnreadCounts, type NotificationCategory } from "@/lib/notifications";
+import {
+  useMarkCategoryRead,
+  useUnreadCounts,
+  type NotificationCategory,
+} from "@/lib/notifications";
 
 interface NavItem {
   href: string;
@@ -65,11 +69,26 @@ export function AdminSidebar(): JSX.Element {
   // badge silently — navigation still works, the badges are advisory.
   const countsQ = useUnreadCounts();
   const counts = countsQ.data;
+  // Auto-ack: when the operator clicks a tab that has unread
+  // notifications in its category, mark them read immediately. They're
+  // about to be looking at the relevant page, so the unread state has
+  // already served its purpose.
+  const markCategoryRead = useMarkCategoryRead();
 
   function badgeFor(item: NavItem): number {
     if (!item.category || !counts) return 0;
     if (item.category === "__total__") return counts.total;
     return counts.byCategory[item.category] ?? 0;
+  }
+
+  function handleNavClick(item: NavItem): void {
+    // The "Notifications" tab uses __total__ — we don't auto-mark on
+    // click because the notifications page itself is what the user
+    // goes to *in order to* triage. Auto-clearing on entry would
+    // remove the rows they came to look at.
+    if (!item.category || item.category === "__total__") return;
+    if (badgeFor(item) === 0) return;
+    markCategoryRead.mutate(item.category);
   }
 
   return (
@@ -105,6 +124,7 @@ export function AdminSidebar(): JSX.Element {
               href={item.disabled ? "#" : item.href}
               aria-disabled={item.disabled}
               tabIndex={item.disabled ? -1 : 0}
+              onClick={() => handleNavClick(item)}
               className={cn(
                 "mb-0.5 flex items-center gap-3 rounded-sm px-3 py-2 text-body-sm font-medium transition-colors duration-fast ease-out",
                 disabledClass,

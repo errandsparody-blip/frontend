@@ -114,6 +114,23 @@ export function useMarkAllRead(): ReturnType<
   });
 }
 
+/**
+ * Mark every unread notification in a single category as read. Drives
+ * the sidebar's "click the tab → badge goes to 0" behaviour. Categories
+ * mirror `NotificationCategory` (psn, order, return, wallet, shopper,
+ * kyc, verification, vendor).
+ */
+export function useMarkCategoryRead(): ReturnType<
+  typeof useMutation<{ updated: number }, unknown, NotificationCategory>
+> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (category: NotificationCategory) =>
+      api.post<{ updated: number }>("/notifications/read-category", { category }),
+    onSuccess: () => invalidateNotifications(qc),
+  });
+}
+
 function invalidateNotifications(qc: QueryClient): void {
   void qc.invalidateQueries({ queryKey: [...LIST_KEY] });
   void qc.invalidateQueries({ queryKey: [...COUNTS_KEY] });
