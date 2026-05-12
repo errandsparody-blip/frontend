@@ -57,6 +57,12 @@ interface AdminPsn {
       name: string;
       variant: string;
       storageTier?: "SMALL" | "MEDIUM" | "LARGE" | "X_LARGE" | "PALLET";
+      /**
+       * Locked product image URL — surfaced so the dock operator can
+       * visually match what's in the box against what the vendor
+       * catalogued. Null when the vendor never uploaded one.
+       */
+      imageUrl?: string | null;
     };
   }>;
   exceptions: Array<{ id: string; resolution: string; notes: string | null }>;
@@ -342,28 +348,53 @@ export default function ReceivePsnPage() {
             return (
               <TR key={l.id} className={overReceive ? "bg-error/5" : ""}>
                 <Td>
-                  {/* Product name + code/variant. The backend join always
-                      returns `product` (FK is ON DELETE RESTRICT), so the
-                      fallback below should never fire in practice — but
-                      we render a friendly placeholder instead of the raw
-                      UUID when it does, so operators never have to read
-                      a hex string off the receiving sheet. */}
+                  {/* Product thumbnail + name + code/variant. The backend
+                      join always returns `product` (FK is ON DELETE
+                      RESTRICT), so the fallback below should never fire in
+                      practice — but we render a friendly placeholder
+                      instead of the raw UUID when it does, so operators
+                      never have to read a hex string off the receiving
+                      sheet. The thumbnail is the locked product image —
+                      letting dock staff confirm "this is the right thing"
+                      at a glance before they start counting. */}
                   {l.product ? (
-                    <>
-                      <div className="font-medium text-ink">{l.product.name}</div>
-                      <div className="font-mono text-[11px] text-text-muted">
-                        {l.product.code} · {l.product.variant || "STD"}
+                    <div className="flex items-start gap-3">
+                      {l.product.imageUrl ? (
+                        /* eslint-disable-next-line @next/next/no-img-element */
+                        <img
+                          src={l.product.imageUrl}
+                          alt={`${l.product.name} thumbnail`}
+                          className="h-12 w-12 shrink-0 rounded-sm border border-line object-cover"
+                          loading="lazy"
+                          decoding="async"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = "none";
+                          }}
+                        />
+                      ) : (
+                        <div
+                          aria-hidden
+                          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-sm border border-dashed border-line bg-cream-soft font-mono text-[10px] uppercase tracking-[1px] text-text-subtle"
+                        >
+                          —
+                        </div>
+                      )}
+                      <div>
+                        <div className="font-medium text-ink">{l.product.name}</div>
+                        <div className="font-mono text-[11px] text-text-muted">
+                          {l.product.code} · {l.product.variant || "STD"}
+                        </div>
                       </div>
-                    </>
+                    </div>
                   ) : (
-                    <>
+                    <div>
                       <div className="font-medium text-text-muted italic">
                         Unknown product
                       </div>
                       <div className="font-mono text-[11px] text-text-subtle">
                         Ref: {l.productId.slice(0, 8)}
                       </div>
-                    </>
+                    </div>
                   )}
                 </Td>
                 <Td>

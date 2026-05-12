@@ -42,6 +42,12 @@ interface AdminSkuRow {
   productCode: string;
   productName: string;
   variant: string;
+  /**
+   * Locked product image (R2 URL) — surfaced so warehouse staff can
+   * visually match incoming/outgoing stock without drilling into the
+   * SKU detail page. `null` when the vendor never uploaded one.
+   */
+  productImageUrl: string | null;
   quantityAvailable: number;
   quantityReserved: number;
   storageTier: Tier;
@@ -208,6 +214,7 @@ export default function AdminInventoryPage(): JSX.Element {
           <THead>
             <Th>SKU</Th>
             <Th>Vendor</Th>
+            <Th>Image</Th>
             <Th>Product</Th>
             <Th>Tier</Th>
             <Th align="right">Available</Th>
@@ -222,6 +229,35 @@ export default function AdminInventoryPage(): JSX.Element {
                   {s.id}
                 </Td>
                 <Td>{s.vendorBusinessName}</Td>
+                <Td>
+                  {/* 40×40 thumbnail anchored to the row — gives staff
+                      an at-a-glance visual ID without a click. When the
+                      vendor never uploaded a photo we still render a
+                      neutral placeholder so the column stays aligned. */}
+                  {s.productImageUrl ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
+                      src={s.productImageUrl}
+                      alt={`${s.productName} thumbnail`}
+                      className="h-10 w-10 shrink-0 rounded-sm border border-line object-cover"
+                      loading="lazy"
+                      decoding="async"
+                      onError={(e) => {
+                        // Hide the <img> if R2 returns 404 (vendor cleared
+                        // out-of-band, R2 transient outage, etc.) so we
+                        // don't render the browser's broken-image glyph.
+                        (e.target as HTMLImageElement).style.display = "none";
+                      }}
+                    />
+                  ) : (
+                    <div
+                      aria-hidden
+                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-sm border border-dashed border-line bg-cream-soft font-mono text-[10px] uppercase tracking-[1px] text-text-subtle"
+                    >
+                      —
+                    </div>
+                  )}
+                </Td>
                 <Td>
                   <div className="font-medium text-ink">{s.productName}</div>
                   <div className="font-mono text-[11px] text-text-muted">

@@ -37,6 +37,8 @@ interface AdminSku {
   productCode: string;
   productName: string;
   variant: string;
+  /** Locked product image URL (R2). Null when the vendor never uploaded one. */
+  productImageUrl: string | null;
   quantityAvailable: number;
   quantityReserved: number;
   storageTier: string;
@@ -128,7 +130,38 @@ export default function AdminInventoryDetailPage(): JSX.Element {
         actions={<BackButton fallback="/admin/inventory" label="← Back to inventory" />}
       />
 
-      <section className="grid gap-6 rounded-md border border-line bg-white p-6 md:grid-cols-4">
+      {/* Product visual + stats. The image sits in its own column on the
+          left so staff can confirm "yes, this is the SKU I'm looking
+          for" at a glance before reading the counts. When no image was
+          uploaded we drop the column entirely rather than rendering a
+          placeholder, so the stat grid expands naturally on text-only
+          products. */}
+      <section
+        className={
+          "grid gap-6 rounded-md border border-line bg-white p-6 " +
+          (s.productImageUrl
+            ? "md:grid-cols-[160px_repeat(4,minmax(0,1fr))]"
+            : "md:grid-cols-4")
+        }
+      >
+        {s.productImageUrl ? (
+          <div className="row-span-1 md:row-span-1">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={s.productImageUrl}
+              alt={s.productName}
+              className="aspect-square w-full rounded-md border border-line object-cover"
+              loading="lazy"
+              decoding="async"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = "none";
+              }}
+            />
+            <div className="mt-2 font-mono text-mono-label uppercase text-text-subtle">
+              Locked at creation
+            </div>
+          </div>
+        ) : null}
         <Stat label="Available" value={s.quantityAvailable} highlight="success" />
         <Stat label="Reserved" value={s.quantityReserved} muted />
         <Stat

@@ -329,26 +329,28 @@ export function ProductForm({
           className="rounded-sm border-l-4 border-amber bg-amber/10 px-5 py-4 text-body-sm"
         >
           <div className="font-mono text-mono-label uppercase tracking-[1.4px] text-amber">
-            Locked — stock has been received
+            Locked — product is final
           </div>
           <p className="mt-1 text-text">
-            Once any inventory has been received under a product, the product details
-            (name, weight, dimensions, declared value, country of origin, HS code,
-            storage tier) become read-only. The product image stays editable so you
-            can keep your catalog visuals current. To change other details, archive
-            this product and create a new one.
+            Products are immutable once they&apos;ve been created. Identity, customs,
+            weight, dimensions, storage tier, <strong>and the product image</strong>
+            {" "}all stay fixed so every PSN, order, and customs declaration tied to
+            this product references the same values. To change anything, archive
+            this product and create a new one with the corrected details.
           </p>
         </div>
       ) : null}
 
       {/* Product image — leads the form so the visual asset is the
-          first thing the vendor sees. Stays editable even when the rest
-          of the form is locked: image is cosmetic. */}
+          first thing the vendor sees. Once the product is created the
+          image is locked alongside the rest of the fields: admin
+          receivers use it to visually match incoming stock, so swapping
+          it later would break the photographic audit trail. */}
       <section>
         <h2 className="mb-2 font-mono text-mono-label uppercase text-text-muted">
           Product image
         </h2>
-        <ProductImageUploader value={imageUrl} onChange={setImageUrl} />
+        <ProductImageUploader value={imageUrl} onChange={setImageUrl} disabled={locked} />
       </section>
 
       <section className="grid gap-5 md:grid-cols-2">
@@ -520,59 +522,7 @@ export function ProductForm({
         </div>
       </section>
 
-      <section className="rounded-md border border-line bg-cream-soft p-5">
-        {/* Inline guide trigger — the storage tier picker is exactly
-            the place where vendors second-guess themselves about the
-            tier sizing, so the help button lives one inch from the
-            decision. */}
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="font-mono text-mono-label uppercase text-text-muted">
-            Tier &amp; pricing
-          </h2>
-          <StorageTierGuide />
-        </div>
-        <Field
-          label="Storage tier"
-          error={errors.storageTier?.message}
-          hint={
-            locked
-              ? "Locked — storage tier drives billing. Archive this product and create a new one to change."
-              : suggestedTier && suggestedTier !== storageTier
-                ? `Based on the dimensions and weight you entered, we'd suggest ${suggestedTier.replace("_", "-")}.`
-                : "What size bin each unit of this product lives in. Drives monthly storage billing."
-          }
-        >
-          <div className="flex flex-wrap items-center gap-3">
-            <select
-              aria-label="Storage tier"
-              {...register("storageTier")}
-              disabled={locked}
-              className="h-11 max-w-xs rounded-sm border border-line-strong bg-white px-3 font-sans text-body text-text outline-none focus:border-ink disabled:opacity-60"
-            >
-              {storageTierSchema.options.map((t) => (
-                <option key={t} value={t}>
-                  {t.replace("_", "-")}
-                  {t === "PALLET" ? " (negotiated)" : ""}
-                </option>
-              ))}
-            </select>
-            {!locked && suggestedTier && suggestedTier !== storageTier ? (
-              <button
-                type="button"
-                onClick={() =>
-                  setValue("storageTier", suggestedTier, {
-                    shouldDirty: true,
-                    shouldValidate: false,
-                  })
-                }
-                className="font-mono text-[11px] uppercase tracking-[1.2px] text-amber hover:text-amber-hi"
-              >
-                Use {suggestedTier.replace("_", "-")} →
-              </button>
-            ) : null}
-          </div>
-        </Field>
-      </section>
+     
 
       {serverError ? (
         <div role="alert" className="rounded-sm border-l-4 border-error bg-error/10 px-4 py-3 text-body-sm text-error">
@@ -593,41 +543,35 @@ export function ProductForm({
         </div>
       ) : null}
 
-      <div className="flex justify-end">
-        {/* When the product is locked we still allow the form to save
-            so the vendor can update the image alone. The backend
-            ignores patch fields that match the current value (no-op
-            idempotent edits), so submitting a locked form with only
-            the image changed is accepted.
-
-            States:
-              - idle:   primary "Save" button
-              - saving: dimmed + spinner + "Saving…" copy
-              - saved:  green "Saved ✓" flash for 1.6 s
-            All three states have visibly distinct colour + label so
-            the operator can tell at a glance which one they're in. */}
-        <Button
-          type="submit"
-          variant="primary"
-          size="lg"
-          withArrow={!isSubmitting && !savedJustNow}
-          loading={isSubmitting}
-          disabled={isSubmitting || savedJustNow}
-          className={
-            savedJustNow
-              ? "border-success bg-success text-text-inv hover:bg-success/90"
-              : undefined
-          }
-        >
-          {isSubmitting
-            ? "Saving…"
-            : savedJustNow
-              ? "Saved ✓"
-              : locked
-                ? "Save image"
-                : submitLabel}
-        </Button>
-      </div>
+      {/* Hide the submit row entirely on a locked product — nothing in
+          the form is editable any more, so a button labelled "Save"
+          would just confuse the vendor. Status changes (archive/restore)
+          live outside this form so they remain reachable. */}
+      {!locked ? (
+        <div className="flex justify-end">
+          {/* States:
+                - idle:   primary "Save" button
+                - saving: dimmed + spinner + "Saving…" copy
+                - saved:  green "Saved ✓" flash for 1.6 s
+              All three states have visibly distinct colour + label so
+              the operator can tell at a glance which one they're in. */}
+          <Button
+            type="submit"
+            variant="primary"
+            size="lg"
+            withArrow={!isSubmitting && !savedJustNow}
+            loading={isSubmitting}
+            disabled={isSubmitting || savedJustNow}
+            className={
+              savedJustNow
+                ? "border-success bg-success text-text-inv hover:bg-success/90"
+                : undefined
+            }
+          >
+            {isSubmitting ? "Saving…" : savedJustNow ? "Saved ✓" : submitLabel}
+          </Button>
+        </div>
+      ) : null}
     </form>
   );
 }

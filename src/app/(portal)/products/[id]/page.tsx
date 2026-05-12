@@ -23,10 +23,10 @@ export default function ProductDetailPage() {
 
   // Products are always locked from the vendor's POV once they're
   // created — the backend `update()` rejects any change to the
-  // identity / shipping / customs fields, and the response always
-  // reports `locked: true`. The form mirrors this by rendering every
-  // input disabled. Image upload + archive stay available outside
-  // this gate (they're cosmetic / lifecycle, not compliance).
+  // identity / shipping / customs / image fields, and the response
+  // always reports `locked: true`. The form mirrors this by rendering
+  // every input (image uploader included) disabled. Archive stays
+  // available outside this gate as the only lifecycle action.
   const locked = product?.locked ?? true;
 
   async function onSubmit(values: CreateProductInput): Promise<void> {
@@ -97,16 +97,17 @@ export default function ProductDetailPage() {
               Products can&apos;t be edited after they&apos;re created
             </div>
             <p className="mt-1 max-w-prose text-body-sm text-text">
-              Identity, customs, weight, dimensions, and storage tier are
-              all fixed at creation so we can guarantee the same values on
-              every PSN, order, and customs declaration tied to this
-              product. If something needs to change, archive this product
-              and create a new one with the corrected details — the new
-              one will get its own SKU and historical records stay clean.
+              Identity, customs, weight, dimensions, storage tier, and the
+              product image are all fixed at creation so we can guarantee
+              the same values on every PSN, order, and customs declaration
+              tied to this product. If something needs to change, archive
+              this product and create a new one with the corrected details
+              — the new one will get its own SKU and historical records
+              stay clean.
             </p>
             <p className="mt-2 text-body-sm text-text-muted">
-              You can still update the product image below and archive the
-              product from this page.
+              The only action available from this page is archiving the
+              product.
             </p>
           </div>
         </div>
