@@ -24,9 +24,11 @@ import { api } from "@/lib/api-client";
 import {
   cubicFeetFrom,
   cubicInchesFrom,
+  FALLBACK_PALLET_POLICY,
   FALLBACK_TIERS,
   formatCentsAsDollars,
   formatDimensionsLabel,
+  PALLET_POLICY_NOTES,
   STORAGE_TIER_MATCH_INSTRUCTION,
   STORAGE_TIER_NOTES,
   STORAGE_TIER_ORDER,
@@ -268,10 +270,110 @@ export function StorageTierGuide({
                 ))}
               </ul>
             </section>
+
+            {/* Pallet policy — surfaced verbatim from the published
+                pricing guide. Two columns so the rules and the max-box
+                counts sit side-by-side on wide screens. */}
+            <PalletPolicyBlock />
           </div>
         </div>
       ) : null}
     </>
+  );
+}
+
+// =============================================================================
+// PalletPolicyBlock — the "Pallet rules + max boxes per pallet" section.
+// Used inside both the modal and the inline cards so the rules show up
+// wherever a vendor sees pricing. Numbers come from the
+// `pallet_policy` config row (falls back to FALLBACK_PALLET_POLICY).
+// =============================================================================
+
+function PalletPolicyBlock(): JSX.Element {
+  // For now the policy values are static — the seed publishes them via
+  // the `pallet_policy` config row but we don't expose them through an
+  // endpoint yet. The fallback IS the live value in v1.
+  const policy = FALLBACK_PALLET_POLICY;
+
+  return (
+    <section className="mt-8 rounded-md border border-line-strong bg-cream-soft p-5">
+      <header className="mb-4">
+        <div className="font-mono text-mono-eyebrow uppercase tracking-[1.4px] text-amber">
+          Pallet policy
+        </div>
+        <h3 className="mt-1 text-h3 font-semibold text-ink">
+          Same tier per pallet · approximate max-box counts
+        </h3>
+        <p className="mt-1 text-body-sm text-text-muted">
+          Pallet pricing applies only to properly palletized, shrink-wrapped,
+          and stable inventory. Boxes on each pallet must be the same tier.
+        </p>
+      </header>
+
+      <div className="grid gap-5 md:grid-cols-2">
+        <div>
+          <h4 className="font-mono text-mono-label uppercase tracking-[1.4px] text-text-muted">
+            Pallet box rules
+          </h4>
+          <ul className="mt-2 flex flex-col gap-1.5 text-body-sm text-text">
+            {PALLET_POLICY_NOTES.boxRules.map((rule) => (
+              <li key={rule} className="flex items-start gap-2">
+                <span className="mt-1.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-amber" />
+                <span>{rule}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div>
+          <h4 className="font-mono text-mono-label uppercase tracking-[1.4px] text-text-muted">
+            Approximate max boxes per pallet
+          </h4>
+          <div className="mt-2 overflow-hidden rounded-sm border border-line bg-white">
+            <table className="min-w-full text-body-sm">
+              <thead className="bg-ink/[0.04]">
+                <tr>
+                  <th className="px-3 py-2 text-left font-mono text-[10px] uppercase tracking-[1.4px] text-text-muted">
+                    Tier
+                  </th>
+                  <th className="px-3 py-2 text-right font-mono text-[10px] uppercase tracking-[1.4px] text-text-muted">
+                    Max boxes
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {(Object.keys(policy.maxBoxesPerPallet) as Array<
+                  keyof typeof policy.maxBoxesPerPallet
+                >).map((tier) => (
+                  <tr key={tier}>
+                    <td className="px-3 py-2 font-medium text-ink">
+                      {TIER_METADATA[tier].label}
+                    </td>
+                    <td className="px-3 py-2 text-right font-mono tabular-nums text-ink">
+                      ~{policy.maxBoxesPerPallet[tier]}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-2 text-caption text-text-muted">
+            Actual allowable quantities vary with stacking stability, weight
+            distribution, and pallet condition. USA Errands reserves the right
+            to reject or reconfigure unsafe pallets.
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-5 rounded-sm border-l-4 border-ink bg-white px-4 py-3">
+        <div className="font-mono text-mono-label uppercase tracking-[1.4px] text-ink">
+          Receiving &amp; setup fees still apply
+        </div>
+        <p className="mt-1 text-body-sm text-text">
+          {PALLET_POLICY_NOTES.receivingFeesNote}
+        </p>
+      </div>
+    </section>
   );
 }
 
@@ -347,6 +449,11 @@ export function StorageTierCards({
           </li>
         ))}
       </ul>
+
+      {/* Pallet rules inline too — the cards view is what vendors see on
+          the PSN-create page, so this is the right surface to remind
+          them about uniform tier per pallet and max box counts. */}
+      <PalletPolicyBlock />
     </>
   );
 

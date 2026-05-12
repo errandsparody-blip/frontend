@@ -21,6 +21,10 @@ import {
   type PublicPsn,
   type StorageTier,
 } from "@/lib/schemas/psn";
+import {
+  FALLBACK_PALLET_POLICY,
+  TIER_METADATA,
+} from "@/lib/storage-tiers";
 
 const TIERS: StorageTier[] = ["SMALL", "MEDIUM", "LARGE", "X_LARGE", "PALLET"];
 
@@ -257,6 +261,22 @@ export default function NewPsnPage() {
               {errors.declaredBoxCounts.message ?? "Declare at least one box."}
             </span>
           ) : null}
+
+          {/* Pallet policy reminder — only shown when the vendor has
+              actually declared PALLET boxes. Surfaces the uniform-tier
+              rule and per-tier max box counts so they don't hit a hold
+              on receipt for a packed-too-many or mixed-tier pallet. */}
+          {Number(declaredBoxCounts?.PALLET ?? 0) > 0 ? (
+            <PalletPolicyReminder
+              declared={declaredBoxCounts ?? {
+                SMALL: 0,
+                MEDIUM: 0,
+                LARGE: 0,
+                X_LARGE: 0,
+                PALLET: 0,
+              }}
+            />
+          ) : null}
         </section>
 
         {/* Lines */}
@@ -354,5 +374,72 @@ export default function NewPsnPage() {
         </div>
       </form>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// PalletPolicyReminder — uniform-tier rule + max-box hint when the vendor
+// declares PALLET boxes. Pure UI helper, no validation side-effects: the
+// API still accepts mixed counts. The reminder exists so the vendor can
+// recognise the policy violation BEFORE it hits the warehouse and turns
+// into a Hold + extra-charge debit.
+// ---------------------------------------------------------------------------
+
+function PalletPolicyReminder({
+  declared,
+}: {
+  declared: Partial<Record<StorageTier, number>>;
+}): JSX.Element {
+  const palletCount = Number(declared.PALLET ?? 0);
+  const boxTiers = (Object.keys(FALLBACK_PALLET_POLICY.maxBoxesPerPallet) as Array<
+    keyof typeof FALLBACK_PALLET_POLICY.maxBoxesPerPallet
+  >).filter((t) => Number(declared[t] ?? 0) > 0);
+
+  // Detect a possible mixed-pallet situation: multiple non-pallet tiers
+  // declared alongside the pallet. We can't tie individual boxes to
+  // specific pallets in the PSN schema, but >1 tier means the vendor must
+  // either separate the boxes onto multiple uniform-tier pallets or ship
+  // them loose. Render the warning so they don't pack a mixed pallet.
+  const possibleMixed = boxTiers.length > 1;
+
+  return (
+    <aside
+      role="note"
+      className="mt-6 rounded-md border-l-4 border-amber bg-amber/10 px-5 py-4"
+    >
+      <div className="font-mono text-mono-eyebrow uppercase text-amber">
+        Pallet policy reminder
+      </div>
+      <p className="mt-2 text-body-sm text-text">
+        You&apos;ve declared {palletCount} pallet{palletCount === 1 ? "" : "s"}.
+        All boxes on a single pallet must be the same tier and dimensions —
+        mixed-tier pallets aren&apos;t accepted at receive.
+      </p>
+
+      <ul className="mt-3 grid gap-2 text-body-sm text-text md:grid-cols-2">
+        {(Object.keys(FALLBACK_PALLET_POLICY.maxBoxesPerPallet) as Array<
+          keyof typeof FALLBACK_PALLET_POLICY.maxBoxesPerPallet
+        >).map((tier) => (
+          <li
+            key={tier}
+            className="flex items-baseline justify-between gap-3 rounded-sm border border-line bg-white px-3 py-2"
+          >
+            <span className="font-medium text-ink">{TIER_METADATA[tier].label}</span>
+            <span className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
+              up to ~{FALLBACK_PALLET_POLICY.maxBoxesPerPallet[tier]} boxes / pallet
+            </span>
+          </li>
+        ))}
+      </ul>
+
+      {possibleMixed ? (
+        <p className="mt-3 rounded-sm border border-error/40 bg-error/5 px-3 py-2 text-body-sm text-error">
+          You&apos;ve declared boxes from{" "}
+          <strong>{boxTiers.length} different tiers</strong> alongside a pallet.
+          Make sure each pallet contains only one tier — split into multiple
+          pallets if needed.
+        </p>
+      ) : null}
+    </aside>
   );
 }

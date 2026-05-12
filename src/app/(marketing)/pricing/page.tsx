@@ -2,11 +2,15 @@ import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import {
+  cubicFeetFrom,
+  cubicInchesFrom,
+  FALLBACK_PALLET_POLICY,
   FALLBACK_TIERS,
   formatCentsAsDollars,
-  formatDimensionsLabel,
+  PALLET_POLICY_NOTES,
   STORAGE_TIER_ORDER,
   TIER_METADATA,
+  type StorageTierDimensions,
 } from "@/lib/storage-tiers";
 
 export const metadata = {
@@ -22,26 +26,95 @@ export const metadata = {
 // The authoritative numbers always come from the admin config; if
 // finance changes pricing, the marketing page will lag until next
 // deploy. Vendors in the portal see live values immediately.
-const ONBOARDING = STORAGE_TIER_ORDER.map((tier) => {
+
+/** Inches → centimetres rounded to the nearest whole cm. */
+function inToCm(inches: number): number {
+  return Math.round(inches * 2.54);
+}
+
+/** "L × W × H in" string for a dim record. */
+function inLabel(dims: StorageTierDimensions): string {
+  return `${dims.lengthIn} × ${dims.widthIn} × ${dims.heightIn}`;
+}
+
+/** "L × W × H cm" string for a dim record. */
+function cmLabel(dims: StorageTierDimensions): string {
+  return `${inToCm(dims.lengthIn)} × ${inToCm(dims.widthIn)} × ${inToCm(dims.heightIn)} cm`;
+}
+
+interface PerBoxRow {
+  tier: string;
+  inches: string;
+  cm: string;
+  cubicInches: string;
+  cubicFeet: string;
+  stocking: string;
+  firstMonth: string;
+  monthly: string;
+}
+
+const PER_BOX_TIERS: PerBoxRow[] = STORAGE_TIER_ORDER.filter((t) => t !== "PALLET").map((tier) => {
   const o = FALLBACK_TIERS.onboarding[tier];
   const dims = FALLBACK_TIERS.dimensions?.[tier];
-  const negotiated = "negotiated" in o && o.negotiated === true;
+  // Pallets are rendered separately; this filter guarantees `dims` and
+  // numeric `o` are present, but we narrow defensively anyway.
+  if (!dims || ("negotiated" in o && o.negotiated === true)) {
+    return {
+      tier: TIER_METADATA[tier].label,
+      inches: "—",
+      cm: "—",
+      cubicInches: "—",
+      cubicFeet: "—",
+      stocking: "Negotiable",
+      firstMonth: "Negotiable",
+      monthly: "Negotiable",
+    };
+  }
+  const ci = cubicInchesFrom(dims);
+  const cf = cubicFeetFrom(dims);
   return {
     tier: TIER_METADATA[tier].label,
-    size: `Up to ${formatDimensionsLabel(dims)}`,
-    stocking: negotiated ? "Negotiable" : formatCentsAsDollars((o as { stockingCents: number }).stockingCents),
-    storage: negotiated
-      ? "Negotiable"
-      : formatCentsAsDollars((o as { firstMonthStorageCents: number }).firstMonthStorageCents),
-    // "Negotiable" instead of "—" so the total reads as a real label,
-    // matching the storage tier guide's wording.
-    total: negotiated ? "Negotiable" : formatCentsAsDollars((o as { totalCents: number }).totalCents),
+    inches: `${inLabel(dims)} in`,
+    cm: cmLabel(dims),
+    cubicInches: ci != null ? ci.toLocaleString("en-US") : "—",
+    cubicFeet: cf != null ? `${cf.toFixed(2)} ft³` : "—",
+    stocking: formatCentsAsDollars((o as { stockingCents: number }).stockingCents),
+    firstMonth: formatCentsAsDollars((o as { firstMonthStorageCents: number }).firstMonthStorageCents),
+    monthly: formatCentsAsDollars(FALLBACK_TIERS.monthlyStorage[tier]),
+  };
+});
+
+/** Pallet sub-table data, sourced from the same fallback. */
+const PALLET_DIMS = FALLBACK_TIERS.dimensions?.PALLET ?? {
+  lengthIn: 48,
+  widthIn: 40,
+  heightIn: 60,
+  maxWeightOz: 24000,
+};
+
+const PALLET_INFO = {
+  inches: `${PALLET_DIMS.lengthIn} × ${PALLET_DIMS.widthIn} inches base`,
+  cm: `${inToCm(PALLET_DIMS.lengthIn)} × ${inToCm(PALLET_DIMS.widthIn)} cm`,
+  maxHeight: `${PALLET_DIMS.heightIn} inches total (including pallet)`,
+  approxVolume: `~${cubicFeetFrom(PALLET_DIMS) ?? 0} ft³`,
+  monthly: formatCentsAsDollars(FALLBACK_TIERS.monthlyStorage.PALLET),
+};
+
+/** Max boxes per pallet rows for the "uniform tier" sub-table. */
+const PALLET_MAX_BOXES = (Object.keys(FALLBACK_PALLET_POLICY.maxBoxesPerPallet) as Array<
+  keyof typeof FALLBACK_PALLET_POLICY.maxBoxesPerPallet
+>).map((tier) => {
+  const dims = FALLBACK_TIERS.dimensions?.[tier];
+  return {
+    label: TIER_METADATA[tier].label,
+    sizeHint: dims ? `${inLabel(dims)}` : "",
+    maxBoxes: FALLBACK_PALLET_POLICY.maxBoxesPerPallet[tier],
   };
 });
 
 const FULFILLMENT = [
-  { label: "Pick & pack", first: "$2.50", additional: "$0.75 each" },
-  { label: "Returns handling", first: "$5.00", additional: "—" },
+  { label: "Pick & pack", first: "$2.99", additional: "$0.99 each" },
+  { label: "Returns handling", first: "$6.00", additional: "—" },
   { label: "Insurance (optional)", first: "1.5% of declared value", additional: "—" },
 ];
 
@@ -74,47 +147,181 @@ export default function PricingPage() {
         </div>
       </section>
 
-      {/* ONBOARDING + STORAGE — table */}
+      {/* PER-BOX TIERS — published storage-tier table */}
       <section className="mx-auto max-w-[84rem] px-8 py-20">
-        <div className="font-mono text-mono-eyebrow uppercase text-amber">[ 04 ] Onboarding · Storage</div>
+        <div className="font-mono text-mono-eyebrow uppercase text-amber">[ 04 ] Storage tiers</div>
         <h2 className="mt-3 max-w-3xl text-display font-medium leading-[1.05] tracking-[-0.8px] text-ink">
-          Per-box, per-tier. Honest about what fits where.
+          Per-box, per-tier. Pick the smallest box your inventory fits into.
         </h2>
-        <p className="mt-5 max-w-2xl text-body-lg text-text-muted">
-          The onboarding fee is charged once when the PSN is submitted; storage rolls monthly on the 1st.
-          Pallets are negotiated — talk to us.
+        <p className="mt-5 max-w-3xl text-body-lg text-text-muted">
+          Receiving &amp; inventory-setup is a one-time fee charged at PSN submit (stocking + the first
+          month&apos;s storage). Monthly storage rolls on the 1st of every month for each active SKU
+          bucket. Pallet pricing is a separate line further down.
         </p>
 
-        <div className="mt-10 overflow-hidden rounded-md border border-line bg-white">
+        <div className="mt-10 overflow-x-auto rounded-md border border-line bg-white">
           <table className="min-w-full">
             <thead className="bg-ink">
               <tr>
                 <Th>Tier</Th>
-                <Th>Up to</Th>
-                <Th align="right">Stocking</Th>
-                <Th align="right">First-month storage</Th>
-                <Th align="right">Total at submit</Th>
+                <Th>Dimensions (in)</Th>
+                <Th>Dimensions (cm)</Th>
+                <Th align="right">Cubic in</Th>
+                <Th align="right">Cubic ft</Th>
+                <Th align="right">Receiving &amp; setup</Th>
+                <Th align="right">First month</Th>
+                <Th align="right">Monthly</Th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
-              {ONBOARDING.map((row) => (
+              {PER_BOX_TIERS.map((row) => (
                 <tr key={row.tier}>
                   <Td strong>{row.tier}</Td>
-                  <Td muted>{row.size}</Td>
-                  <Td num>{row.stocking}</Td>
-                  <Td num>{row.storage}</Td>
+                  <Td muted>{row.inches}</Td>
+                  <Td muted>{row.cm}</Td>
+                  <Td num muted>
+                    {row.cubicInches}
+                  </Td>
+                  <Td num muted>
+                    {row.cubicFeet}
+                  </Td>
                   <Td num strong>
-                    {row.total}
+                    {row.stocking}
+                  </Td>
+                  <Td num>{row.firstMonth}</Td>
+                  <Td num strong>
+                    {row.monthly}
                   </Td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-        <p className="mt-4 max-w-2xl font-mono text-mono-label uppercase text-text-subtle">
-          Subsequent months: same as the first-month storage column. Storage is charged on the 1st of
-          every month per active SKU bucket.
-        </p>
+
+        {/* Re-tier callout — top-of-mind warning that mirrors the
+            storage tier guide modal's "Important" block. */}
+        <div className="mt-8 rounded-md border-l-4 border-amber bg-amber/10 px-6 py-5">
+          <div className="font-mono text-mono-eyebrow uppercase text-amber">Important</div>
+          <p className="mt-2 max-w-3xl text-body-sm text-text">
+            Match your actual shipment dimensions to the storage tier you select. If inventory received
+            exceeds the declared tier, USA Errands reserves the right to re-tier the line on receipt
+            and the fee difference is automatically debited from your wallet. Accurate box measurements
+            help avoid delays and discrepancy charges.
+          </p>
+        </div>
+      </section>
+
+      {/* PALLET STORAGE */}
+      <section className="border-y border-line bg-cream-soft">
+        <div className="mx-auto max-w-[84rem] px-8 py-20">
+          <div className="font-mono text-mono-eyebrow uppercase text-amber">[ 05 ] Pallet storage</div>
+          <h2 className="mt-3 max-w-3xl text-display font-medium leading-[1.05] tracking-[-0.8px] text-ink">
+            Standard U.S. pallet — billed per pallet-slot.
+          </h2>
+          <p className="mt-5 max-w-3xl text-body-lg text-text-muted">
+            Static pallet storage for properly palletized, shrink-wrapped, and stable inventory. Each
+            pallet is treated as an individually billed storage unit. Receiving &amp; setup fees still
+            apply to every box on the pallet — the rate below is storage only.
+          </p>
+
+          <div className="mt-10 grid gap-6 lg:grid-cols-[1.4fr_1fr]">
+            <div className="overflow-x-auto rounded-md border border-line bg-white">
+              <table className="min-w-full">
+                <thead className="bg-ink">
+                  <tr>
+                    <Th>Pallet type</Th>
+                    <Th>Dimensions (in)</Th>
+                    <Th>Dimensions (cm)</Th>
+                    <Th align="right">Max height</Th>
+                    <Th align="right">Approx. volume</Th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-line">
+                  <tr>
+                    <Td strong>Standard pallet</Td>
+                    <Td muted>{PALLET_INFO.inches}</Td>
+                    <Td muted>{PALLET_INFO.cm}</Td>
+                    <Td num muted>
+                      {PALLET_INFO.maxHeight}
+                    </Td>
+                    <Td num muted>
+                      {PALLET_INFO.approxVolume}
+                    </Td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div className="overflow-hidden rounded-md border border-line bg-white">
+              <table className="min-w-full">
+                <thead className="bg-ink">
+                  <tr>
+                    <Th>Storage type</Th>
+                    <Th align="right">Monthly</Th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-line">
+                  <tr>
+                    <Td strong>Standard static pallet</Td>
+                    <Td num strong>
+                      {PALLET_INFO.monthly}/month
+                    </Td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Pallet policy — uniform tier rule + max box counts. */}
+          <div className="mt-10 grid gap-6 lg:grid-cols-2">
+            <PolicyCard
+              title="Pallet box rules"
+              bullets={[...PALLET_POLICY_NOTES.boxRules]}
+            />
+            <PolicyCard
+              title="When pallet pricing applies"
+              bullets={[...PALLET_POLICY_NOTES.whenItApplies]}
+            />
+          </div>
+
+          <div className="mt-6 overflow-hidden rounded-md border border-line bg-white">
+            <table className="min-w-full">
+              <thead className="bg-ink">
+                <tr>
+                  <Th>Box tier</Th>
+                  <Th>Box dimensions</Th>
+                  <Th align="right">Approx. max boxes per pallet</Th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {PALLET_MAX_BOXES.map((row) => (
+                  <tr key={row.label}>
+                    <Td strong>{row.label}</Td>
+                    <Td muted>{row.sizeHint}</Td>
+                    <Td num strong>
+                      ~{row.maxBoxes} boxes
+                    </Td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-3 max-w-3xl text-caption text-text-muted">
+            Actual allowable quantities vary with stacking stability, weight distribution, warehouse
+            safety requirements, and pallet condition. USA Errands reserves the right to reject or
+            reconfigure unsafe pallets. If a pallet reaches capacity, ship another — each pallet is
+            billed and tracked as its own storage unit.
+          </p>
+
+          <div className="mt-8 rounded-md border-l-4 border-ink bg-white px-6 py-5">
+            <div className="font-mono text-mono-eyebrow uppercase text-ink">
+              Receiving &amp; setup fees still apply
+            </div>
+            <p className="mt-2 max-w-3xl text-body-sm text-text">
+              {PALLET_POLICY_NOTES.receivingFeesNote}
+            </p>
+          </div>
+        </div>
       </section>
 
       {/* FULFILLMENT */}
@@ -122,7 +329,7 @@ export default function PricingPage() {
         <div className="mx-auto max-w-[84rem] px-8 py-20">
           <div className="grid gap-12 lg:grid-cols-[1fr_1.2fr] lg:gap-16">
             <div>
-              <div className="font-mono text-mono-eyebrow uppercase text-amber">[ 05 ] Fulfillment</div>
+              <div className="font-mono text-mono-eyebrow uppercase text-amber">[ 06 ] Fulfillment</div>
               <h2 className="mt-3 text-display font-medium leading-[1.05] tracking-[-0.8px] text-ink">
                 Pick, pack, ship. Pay per order, not per plan.
               </h2>
@@ -165,7 +372,7 @@ export default function PricingPage() {
 
       {/* WORKED EXAMPLE */}
       <section className="mx-auto max-w-[84rem] px-8 py-20">
-        <div className="font-mono text-mono-eyebrow uppercase text-amber">[ 06 ] Worked example</div>
+        <div className="font-mono text-mono-eyebrow uppercase text-amber">[ 07 ] Worked example</div>
         <h2 className="mt-3 max-w-3xl text-display font-medium leading-[1.05] tracking-[-0.8px] text-ink">
           A small apparel vendor&apos;s first month.
         </h2>
@@ -175,45 +382,45 @@ export default function PricingPage() {
             title="Inbound shipment"
             subtitle="3 small + 1 medium box"
             rows={[
-              { label: "3 × Small onboarding", value: "$6.00" },
-              { label: "1 × Medium onboarding", value: "$4.00" },
+              { label: "3 × Small receiving & setup", value: "$63.00" },
+              { label: "1 × Medium receiving & setup", value: "$36.00" },
             ]}
-            total={{ label: "PSN total", value: "$10.00" }}
+            total={{ label: "PSN total", value: "$99.00" }}
           />
           <ExampleCard
             title="Monthly storage"
             subtitle="42 active SKU buckets · all small"
             rows={[
-              { label: "42 × Small monthly", value: "$42.00" },
+              { label: "42 × Small monthly ($9.00)", value: "$378.00" },
             ]}
-            total={{ label: "Storage", value: "$42.00" }}
+            total={{ label: "Storage", value: "$378.00" }}
           />
           <ExampleCard
             title="Fulfillment (60 orders)"
             subtitle="Avg 1.4 units per order"
             rows={[
-              { label: "60 × pick & pack base", value: "$150.00" },
-              { label: "24 additional units", value: "$18.00" },
+              { label: "60 × pick & pack base", value: "$179.40" },
+              { label: "24 additional units", value: "$23.76" },
               { label: "60 × USPS Priority avg", value: "$478.20" },
               { label: "+10% markup", value: "$47.82" },
             ]}
-            total={{ label: "Fulfillment", value: "$694.02" }}
+            total={{ label: "Fulfillment", value: "$729.18" }}
           />
           <ExampleCard
             title="Returns (3)"
             subtitle="2 restocked, 1 disposed"
             rows={[
-              { label: "3 × returns handling", value: "$15.00" },
+              { label: "3 × returns handling", value: "$18.00" },
               { label: "Refunds (REVERSAL)", value: "−$84.00" },
             ]}
-            total={{ label: "Net", value: "−$69.00" }}
+            total={{ label: "Net", value: "−$66.00" }}
           />
         </div>
 
         <div className="mt-8 rounded-md border-l-4 border-amber bg-amber/10 px-6 py-5">
           <div className="font-mono text-mono-label uppercase text-amber">Month total</div>
           <div className="mt-1 text-display font-medium tabular-nums tracking-[-0.8px] text-ink">
-            $677.02
+            $1,140.18
           </div>
           <p className="mt-2 max-w-2xl text-body-sm text-text-muted">
             Every line above is a real ledger entry — you can export the whole month as CSV from your
@@ -225,7 +432,7 @@ export default function PricingPage() {
       {/* FAQ */}
       <section className="border-y border-line bg-cream-soft">
         <div className="mx-auto max-w-[84rem] px-8 py-20">
-          <div className="font-mono text-mono-eyebrow uppercase text-amber">[ 07 ] FAQ</div>
+          <div className="font-mono text-mono-eyebrow uppercase text-amber">[ 08 ] FAQ</div>
           <h2 className="mt-3 text-display font-medium leading-[1.05] tracking-[-0.8px] text-ink">
             Common questions.
           </h2>
@@ -262,7 +469,7 @@ export default function PricingPage() {
       {/* CTA */}
       <section className="mx-auto max-w-[84rem] px-8 py-24">
         <div className="rounded-md border border-line bg-ink p-12 text-text-inv">
-          <div className="font-mono text-mono-eyebrow uppercase text-amber">[ 08 ] Get started</div>
+          <div className="font-mono text-mono-eyebrow uppercase text-amber">[ 09 ] Get started</div>
           <h2 className="mt-3 max-w-2xl text-display font-medium leading-[1.05] tracking-[-0.8px]">
             Get a wallet, fund it, ship a PSN.
           </h2>
@@ -389,6 +596,32 @@ function Faq({ q, children }: { q: string; children: React.ReactNode }) {
     <div className="rounded-md border border-line bg-white p-6">
       <h3 className="text-h3 font-semibold text-ink">{q}</h3>
       <p className="mt-3 text-body-sm text-text-muted">{children}</p>
+    </div>
+  );
+}
+
+/**
+ * Small bulleted card used in the pallet policy block. Bullets are
+ * deliberately short — full prose lives in the Vendor Agreement.
+ */
+function PolicyCard({
+  title,
+  bullets,
+}: {
+  title: string;
+  bullets: string[];
+}) {
+  return (
+    <div className="rounded-md border border-line bg-white p-6">
+      <h3 className="text-h3 font-semibold text-ink">{title}</h3>
+      <ul className="mt-4 flex flex-col gap-2">
+        {bullets.map((b) => (
+          <li key={b} className="flex items-start gap-2 text-body-sm text-text">
+            <span aria-hidden className="mt-1 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-amber" />
+            <span>{b}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

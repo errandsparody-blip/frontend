@@ -123,11 +123,15 @@ interface TierEnvelope {
   maxWeightOz: number;
 }
 
+// KEEP IN SYNC with prisma/seed.ts → TIER_DIMENSIONS and the public pricing
+// guide. These envelopes are used by the suggest-tier helper to pick the
+// smallest box a product fits into; if the seed numbers change here without
+// the server side following, vendors will see mismatched recommendations.
 const TIER_ENVELOPES: Array<{ tier: StorageTier; box: TierEnvelope }> = [
-  { tier: "SMALL", box: { lengthIn: 12, widthIn: 9, heightIn: 4, maxWeightOz: 80 } },
-  { tier: "MEDIUM", box: { lengthIn: 14, widthIn: 11, heightIn: 6, maxWeightOz: 240 } },
-  { tier: "LARGE", box: { lengthIn: 18, widthIn: 14, heightIn: 10, maxWeightOz: 480 } },
-  { tier: "X_LARGE", box: { lengthIn: 24, widthIn: 18, heightIn: 14, maxWeightOz: 960 } },
+  { tier: "SMALL", box: { lengthIn: 16, widthIn: 12, heightIn: 12, maxWeightOz: 480 } },
+  { tier: "MEDIUM", box: { lengthIn: 18, widthIn: 18, heightIn: 16, maxWeightOz: 800 } },
+  { tier: "LARGE", box: { lengthIn: 18, widthIn: 18, heightIn: 24, maxWeightOz: 1280 } },
+  { tier: "X_LARGE", box: { lengthIn: 24, widthIn: 18, heightIn: 24, maxWeightOz: 1920 } },
 ];
 
 /**

@@ -78,6 +78,32 @@ export interface StorageTiersResponse {
   dimensions: Record<StorageTierKey, StorageTierDimensions> | null;
 }
 
+/**
+ * Pallet handling policy returned by the API (from the `pallet_policy`
+ * config row). Read by the storage-tier guide modal + PSN-create page.
+ * The numbers are the published "approximate max boxes per pallet" from
+ * the pricing guide — vendors see them as guidance, not as a hard
+ * server-enforced cap.
+ */
+export interface PalletPolicy {
+  mixedTiersAllowed: boolean;
+  maxBoxesPerPallet: Record<
+    Exclude<StorageTierKey, "PALLET">,
+    number
+  >;
+}
+
+/** Default pallet policy used while the API call is in flight / fails. */
+export const FALLBACK_PALLET_POLICY: PalletPolicy = {
+  mixedTiersAllowed: false,
+  maxBoxesPerPallet: {
+    SMALL: 50,
+    MEDIUM: 12,
+    LARGE: 8,
+    X_LARGE: 8,
+  },
+};
+
 // ---------------------------------------------------------------------------
 // Fallback data — used while the API call is loading OR if it fails.
 // Matches the values in `prisma/seed.ts`.
@@ -91,10 +117,14 @@ export interface StorageTiersResponse {
  */
 export const FALLBACK_TIERS: StorageTiersResponse = {
   onboarding: {
-    SMALL: { stockingCents: 2500, firstMonthStorageCents: 900, totalCents: 3400 },
-    MEDIUM: { stockingCents: 4000, firstMonthStorageCents: 1400, totalCents: 5400 },
-    LARGE: { stockingCents: 6000, firstMonthStorageCents: 1800, totalCents: 7800 },
-    X_LARGE: { stockingCents: 9000, firstMonthStorageCents: 2500, totalCents: 11500 },
+    SMALL: { stockingCents: 1200, firstMonthStorageCents: 900, totalCents: 2100 },
+    MEDIUM: { stockingCents: 2200, firstMonthStorageCents: 1400, totalCents: 3600 },
+    LARGE: { stockingCents: 4000, firstMonthStorageCents: 1800, totalCents: 5800 },
+    X_LARGE: { stockingCents: 6000, firstMonthStorageCents: 2500, totalCents: 8500 },
+    // Per-box onboarding fees still apply to boxes ON a pallet — the
+    // pallet itself doesn't carry a stocking/first-month charge. The
+    // server enforces this by failing PSN submit with `negotiated`
+    // unless real per-box tiers are declared alongside.
     PALLET: { negotiated: true },
   },
   monthlyStorage: {
@@ -102,13 +132,15 @@ export const FALLBACK_TIERS: StorageTiersResponse = {
     MEDIUM: 1400,
     LARGE: 1800,
     X_LARGE: 2500,
-    PALLET: null,
+    // Static pallet storage — $45/month per pallet-slot occupied.
+    PALLET: 4500,
   },
   dimensions: {
-    SMALL: { lengthIn: 12, widthIn: 9, heightIn: 4, maxWeightOz: 80 },
-    MEDIUM: { lengthIn: 16, widthIn: 12, heightIn: 8, maxWeightOz: 240 },
-    LARGE: { lengthIn: 24, widthIn: 18, heightIn: 12, maxWeightOz: 480 },
-    X_LARGE: { lengthIn: 36, widthIn: 24, heightIn: 18, maxWeightOz: 1120 },
+    SMALL: { lengthIn: 16, widthIn: 12, heightIn: 12, maxWeightOz: 480 },
+    MEDIUM: { lengthIn: 18, widthIn: 18, heightIn: 16, maxWeightOz: 800 },
+    LARGE: { lengthIn: 18, widthIn: 18, heightIn: 24, maxWeightOz: 1280 },
+    X_LARGE: { lengthIn: 24, widthIn: 18, heightIn: 24, maxWeightOz: 1920 },
+    // Standard U.S. pallet — 40×48 footprint × 60 in stacked height.
     PALLET: { lengthIn: 48, widthIn: 40, heightIn: 60, maxWeightOz: 24000 },
   },
 };
@@ -119,20 +151,46 @@ export const FALLBACK_TIERS: StorageTiersResponse = {
 // ---------------------------------------------------------------------------
 
 export const STORAGE_TIER_NOTES: ReadonlyArray<string> = [
-  "Stocking is a one-time fee at PSN submit. Monthly storage rolls every 1st per active SKU bucket.",
+  "Receiving & inventory setup is a one-time fee charged at PSN submit; monthly storage rolls on the 1st of every month.",
   "Pricing is per box — pick the smallest tier your product fits into so you don't over-pay.",
-  "Pallet pricing is negotiated based on stackability, turnover rate, and special handling.",
-  "Oversized or irregular inventory (hazmat, cold storage, fragile) may require custom pricing — talk to ops.",
+  "Pallet storage covers properly palletized, shrink-wrapped, stable inventory. Per-box receiving fees still apply for every box on the pallet.",
+  "Oversized, fragile, hazardous, or irregular inventory may require custom pricing or approval — contact support before shipping.",
 ];
 
 export const STORAGE_TIER_MATCH_INSTRUCTION = {
   eyebrow: "Important",
-  headline: "Match the shipping box with the tier you select",
+  headline: "Match your shipment dimensions to the storage tier",
   body:
-    "The tier you pick has to match the actual box dimensions you ship in. " +
-    "If our warehouse receives a box that's bigger than the tier you declared, " +
-    "we re-tier the line on receipt and your wallet is debited the difference. " +
-    "Use a tape measure if you're not sure — it saves a discrepancy charge later.",
+    "USA Errands reserves the right to re-tier inventory upon receipt if the " +
+    "box dimensions exceed what you declared. Any fee difference is automatically " +
+    "debited from your wallet. Measure with a tape — accurate box dimensions " +
+    "avoid delays and discrepancy charges.",
+} as const;
+
+/**
+ * Pallet policy block — surfaced verbatim in the storage-tier guide modal
+ * and on the marketing pricing page. The numeric `maxBoxesPerPallet`
+ * values are seeded server-side and read at runtime via the
+ * `pallet_policy` config row; the prose below is static.
+ */
+export const PALLET_POLICY_NOTES = {
+  whenItApplies: [
+    "Properly palletized inventory",
+    "Shrink-wrapped and stable pallets",
+    "Organized bulk inventory",
+    "Low-touch storage inventory",
+  ],
+  boxRules: [
+    "All boxes on a pallet must be the same tier and dimensions",
+    "Mixed box sizes on the same pallet are not permitted",
+    "Each pallet must remain organized, stable, stack-safe, and uniformly arranged",
+  ],
+  fullPalletPolicy: [
+    "If a pallet reaches its approved maximum, the vendor may create and ship an additional pallet",
+    "Each pallet is treated as an individually billed, independently tracked storage unit",
+  ],
+  receivingFeesNote:
+    "Individual receiving & inventory-setup fees still apply to every box on a pallet — USA Errands still performs receiving, counting, inspection, SKU assignment, inventory setup, and warehouse organization before pallets enter storage.",
 } as const;
 
 // ---------------------------------------------------------------------------
