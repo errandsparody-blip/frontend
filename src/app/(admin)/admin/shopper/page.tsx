@@ -61,6 +61,15 @@ const TONE: Record<ShopperRequestStatus, "neutral" | "info" | "success" | "warni
   DELIVERED: "success",
   CANCELLED: "neutral",
   REFUNDED: "neutral",
+  // Migration 0023 — wire-track statuses surface on the admin queue too.
+  AWAITING_ID_VERIFICATION: "warning",
+  ID_UNDER_REVIEW: "info",
+  QUOTE_SENT: "warning",
+  AWAITING_WIRE_PAYMENT: "warning",
+  WIRE_PROOF_UPLOADED: "info",
+  WIRE_UNDER_REVIEW: "info",
+  WIRE_CONFIRMED: "success",
+  PURCHASE_APPROVED: "success",
 };
 
 function formatCents(cents: number | null): string {

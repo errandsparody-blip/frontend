@@ -46,7 +46,9 @@ type LineFormShape = {
 
 type FormShape = {
   buyerEmail: string;
-  buyerName?: string;
+  // Migration 0023 — name + phone are required for new requests.
+  buyerName: string;
+  buyerPhone: string;
   lines: LineFormShape[];
   initialMessage?: string;
   parentReference?: string;
@@ -62,6 +64,15 @@ type FormShape = {
   country?: string;
 };
 
+// Migration 0023 — items-subtotal threshold above which the buyer is
+// routed onto the wire-transfer + ID-verification track. The server is
+// authoritative; this constant exists only for the live UI hint. Keep in
+// sync with the `shopper_wire_threshold_cents` configuration default —
+// finance can change the server-side number without a deploy, in which
+// case this hint becomes slightly conservative (some carts that look
+// under the line will still be routed onto WIRE, which is fine).
+const WIRE_THRESHOLD_HINT_CENTS = 100_000;
+
 const DEFAULT_LINE: LineFormShape = {
   productUrl: "",
   productNotes: "",
@@ -76,6 +87,7 @@ export default function ShopperIntakePage(): JSX.Element {
     defaultValues: {
       buyerEmail: "",
       buyerName: "",
+      buyerPhone: "",
       lines: [{ ...DEFAULT_LINE }],
       initialMessage: "",
       shipToggle: false,
@@ -111,11 +123,20 @@ export default function ShopperIntakePage(): JSX.Element {
     mutationFn: (payload: CreateShopperRequestInput) =>
       api.post<CreateShopperRequestResponse>("/shopper", payload),
     onSuccess: (data) => {
-      // The Stripe-hosted Checkout URL is opaque to us — we don't sniff it.
-      // We DO refuse to navigate to anything that's not https:// to defend
-      // against a misconfigured backend or man-in-the-middle from leaking
-      // credentials.
-      if (typeof window !== "undefined" && data.payUrl.startsWith("https://")) {
+      // Migration 0023 — branch on the server-decided rail:
+      //   STRIPE → redirect to Checkout (existing behaviour).
+      //   WIRE   → land the buyer on their thread page, where the ID
+      //            verification panel renders. We refuse to navigate to
+      //            anything not https:// so a misconfigured backend
+      //            can't leak the buyer onto a sketchy URL.
+      if (typeof window === "undefined") return;
+      if (data.paymentMethod === "WIRE") {
+        if (data.threadUrl.startsWith("https://") || data.threadUrl.startsWith("/")) {
+          window.location.assign(data.threadUrl);
+        }
+        return;
+      }
+      if (data.payUrl.startsWith("https://")) {
         window.location.assign(data.payUrl);
       }
     },
@@ -137,7 +158,8 @@ export default function ShopperIntakePage(): JSX.Element {
     // Build a wire-shape payload then validate with the shared schema.
     const payload: Partial<CreateShopperRequestInput> = {
       buyerEmail: values.buyerEmail,
-      buyerName: values.buyerName?.trim() ? values.buyerName.trim() : undefined,
+      buyerName: values.buyerName.trim(),
+      buyerPhone: values.buyerPhone.trim(),
       lines: linesCents,
       initialMessage:
         values.initialMessage?.trim() && values.initialMessage.trim().length > 0
@@ -212,19 +234,53 @@ export default function ShopperIntakePage(): JSX.Element {
                 type="email"
                 autoComplete="email"
                 placeholder="you@example.com"
+                // Required + tightened RFC-ish validation runs through the
+                // shared Zod schema on submit. Native required is a UX
+                // fallback so the browser flags an empty field before the
+                // submit handler even runs.
                 {...register("buyerEmail", { required: "Required." })}
               />
             </Field>
-            <Field label="Name (optional)" error={errors.buyerName?.message}>
+            <Field label="Full name" error={errors.buyerName?.message}>
               <Input
                 type="text"
                 autoComplete="name"
                 placeholder="Jane Doe"
-                {...register("buyerName")}
+                {...register("buyerName", { required: "Required." })}
+              />
+            </Field>
+            <Field label="Phone" error={errors.buyerPhone?.message}>
+              <Input
+                type="tel"
+                autoComplete="tel"
+                inputMode="tel"
+                placeholder="+1 415 555 1212"
+                {...register("buyerPhone", { required: "Required." })}
               />
             </Field>
           </div>
         </section>
+
+        {/* Migration 0023 — when the cart crosses the wire threshold,
+            surface a clear notice so the buyer isn't surprised at submit.
+            The server is authoritative; this hint is purely visual. */}
+        {itemsTotalCents >= WIRE_THRESHOLD_HINT_CENTS ? (
+          <div
+            role="note"
+            className="-mb-2 rounded-md border-l-4 border-amber bg-amber/10 px-5 py-4"
+          >
+            <div className="font-mono text-mono-label uppercase text-amber">
+              Orders over $1,000 — Wire transfer required
+            </div>
+            <p className="mt-1 text-body-sm text-text">
+              Because your items add up to over $1,000, you&apos;ll be asked to
+              verify your identity with a government-issued ID and pay by bank
+              wire transfer instead of card. We&apos;ll email a link to your
+              private order page where you can upload your ID. Bank-transfer
+              instructions are only revealed after we approve your verification.
+            </p>
+          </div>
+        ) : null}
 
         {/* Lines */}
         <section className="rounded-md border border-line bg-white p-8">
@@ -411,18 +467,33 @@ export default function ShopperIntakePage(): JSX.Element {
 
         {/* Confirm + submit */}
         <section className="rounded-md border border-line bg-cream-soft p-6">
-          <p className="text-body-sm text-text-muted">
-            You&apos;ll be redirected to Stripe to pay{" "}
-            <strong>${(itemsTotalCents / 100).toFixed(2)} + service fee + estimated U.S. sales tax</strong>{" "}
-            up front. The U.S. retailer charges sales tax on every purchase based on where they ship to —
-            we estimate it at intake using the rate for our warehouse state, then reconcile against the
-            actual tax we paid. After we procure your items we&apos;ll either invoice any remaining
-            difference + shipping, or refund you. By submitting, you agree to our{" "}
-            <Link href="/legal/terms" className="underline">
-              Terms
-            </Link>
-            .
-          </p>
+          {itemsTotalCents >= WIRE_THRESHOLD_HINT_CENTS ? (
+            <p className="text-body-sm text-text-muted">
+              On submit, you&apos;ll land on your private order page. We&apos;ll
+              ask you to upload a government-issued ID and a selfie holding it.
+              Once verified, we&apos;ll send the bank-transfer instructions
+              there. Total estimate so far:{" "}
+              <strong>${(itemsTotalCents / 100).toFixed(2)} + service fee + estimated U.S. sales tax</strong>.
+              By submitting, you agree to our{" "}
+              <Link href="/legal/terms" className="underline">
+                Terms
+              </Link>
+              .
+            </p>
+          ) : (
+            <p className="text-body-sm text-text-muted">
+              You&apos;ll be redirected to Stripe to pay{" "}
+              <strong>${(itemsTotalCents / 100).toFixed(2)} + service fee + estimated U.S. sales tax</strong>{" "}
+              up front. The U.S. retailer charges sales tax on every purchase based on where they ship to —
+              we estimate it at intake using the rate for our warehouse state, then reconcile against the
+              actual tax we paid. After we procure your items we&apos;ll either invoice any remaining
+              difference + shipping, or refund you. By submitting, you agree to our{" "}
+              <Link href="/legal/terms" className="underline">
+                Terms
+              </Link>
+              .
+            </p>
+          )}
 
           {/* Set the recovery expectation up front so a buyer who closes
               the tab knows exactly what to do. The thread has no password —
@@ -458,7 +529,11 @@ export default function ShopperIntakePage(): JSX.Element {
               disabled={!confirming || mutate.isPending || itemsTotalCents <= 0}
               loading={mutate.isPending}
             >
-              {mutate.isPending ? "Redirecting…" : "Continue to payment"}
+              {mutate.isPending
+                ? "Redirecting…"
+                : itemsTotalCents >= WIRE_THRESHOLD_HINT_CENTS
+                  ? "Continue to ID verification"
+                  : "Continue to payment"}
             </Button>
           </div>
         </section>

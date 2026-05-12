@@ -29,6 +29,7 @@ import {
   postShopperMessageSchema,
   type PostShopperMessageInput,
   type ShopperMessageSnapshot,
+  type ShopperRequestSnapshot,
   type ShopperRequestStatus,
   type ShopperThreadResponse,
 } from "@/lib/schemas/shopper";
@@ -48,6 +49,16 @@ const STATUS_TONE: Record<ShopperRequestStatus, "neutral" | "info" | "success" |
   DELIVERED: "success",
   CANCELLED: "neutral",
   REFUNDED: "neutral",
+  // Migration 0023 — wire-track statuses. Warning while we need an
+  // action from the buyer; info once the ball is in our court.
+  AWAITING_ID_VERIFICATION: "warning",
+  ID_UNDER_REVIEW: "info",
+  QUOTE_SENT: "warning",
+  AWAITING_WIRE_PAYMENT: "warning",
+  WIRE_PROOF_UPLOADED: "info",
+  WIRE_UNDER_REVIEW: "info",
+  WIRE_CONFIRMED: "success",
+  PURCHASE_APPROVED: "success",
 };
 
 const STATUS_LABEL: Record<ShopperRequestStatus, string> = {
@@ -63,6 +74,16 @@ const STATUS_LABEL: Record<ShopperRequestStatus, string> = {
   DELIVERED: "Delivered",
   CANCELLED: "Cancelled",
   REFUNDED: "Refunded",
+  // Migration 0023 — wire-track labels. Plain-English so the buyer can
+  // map the badge to a screen-level instruction.
+  AWAITING_ID_VERIFICATION: "Verify your identity",
+  ID_UNDER_REVIEW: "ID under review",
+  QUOTE_SENT: "Awaiting your wire transfer",
+  AWAITING_WIRE_PAYMENT: "Awaiting your wire transfer",
+  WIRE_PROOF_UPLOADED: "Payment under review",
+  WIRE_UNDER_REVIEW: "Payment under review",
+  WIRE_CONFIRMED: "Payment confirmed",
+  PURCHASE_APPROVED: "Sourcing your items",
 };
 
 function dollars(cents: number | null | undefined): string {
@@ -292,6 +313,17 @@ function ThreadView({
         ) : null}
       </section>
 
+      {/* Migration 0023 — wire-track action cards. Render only when the
+          request is on the WIRE rail; STRIPE-track requests skip these
+          entirely. The two cards represent the two distinct buyer
+          actions: prove identity, then prove payment. */}
+      {r.paymentMethod === "WIRE" ? (
+        <>
+          <IdVerificationCard request={r} token={token} onRefresh={onRefresh} />
+          <WirePaymentCard request={r} token={token} onRefresh={onRefresh} />
+        </>
+      ) : null}
+
       {/* Lines */}
       <section className="rounded-md border border-line bg-white p-8">
         <h2 className="mb-4 font-mono text-mono-label uppercase text-text-muted">Items</h2>
@@ -473,6 +505,21 @@ function buyerCallout(status: ShopperRequestStatus): string | null {
       return "This request has been cancelled.";
     case "REFUNDED":
       return "This request has been cancelled and refunded.";
+    // Migration 0023 — wire-track callouts. Each one tells the buyer
+    // exactly what to do next, or that the ball is in our court.
+    case "AWAITING_ID_VERIFICATION":
+      return "Upload a photo of your government-issued ID and a selfie holding it. We'll review usually within one business day.";
+    case "ID_UNDER_REVIEW":
+      return "We're reviewing your ID — usually within one business day. We'll message you here as soon as we've finished.";
+    case "QUOTE_SENT":
+    case "AWAITING_WIRE_PAYMENT":
+      return "Your ID has been verified. Wire the total below to the bank account shown and upload your transfer receipt when done.";
+    case "WIRE_PROOF_UPLOADED":
+    case "WIRE_UNDER_REVIEW":
+      return "We're confirming your wire-transfer landed. We'll start sourcing as soon as the payment clears.";
+    case "WIRE_CONFIRMED":
+    case "PURCHASE_APPROVED":
+      return "Payment confirmed. We're sourcing your items now.";
   }
 }
 
@@ -552,6 +599,333 @@ function ThreadError({ error }: { error: unknown }): JSX.Element {
           Reference: {normalized.correlationId.slice(0, 16)}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Migration 0023 — wire-track buyer cards
+//
+// These two cards drive the buyer-side state machine for high-value
+// orders. They render at the top of the thread page (above lines/chat)
+// when the request is on the WIRE rail, and each one is gated by the
+// status + idVerificationStatus combination so a buyer who's already
+// finished one stage doesn't see stale prompts.
+// ---------------------------------------------------------------------------
+
+function IdVerificationCard({
+  request,
+  token,
+  onRefresh,
+}: {
+  request: ShopperRequestSnapshot;
+  token: string;
+  onRefresh: () => void;
+}): JSX.Element | null {
+  // States where the buyer either still needs to upload, or just did.
+  // Once their ID is APPROVED we render a compact "verified" summary
+  // instead of taking up screen space with the uploader form.
+  const showFullUploader =
+    request.idVerificationStatus === "PENDING_UPLOAD" ||
+    request.idVerificationStatus === "REJECTED" ||
+    request.idVerificationStatus === "UNDER_REVIEW";
+
+  const [docUrls, setDocUrls] = useState<string[]>([]);
+  const [selfieUrls, setSelfieUrls] = useState<string[]>([]);
+  const { bannerError, handle, clear } = useApiErrorHandler();
+
+  const submit = useMutation({
+    mutationFn: () =>
+      api.post<{ status: string; idVerificationStatus: string }>(
+        `/shopper/r/${encodeURIComponent(token)}/id-submit`,
+        {
+          // Backend expects exactly one of each; we send the latest
+          // uploaded URL from each list. The uploader keeps the most
+          // recent upload at the end of the array.
+          idDocumentUrl: docUrls[docUrls.length - 1],
+          idSelfieUrl: selfieUrls[selfieUrls.length - 1],
+        },
+      ),
+    onSuccess: () => {
+      setDocUrls([]);
+      setSelfieUrls([]);
+      onRefresh();
+    },
+    onError: (err) => handle(err),
+  });
+
+  // After approval — compact summary so the buyer sees their progress
+  // through the funnel but the uploader doesn't occupy precious space.
+  if (request.idVerificationStatus === "APPROVED") {
+    return (
+      <section className="rounded-md border-l-4 border-success bg-success/10 p-6">
+        <div className="font-mono text-mono-label uppercase text-success">
+          ID verified
+        </div>
+        <p className="mt-1 text-body-sm text-text">
+          Your identity has been verified. The wire-transfer instructions are below.
+        </p>
+      </section>
+    );
+  }
+
+  if (!showFullUploader) return null;
+
+  const canSubmit = docUrls.length > 0 && selfieUrls.length > 0 && !submit.isPending;
+
+  return (
+    <section className="rounded-md border border-line bg-white p-8">
+      <div className="mb-4">
+        <h2 className="font-mono text-mono-label uppercase text-text-muted">
+          Step 1 — Verify your identity
+        </h2>
+        <p className="mt-2 text-body-sm text-text-muted">
+          Orders over $1,000 require ID verification. Upload a clear photo of
+          your government-issued ID (passport or driver&apos;s licence) and a
+          selfie of yourself holding it. We review within one business day.
+        </p>
+      </div>
+
+      {request.idVerificationStatus === "REJECTED" && request.idRejectionReason ? (
+        <div
+          role="alert"
+          className="mb-4 rounded-sm border-l-4 border-error bg-error/10 px-4 py-3 text-body-sm"
+        >
+          <strong className="font-mono text-mono-label uppercase tracking-[1.2px] text-error">
+            Previous upload couldn&apos;t be verified
+          </strong>
+          <p className="mt-1">{request.idRejectionReason}</p>
+        </div>
+      ) : null}
+
+      {request.idVerificationStatus === "UNDER_REVIEW" ? (
+        <div className="mb-4 rounded-sm border-l-4 border-info bg-info/10 px-4 py-3 text-body-sm">
+          We&apos;ve received your documents and they&apos;re being reviewed. You
+          don&apos;t need to do anything else right now — we&apos;ll message you
+          here when verification is complete.
+        </div>
+      ) : (
+        <>
+          {bannerError ? (
+            <div className="mb-4">
+              <ErrorBanner
+                error={bannerError}
+                onAction={(handler) => {
+                  if (handler === "support") window.location.href = "mailto:support@myusaerrands.com";
+                  else if (handler === "retry") clear();
+                }}
+              />
+            </div>
+          ) : null}
+
+          <div className="grid gap-5 md:grid-cols-2">
+            <div>
+              <div className="mb-2 font-mono text-mono-label uppercase text-text-muted">
+                Government ID
+              </div>
+              <AttachmentUploader
+                value={docUrls}
+                onChange={setDocUrls}
+                presignEndpoint={`/shopper/r/${encodeURIComponent(token)}/id-uploads`}
+                disabled={submit.isPending}
+              />
+            </div>
+            <div>
+              <div className="mb-2 font-mono text-mono-label uppercase text-text-muted">
+                Selfie holding ID
+              </div>
+              <AttachmentUploader
+                value={selfieUrls}
+                onChange={setSelfieUrls}
+                presignEndpoint={`/shopper/r/${encodeURIComponent(token)}/id-uploads`}
+                disabled={submit.isPending}
+              />
+            </div>
+          </div>
+
+          <div className="mt-6 flex justify-end">
+            <Button
+              type="button"
+              variant="amber"
+              size="md"
+              disabled={!canSubmit}
+              loading={submit.isPending}
+              onClick={() => {
+                clear();
+                submit.mutate();
+              }}
+            >
+              {submit.isPending ? "Submitting…" : "Submit for review"}
+            </Button>
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
+function WirePaymentCard({
+  request,
+  token,
+  onRefresh,
+}: {
+  request: ShopperRequestSnapshot;
+  token: string;
+  onRefresh: () => void;
+}): JSX.Element | null {
+  const [proofUrls, setProofUrls] = useState<string[]>([]);
+  const { bannerError, handle, clear } = useApiErrorHandler();
+
+  const submit = useMutation({
+    mutationFn: () =>
+      api.post<{ status: string }>(
+        `/shopper/r/${encodeURIComponent(token)}/wire-proof-submit`,
+        { wireProofUrl: proofUrls[proofUrls.length - 1] },
+      ),
+    onSuccess: () => {
+      setProofUrls([]);
+      onRefresh();
+    },
+    onError: (err) => handle(err),
+  });
+
+  // Card is only meaningful once ID is approved AND we're past the
+  // ID review stage. Below the threshold (idVerificationStatus !==
+  // "APPROVED") we don't render anything; above WIRE_CONFIRMED the
+  // ball is back in our court and the payment summary serves as the
+  // status indicator.
+  if (request.idVerificationStatus !== "APPROVED") return null;
+  const showActiveForm =
+    request.status === "QUOTE_SENT" ||
+    request.status === "AWAITING_WIRE_PAYMENT";
+  const showReviewState =
+    request.status === "WIRE_PROOF_UPLOADED" ||
+    request.status === "WIRE_UNDER_REVIEW";
+  if (!showActiveForm && !showReviewState) return null;
+
+  const bank = request.bankInstructions;
+  const canSubmit = proofUrls.length > 0 && !submit.isPending;
+
+  return (
+    <section className="rounded-md border border-line bg-white p-8">
+      <div className="mb-4">
+        <h2 className="font-mono text-mono-label uppercase text-text-muted">
+          Step 2 — Wire transfer
+        </h2>
+        <p className="mt-2 text-body-sm text-text-muted">
+          Wire <strong>${(request.intakeTotalCents / 100).toFixed(2)}</strong> to
+          the bank account below. Once you&apos;ve sent it, upload your bank
+          receipt or wire confirmation here so we can match the payment.
+        </p>
+      </div>
+
+      {/* Bank details. Server only sends these when the gate is met —
+          if `bank` is null we render a "missing" hint for the buyer to
+          contact support, which would only happen if finance hasn't
+          filled in the configuration row yet. */}
+      {bank ? (
+        <div className="mb-4 rounded-sm border border-line bg-cream-soft p-5">
+          <div className="grid gap-4 md:grid-cols-2">
+            {bank.beneficiaryName ? (
+              <BankRow label="Beneficiary" value={bank.beneficiaryName} />
+            ) : null}
+            {bank.bankName ? (
+              <BankRow label="Bank" value={bank.bankName} />
+            ) : null}
+            {bank.accountNumber ? (
+              <BankRow label="Account number" value={bank.accountNumber} mono />
+            ) : null}
+            {bank.routingNumber ? (
+              <BankRow label="Routing / ABA" value={bank.routingNumber} mono />
+            ) : null}
+            {bank.swift ? <BankRow label="SWIFT / BIC" value={bank.swift} mono /> : null}
+            {bank.iban ? <BankRow label="IBAN" value={bank.iban} mono /> : null}
+          </div>
+          {bank.memo ? (
+            <div className="mt-4 border-t border-line pt-3 text-body-sm text-text">
+              <strong className="font-mono text-mono-label uppercase tracking-[1.2px] text-amber">
+                Wire memo
+              </strong>
+              <p className="mt-1">{bank.memo}</p>
+            </div>
+          ) : null}
+          <div className="mt-4 rounded-sm border border-amber/40 bg-amber/10 px-3 py-2 font-mono text-mono-label uppercase tracking-[1.2px] text-amber">
+            Include reference {request.reference} in your wire memo.
+          </div>
+        </div>
+      ) : (
+        <div className="mb-4 rounded-sm border-l-4 border-error bg-error/10 px-4 py-3 text-body-sm">
+          Bank-transfer details aren&apos;t available yet — please email
+          <a className="ml-1 underline" href="mailto:support@myusaerrands.com">
+            support@myusaerrands.com
+          </a>
+          {" "}and we&apos;ll send them right over.
+        </div>
+      )}
+
+      {showReviewState ? (
+        <div className="rounded-sm border-l-4 border-info bg-info/10 px-4 py-3 text-body-sm">
+          We&apos;ve received your wire-transfer proof and our team is matching
+          it against the bank statement. We&apos;ll start sourcing as soon as
+          the payment clears. No further action needed.
+        </div>
+      ) : (
+        <>
+          {bannerError ? (
+            <div className="mb-4">
+              <ErrorBanner
+                error={bannerError}
+                onAction={(handler) => {
+                  if (handler === "support") window.location.href = "mailto:support@myusaerrands.com";
+                  else if (handler === "retry") clear();
+                }}
+              />
+            </div>
+          ) : null}
+
+          <div className="mb-2 font-mono text-mono-label uppercase text-text-muted">
+            Upload your wire receipt
+          </div>
+          <AttachmentUploader
+            value={proofUrls}
+            onChange={setProofUrls}
+            presignEndpoint={`/shopper/r/${encodeURIComponent(token)}/wire-proof-uploads`}
+            disabled={submit.isPending}
+          />
+          <div className="mt-6 flex justify-end">
+            <Button
+              type="button"
+              variant="amber"
+              size="md"
+              disabled={!canSubmit}
+              loading={submit.isPending}
+              onClick={() => {
+                clear();
+                submit.mutate();
+              }}
+            >
+              {submit.isPending ? "Submitting…" : "Submit wire receipt"}
+            </Button>
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
+function BankRow({
+  label,
+  value,
+  mono,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+}): JSX.Element {
+  return (
+    <div>
+      <div className="font-mono text-mono-label uppercase text-text-muted">{label}</div>
+      <div className={`mt-1 ${mono ? "font-mono" : ""} text-body text-ink`}>{value}</div>
     </div>
   );
 }

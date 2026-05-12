@@ -70,6 +70,16 @@ const TONE: Record<ShopperRequestStatus, "neutral" | "info" | "success" | "warni
   DELIVERED: "success",
   CANCELLED: "neutral",
   REFUNDED: "neutral",
+  // Migration 0023 — wire-track statuses. Warning when the ball is in
+  // the buyer's court; info while we're processing on our side.
+  AWAITING_ID_VERIFICATION: "warning",
+  ID_UNDER_REVIEW: "info",
+  QUOTE_SENT: "warning",
+  AWAITING_WIRE_PAYMENT: "warning",
+  WIRE_PROOF_UPLOADED: "info",
+  WIRE_UNDER_REVIEW: "info",
+  WIRE_CONFIRMED: "success",
+  PURCHASE_APPROVED: "success",
 };
 
 function dollars(cents: number | null | undefined): string {
@@ -152,6 +162,15 @@ export default function AdminShopperDetailPage(): JSX.Element {
       <div className="grid gap-6 lg:grid-cols-[1fr_minmax(360px,420px)] lg:items-start">
         <div className="flex flex-col gap-6">
           <MoneyPanel request={request} />
+          {/* Migration 0023 — wire-track admin actions. Rendered for
+              every WIRE request so admins can see the ID artefacts and
+              wire-payment status at the top of the page. The card hides
+              its own controls once the lifecycle is past it (e.g. an
+              already-approved ID still shows the documents but no
+              approve/reject buttons). */}
+          {request.paymentMethod === "WIRE" ? (
+            <WireTrackPanel request={request} onChange={refresh} />
+          ) : null}
           <LinesPanel
             requestId={id}
             lines={request.lines}
@@ -217,6 +236,358 @@ function MoneyPanel({ request }: { request: ShopperRequestSnapshot }): JSX.Eleme
         </span>
       </div>
     </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Migration 0023 — wire-track admin panel
+//
+// Two side-by-side cards: ID Review (top) and Wire Payment Review
+// (bottom). Each card renders its own approve / reject controls based
+// on the current idVerificationStatus + status.
+// ---------------------------------------------------------------------------
+
+function WireTrackPanel({
+  request,
+  onChange,
+}: {
+  request: ShopperRequestSnapshot;
+  onChange: () => Promise<void>;
+}): JSX.Element {
+  return (
+    <section className="rounded-md border border-line bg-white p-6">
+      <h2 className="mb-4 font-mono text-mono-label uppercase text-text-muted">
+        Wire transfer · ID verification
+      </h2>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <IdReviewCard request={request} onChange={onChange} />
+        <WireReviewCard request={request} onChange={onChange} />
+      </div>
+    </section>
+  );
+}
+
+function IdReviewCard({
+  request,
+  onChange,
+}: {
+  request: ShopperRequestSnapshot;
+  onChange: () => Promise<void>;
+}): JSX.Element {
+  const [rejectMode, setRejectMode] = useState(false);
+  const [reason, setReason] = useState("");
+  const { bannerError, handle, clear } = useApiErrorHandler();
+
+  const approve = useMutation({
+    mutationFn: () =>
+      api.post(`/admin/shopper/${request.id}/id/approve`, { note: "" }),
+    onSuccess: () => onChange(),
+    onError: (err) => handle(err),
+  });
+
+  const reject = useMutation({
+    mutationFn: () =>
+      api.post(`/admin/shopper/${request.id}/id/reject`, { reason: reason.trim() }),
+    onSuccess: () => {
+      setReason("");
+      setRejectMode(false);
+      onChange();
+    },
+    onError: (err) => handle(err),
+  });
+
+  const status = request.idVerificationStatus;
+  const isReviewable = status === "UNDER_REVIEW";
+  const isApproved = status === "APPROVED";
+  const isRejected = status === "REJECTED";
+
+  return (
+    <div className="rounded-sm border border-line bg-cream-soft p-5">
+      <div className="mb-2 flex items-center justify-between">
+        <div className="font-mono text-mono-label uppercase text-text-muted">
+          ID verification
+        </div>
+        <StatusPill
+          tone={
+            isApproved
+              ? "success"
+              : isReviewable
+                ? "warning"
+                : isRejected
+                  ? "error"
+                  : "neutral"
+          }
+        >
+          {status.replace(/_/g, " ").toLowerCase()}
+        </StatusPill>
+      </div>
+
+      {request.idDocumentUrl || request.idSelfieUrl ? (
+        <div className="mb-3 grid gap-2 md:grid-cols-2">
+          {request.idDocumentUrl ? (
+            <a
+              href={request.idDocumentUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block rounded-sm border border-line bg-white px-3 py-2 font-mono text-mono-label uppercase tracking-[1.2px] text-amber hover:underline"
+            >
+              View ID document →
+            </a>
+          ) : null}
+          {request.idSelfieUrl ? (
+            <a
+              href={request.idSelfieUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block rounded-sm border border-line bg-white px-3 py-2 font-mono text-mono-label uppercase tracking-[1.2px] text-amber hover:underline"
+            >
+              View selfie →
+            </a>
+          ) : null}
+        </div>
+      ) : (
+        <p className="mb-3 text-body-sm text-text-muted">
+          Buyer hasn&apos;t uploaded documents yet.
+        </p>
+      )}
+
+      {isRejected && request.idRejectionReason ? (
+        <div className="mb-3 rounded-sm border-l-4 border-error bg-error/10 px-3 py-2 text-body-sm">
+          <strong className="block font-mono text-mono-label uppercase tracking-[1.2px] text-error">
+            Last rejection
+          </strong>
+          {request.idRejectionReason}
+        </div>
+      ) : null}
+
+      {bannerError ? (
+        <div className="mb-3">
+          <ErrorBanner
+            error={bannerError}
+            onAction={(handler) => {
+              if (handler === "retry") clear();
+            }}
+          />
+        </div>
+      ) : null}
+
+      {isReviewable ? (
+        rejectMode ? (
+          <div className="flex flex-col gap-2">
+            <textarea
+              rows={3}
+              maxLength={2000}
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="Specific reason the buyer will see — e.g. 'photo is blurry' or 'selfie doesn't match ID'"
+              className="w-full rounded-sm border border-line-strong bg-white px-3 py-2 text-body-sm text-text outline-none focus:border-ink focus:ring-2 focus:ring-ink/10"
+            />
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setRejectMode(false);
+                  setReason("");
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                disabled={!reason.trim() || reject.isPending}
+                loading={reject.isPending}
+                onClick={() => reject.mutate()}
+              >
+                {reject.isPending ? "Rejecting…" : "Confirm reject"}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="amber"
+              size="sm"
+              disabled={approve.isPending}
+              loading={approve.isPending}
+              onClick={() => approve.mutate()}
+            >
+              {approve.isPending ? "Approving…" : "Approve ID"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setRejectMode(true)}
+            >
+              Reject
+            </Button>
+          </div>
+        )
+      ) : isApproved ? (
+        <p className="text-body-sm text-text-muted">
+          Approved. Buyer can now see the bank-transfer instructions.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function WireReviewCard({
+  request,
+  onChange,
+}: {
+  request: ShopperRequestSnapshot;
+  onChange: () => Promise<void>;
+}): JSX.Element {
+  const [rejectMode, setRejectMode] = useState(false);
+  const [reason, setReason] = useState("");
+  const { bannerError, handle, clear } = useApiErrorHandler();
+
+  const confirm = useMutation({
+    mutationFn: () =>
+      api.post(`/admin/shopper/${request.id}/wire/confirm`, { note: "" }),
+    onSuccess: () => onChange(),
+    onError: (err) => handle(err),
+  });
+
+  const reject = useMutation({
+    mutationFn: () =>
+      api.post(`/admin/shopper/${request.id}/wire/reject`, { reason: reason.trim() }),
+    onSuccess: () => {
+      setReason("");
+      setRejectMode(false);
+      onChange();
+    },
+    onError: (err) => handle(err),
+  });
+
+  // Display state for the bank-proof block. Three meaningful buckets:
+  //   - waiting on buyer (QUOTE_SENT / AWAITING_WIRE_PAYMENT)
+  //   - proof submitted & needs review (WIRE_UNDER_REVIEW)
+  //   - already past review (anything later)
+  const isReviewable =
+    request.status === "WIRE_UNDER_REVIEW" || request.status === "WIRE_PROOF_UPLOADED";
+  const isWaitingOnBuyer =
+    request.status === "QUOTE_SENT" || request.status === "AWAITING_WIRE_PAYMENT";
+
+  return (
+    <div className="rounded-sm border border-line bg-cream-soft p-5">
+      <div className="mb-2 flex items-center justify-between">
+        <div className="font-mono text-mono-label uppercase text-text-muted">
+          Wire payment
+        </div>
+        <StatusPill tone={isReviewable ? "warning" : isWaitingOnBuyer ? "neutral" : "info"}>
+          {isReviewable
+            ? "proof to review"
+            : isWaitingOnBuyer
+              ? "awaiting buyer"
+              : request.wireConfirmedAt
+                ? "confirmed"
+                : "—"}
+        </StatusPill>
+      </div>
+
+      {request.wireProofUrl ? (
+        <div className="mb-3">
+          <a
+            href={request.wireProofUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-block rounded-sm border border-line bg-white px-3 py-2 font-mono text-mono-label uppercase tracking-[1.2px] text-amber hover:underline"
+          >
+            View wire receipt →
+          </a>
+          {request.wireProofUploadedAt ? (
+            <div className="mt-1 font-mono text-mono-label uppercase text-text-muted">
+              Uploaded {fmtTime(request.wireProofUploadedAt)}
+            </div>
+          ) : null}
+        </div>
+      ) : (
+        <p className="mb-3 text-body-sm text-text-muted">
+          Buyer hasn&apos;t uploaded wire-transfer proof yet.
+        </p>
+      )}
+
+      {bannerError ? (
+        <div className="mb-3">
+          <ErrorBanner
+            error={bannerError}
+            onAction={(handler) => {
+              if (handler === "retry") clear();
+            }}
+          />
+        </div>
+      ) : null}
+
+      {isReviewable ? (
+        rejectMode ? (
+          <div className="flex flex-col gap-2">
+            <textarea
+              rows={3}
+              maxLength={2000}
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="Specific reason the buyer will see — e.g. 'amount on receipt is short' or 'wrong reference in memo'"
+              className="w-full rounded-sm border border-line-strong bg-white px-3 py-2 text-body-sm text-text outline-none focus:border-ink focus:ring-2 focus:ring-ink/10"
+            />
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setRejectMode(false);
+                  setReason("");
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                disabled={!reason.trim() || reject.isPending}
+                loading={reject.isPending}
+                onClick={() => reject.mutate()}
+              >
+                {reject.isPending ? "Rejecting…" : "Confirm reject"}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="amber"
+              size="sm"
+              disabled={confirm.isPending}
+              loading={confirm.isPending}
+              onClick={() => confirm.mutate()}
+            >
+              {confirm.isPending ? "Confirming…" : "Confirm payment"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setRejectMode(true)}
+            >
+              Reject
+            </Button>
+          </div>
+        )
+      ) : request.wireConfirmedAt ? (
+        <p className="text-body-sm text-text-muted">
+          Confirmed {fmtTime(request.wireConfirmedAt)}.
+        </p>
+      ) : null}
+    </div>
   );
 }
 

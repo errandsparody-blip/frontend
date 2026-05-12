@@ -28,8 +28,32 @@ export const SHOPPER_REQUEST_STATUS = [
   "DELIVERED",
   "CANCELLED",
   "REFUNDED",
+  // Migration 0023a — wire-transfer + ID-verification track (high-value).
+  "AWAITING_ID_VERIFICATION",
+  "ID_UNDER_REVIEW",
+  "QUOTE_SENT",
+  "AWAITING_WIRE_PAYMENT",
+  "WIRE_PROOF_UPLOADED",
+  "WIRE_UNDER_REVIEW",
+  "WIRE_CONFIRMED",
+  "PURCHASE_APPROVED",
 ] as const;
 export type ShopperRequestStatus = (typeof SHOPPER_REQUEST_STATUS)[number];
+
+// Migration 0023 — payment rail. Server-derived; the client never sets it.
+export const SHOPPER_PAYMENT_METHOD = ["STRIPE", "WIRE"] as const;
+export type ShopperPaymentMethod = (typeof SHOPPER_PAYMENT_METHOD)[number];
+
+// Migration 0023 — gov-ID review lifecycle (WIRE rail only).
+export const SHOPPER_ID_VERIFICATION_STATUS = [
+  "NONE",
+  "PENDING_UPLOAD",
+  "UNDER_REVIEW",
+  "APPROVED",
+  "REJECTED",
+] as const;
+export type ShopperIdVerificationStatus =
+  (typeof SHOPPER_ID_VERIFICATION_STATUS)[number];
 
 export const SHOPPER_SHIPPING_METHOD = [
   "PLATFORM_FREIGHT",
@@ -113,20 +137,43 @@ const lineSchema = z.object({
     .max(2_500_000, "Too large."),
 });
 
+// Strict-ish email regex mirroring the API's check. Catches the common
+// typos without trying to be RFC 5322 complete.
+const STRICT_EMAIL_RE =
+  /^[A-Za-z0-9._%+-]+@[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)+$/;
+
 export const createShopperRequestSchema = z.object({
   buyerEmail: z
     .string()
     .trim()
     .toLowerCase()
     .email("Invalid email.")
-    .max(254),
+    .max(254)
+    .refine((v) => !v.includes(".."), "Email cannot contain consecutive dots.")
+    .refine((v) => STRICT_EMAIL_RE.test(v), "Looks like a typo — double-check the email."),
+  // Migration 0023 — required. The wire flow needs a real identity on
+  // every request that might cross the threshold; we tighten the schema
+  // for ALL requests rather than branching here.
   buyerName: z
     .string()
     .trim()
-    .min(1)
-    .max(120)
-    .optional()
-    .or(z.literal("").transform(() => undefined)),
+    .min(1, "Required.")
+    .max(120, "Up to 120 characters."),
+  // Migration 0023 — required at intake. Loose digit/`+` shape; the
+  // canonical formatting is stripped before validation so the buyer can
+  // type "(415) 555-1212" without rejection.
+  buyerPhone: z
+    .string()
+    .trim()
+    .min(1, "Required.")
+    .transform((v) => v.replace(/[\s().-]/g, ""))
+    .pipe(
+      z
+        .string()
+        .min(7, "Phone too short.")
+        .max(20, "Phone too long.")
+        .regex(/^\+?[0-9]+$/, "Digits only (optional leading +)."),
+    ),
   shippingAddress: shopperShippingAddressSchema.optional(),
   lines: z
     .array(lineSchema)
@@ -186,6 +233,20 @@ export interface ShopperLineSnapshot {
   procurementStatus: ShopperLineProcurementStatus | null;
 }
 
+// Migration 0023 — bank-transfer instructions, only ever populated by
+// the server when ID is APPROVED + the request is past QUOTE_SENT. The
+// shape mirrors the `shopper_bank_instructions` configuration row.
+export interface ShopperBankInstructions {
+  beneficiaryName: string;
+  bankName: string;
+  accountNumber: string;
+  routingNumber: string;
+  swift: string;
+  iban: string;
+  memo: string;
+  notes?: string;
+}
+
 export interface ShopperRequestSnapshot {
   id: string;
   // Migration 0015 — short human-readable reference (SHP-000042).
@@ -196,6 +257,28 @@ export interface ShopperRequestSnapshot {
   status: ShopperRequestStatus;
   buyerEmail: string;
   buyerName: string | null;
+  // Migration 0023 — wire/ID packet visible to the buyer. We never
+  // surface the document URLs themselves — booleans tell the UI whether
+  // an upload already exists.
+  buyerPhone: string | null;
+  paymentMethod: ShopperPaymentMethod;
+  idVerificationStatus: ShopperIdVerificationStatus;
+  idRejectionReason: string | null;
+  hasIdDocument: boolean;
+  hasIdSelfie: boolean;
+  hasWireProof: boolean;
+  wireProofUploadedAt: string | null;
+  wireConfirmedAt: string | null;
+  /** Server only sends this when the buyer is in the wire-payment leg. */
+  bankInstructions: ShopperBankInstructions | null;
+  /**
+   * Admin endpoint includes the raw R2 URLs so operators can preview the
+   * documents. Buyer-side these are always undefined — the buyer
+   * controller strips them in `serializeBuyerRequest`.
+   */
+  idDocumentUrl?: string | null;
+  idSelfieUrl?: string | null;
+  wireProofUrl?: string | null;
   shippingAddress: ShopperShippingAddress | null;
   shippingMethod: ShopperShippingMethod | null;
   trackingNumber: string | null;
@@ -247,6 +330,21 @@ export interface CreateShopperRequestResponse {
   requestId: string;
   reference: string;
   threadUrl: string;
+  /** Empty string when the buyer was routed onto the wire-transfer track. */
   payUrl: string;
   intakeTotalCents: number;
+  // Migration 0023 — which rail the server placed this request on.
+  paymentMethod: ShopperPaymentMethod;
 }
+
+// Migration 0023 — wire-track submission schemas mirroring the API copy.
+export const submitShopperIdUploadsSchema = z.object({
+  idDocumentUrl: z.string().url().max(2048),
+  idSelfieUrl: z.string().url().max(2048),
+});
+export type SubmitShopperIdUploadsInput = z.infer<typeof submitShopperIdUploadsSchema>;
+
+export const submitShopperWireProofSchema = z.object({
+  wireProofUrl: z.string().url().max(2048),
+});
+export type SubmitShopperWireProofInput = z.infer<typeof submitShopperWireProofSchema>;
