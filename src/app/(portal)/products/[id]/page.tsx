@@ -4,7 +4,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 
-import { BackButton } from "@/components/portal/back-button";
 import { ProductForm } from "@/components/portal/product-form";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
@@ -56,7 +55,18 @@ export default function ProductDetailPage() {
         description={`Variant ${product.variant} · ${product.countryOfOrigin}`}
         actions={
           <div className="flex items-center gap-3">
-            <BackButton fallback="/products" />
+            {/* Hard-link to the list rather than the smart back-button.
+                Vendors who reach this page right after creating a
+                product would otherwise pop to `/products/new` because
+                that's the same-origin referrer immediately after the
+                create + preview hand-off, which feels broken. The list
+                is always the right "back" from a product detail. */}
+            <Link
+              href="/products"
+              className="font-mono text-[11px] uppercase tracking-[1.2px] text-text-muted hover:text-ink"
+            >
+              ← All products
+            </Link>
             <Link
               href={`/products/${params.id}/preview`}
               className="font-mono text-mono-label uppercase tracking-[1.2px] text-amber hover:text-amber-hi"

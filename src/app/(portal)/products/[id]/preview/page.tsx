@@ -18,7 +18,6 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 
-import { BackButton } from "@/components/portal/back-button";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
 import { api } from "@/lib/api-client";
@@ -72,7 +71,20 @@ export default function ProductPreviewPage(): JSX.Element {
         description="This is how your product looks to admin operators and (when the public catalog ships) buyers. Edit the product to change the image, name, or details."
         actions={
           <div className="flex items-center gap-3">
-            <BackButton fallback={`/products/${product.id}`} />
+            {/* Preview is the success state of the create flow, so the
+                back affordance jumps directly to the products list — not
+                to whichever page brought the user here. Using the smart
+                BackButton would pop to `/products/new` because that's
+                the same-origin referrer immediately after create, which
+                feels broken ("I just saved this — why am I on the
+                create form again?"). A plain Link keeps the destination
+                explicit and unambiguous. */}
+            <Link
+              href="/products"
+              className="font-mono text-[11px] uppercase tracking-[1.2px] text-text-muted hover:text-ink"
+            >
+              ← All products
+            </Link>
             <Link
               href={`/products/${product.id}`}
               className="font-mono text-mono-label uppercase tracking-[1.2px] text-amber hover:text-amber-hi"
