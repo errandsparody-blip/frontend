@@ -4,8 +4,10 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
 import { NetworkStatusBanner } from "@/components/errors/network-status-banner";
+import { NotificationWatcher } from "@/components/portal/notification-watcher";
 import { Sidebar } from "@/components/portal/sidebar";
 import { Topbar } from "@/components/portal/topbar";
+import { ToastProvider } from "@/components/ui/toast";
 import { homeForRole, useAuth } from "@/lib/auth-context";
 
 export default function PortalLayout({ children }: { children: React.ReactNode }) {
@@ -50,15 +52,22 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-cream">
-      <NetworkStatusBanner />
-      <Sidebar />
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <Topbar />
-        <main className="flex-1 overflow-auto bg-cream px-8 py-8">
-          <div className="mx-auto max-w-[84rem]">{children}</div>
-        </main>
+    // ToastProvider wraps the whole shell so anywhere in the portal
+    // can call useToast() to drop a toast. NotificationWatcher is a
+    // headless component (renders null) that listens for new
+    // notifications between polls and fires a toast on arrival.
+    <ToastProvider>
+      <div className="flex h-screen overflow-hidden bg-cream">
+        <NetworkStatusBanner />
+        <NotificationWatcher />
+        <Sidebar />
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <Topbar />
+          <main className="flex-1 overflow-auto bg-cream px-8 py-8">
+            <div className="mx-auto max-w-[84rem]">{children}</div>
+          </main>
+        </div>
       </div>
-    </div>
+    </ToastProvider>
   );
 }

@@ -54,7 +54,7 @@ export type NotificationCategory =
 const LIST_KEY = ["notifications", "list"] as const;
 const COUNTS_KEY = ["notifications", "unread-counts"] as const;
 
-/** Hook: list the recipient's notifications. Polls every 30s. */
+/** Hook: list the recipient's notifications. Polls every 15s. */
 export function useNotifications(opts?: { unreadOnly?: boolean; limit?: number }): ReturnType<
   typeof useQuery<NotificationListResponse>
 > {
@@ -66,26 +66,29 @@ export function useNotifications(opts?: { unreadOnly?: boolean; limit?: number }
     queryKey: [...LIST_KEY, { unreadOnly: !!opts?.unreadOnly, limit: opts?.limit ?? 50 }],
     queryFn: () =>
       api.get<NotificationListResponse>(`/notifications${qs ? `?${qs}` : ""}`),
-    // 30 s poll keeps the bell fresh without hammering the API. Pauses
-    // automatically when the tab isn't focused.
-    refetchInterval: 30_000,
+    // 15 s poll keeps the bell + page list feeling live. React Query
+    // automatically pauses the interval when the tab isn't focused;
+    // the global `refetchOnWindowFocus` snaps back to current state
+    // the moment the user returns.
+    refetchInterval: 15_000,
     refetchOnWindowFocus: true,
-    staleTime: 10_000,
+    staleTime: 5_000,
   });
 }
 
 /**
  * Hook: per-category unread counts. The sidebar uses this to paint a
- * badge next to each nav item. Same 30 s poll so a new notification
- * lights up its sidebar entry within half a minute of being emitted.
+ * badge next to each nav item. 15 s poll mirrors the notification list
+ * so the bell badge + sidebar badges + the page itself never drift
+ * apart by more than half a tick.
  */
 export function useUnreadCounts(): ReturnType<typeof useQuery<UnreadCountsResponse>> {
   return useQuery<UnreadCountsResponse>({
     queryKey: COUNTS_KEY,
     queryFn: () => api.get<UnreadCountsResponse>("/notifications/unread-counts"),
-    refetchInterval: 30_000,
+    refetchInterval: 15_000,
     refetchOnWindowFocus: true,
-    staleTime: 10_000,
+    staleTime: 5_000,
     // The sidebar should never blow up because counts failed. An error
     // hides the badge — the user can still navigate freely.
     retry: false,

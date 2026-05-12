@@ -11,8 +11,20 @@ export function QueryProvider({ children }: { children: ReactNode }): JSX.Elemen
       new QueryClient({
         defaultOptions: {
           queries: {
-            staleTime: 30_000,
-            refetchOnWindowFocus: false,
+            // Treat data as fresh for 5 s — long enough to avoid
+            // hammering the API during rapid React re-renders, short
+            // enough that switching pages (or tabbing back in) shows
+            // current state without the user having to refresh.
+            staleTime: 5_000,
+            // Snap to fresh data whenever the user tabs back into a
+            // window. The cheapest "feels live" win: an admin reviewing
+            // a PSN on screen A and a vendor making changes on screen
+            // B sees the admin's view update the moment they return to
+            // the tab.
+            refetchOnWindowFocus: true,
+            // Reconnect = network back from offline. Same logic — pull
+            // current state instead of trusting the stale cache.
+            refetchOnReconnect: true,
             retry: (failureCount, error) => {
               const status = (error as { status?: number })?.status;
               if (status && status >= 400 && status < 500) return false;
