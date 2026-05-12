@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 
 import { BackButton } from "@/components/portal/back-button";
@@ -56,6 +57,12 @@ export default function ProductDetailPage() {
         actions={
           <div className="flex items-center gap-3">
             <BackButton fallback="/products" />
+            <Link
+              href={`/products/${params.id}/preview`}
+              className="font-mono text-mono-label uppercase tracking-[1.2px] text-amber hover:text-amber-hi"
+            >
+              Preview →
+            </Link>
             <StatusPill tone={product.status === "ACTIVE" ? "success" : "neutral"}>{product.status}</StatusPill>
           </div>
         }
@@ -79,6 +86,7 @@ export default function ProductDetailPage() {
             heightIn: product.heightIn ?? undefined,
             storageTier: product.storageTier,
             code: product.code,
+            imageUrl: product.imageUrl,
           }}
           submitLabel="Save changes"
           onSubmit={onSubmit}

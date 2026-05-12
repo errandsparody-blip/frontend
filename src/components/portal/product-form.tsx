@@ -6,6 +6,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { ProductImageUploader } from "@/components/portal/product-image-uploader";
+import { StorageTierGuide } from "@/components/portal/storage-tier-guide";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -186,6 +187,12 @@ export function ProductForm({
   // immutable product with stock under it.
   const locked = lockedProp || variantLocked;
   const [serverError, setServerError] = useState<string | null>(null);
+  // After a successful save we flash a green "Saved ✓" state on the
+  // button for ~1.6 s. Held in component state so the flash survives
+  // re-renders triggered by react-hook-form's reset logic, and so the
+  // parent's router.push doesn't race the user's perception of "did it
+  // actually save?".
+  const [savedJustNow, setSavedJustNow] = useState(false);
   // Image is intentionally held outside react-hook-form. The upload is
   // asynchronous (presign → R2 PUT) and updates this state on completion;
   // mixing that into the resolved-form-values flow would force the form
@@ -290,6 +297,7 @@ export function ProductForm({
 
   async function submit(values: FormInput): Promise<void> {
     setServerError(null);
+    setSavedJustNow(false);
     try {
       const { declaredValueDollars, weightValue, weightUnit: unit, ...rest } = values;
       const weightOz = convertWeight(weightValue, unit, "oz");
@@ -302,6 +310,11 @@ export function ProductForm({
         imageUrl: imageUrl ?? null,
       };
       await onSubmit(wireValues);
+      // Success — flash the confirmation. If the parent navigated away
+      // the timeout simply never fires (component unmounted) and the
+      // setState call below is a no-op.
+      setSavedJustNow(true);
+      window.setTimeout(() => setSavedJustNow(false), 1600);
     } catch (err) {
       const e = err as ApiError;
       setServerError(e.message);
@@ -508,6 +521,16 @@ export function ProductForm({
       </section>
 
       <section className="rounded-md border border-line bg-cream-soft p-5">
+        {/* Inline guide trigger — the storage tier picker is exactly
+            the place where vendors second-guess themselves about the
+            tier sizing, so the help button lives one inch from the
+            decision. */}
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="font-mono text-mono-label uppercase text-text-muted">
+            Tier &amp; pricing
+          </h2>
+          <StorageTierGuide />
+        </div>
         <Field
           label="Storage tier"
           error={errors.storageTier?.message}
@@ -557,25 +580,52 @@ export function ProductForm({
         </div>
       ) : null}
 
+      {/* Success banner — visible feedback that the save round-trip
+          completed. Lives above the button so a vendor whose eyes are
+          on the button still catches it at the edge of their vision.
+          The button itself flashes green at the same time. */}
+      {savedJustNow ? (
+        <div
+          role="status"
+          className="rounded-sm border-l-4 border-success bg-success/10 px-4 py-3 text-body-sm text-success"
+        >
+          Saved ✓ — your changes have been stored.
+        </div>
+      ) : null}
+
       <div className="flex justify-end">
         {/* When the product is locked we still allow the form to save
             so the vendor can update the image alone. The backend
             ignores patch fields that match the current value (no-op
             idempotent edits), so submitting a locked form with only
-            the image changed is accepted. */}
+            the image changed is accepted.
+
+            States:
+              - idle:   primary "Save" button
+              - saving: dimmed + spinner + "Saving…" copy
+              - saved:  green "Saved ✓" flash for 1.6 s
+            All three states have visibly distinct colour + label so
+            the operator can tell at a glance which one they're in. */}
         <Button
           type="submit"
           variant="primary"
           size="lg"
-          withArrow
+          withArrow={!isSubmitting && !savedJustNow}
           loading={isSubmitting}
-          disabled={isSubmitting}
+          disabled={isSubmitting || savedJustNow}
+          className={
+            savedJustNow
+              ? "border-success bg-success text-text-inv hover:bg-success/90"
+              : undefined
+          }
         >
           {isSubmitting
             ? "Saving…"
-            : locked
-              ? "Save image"
-              : submitLabel}
+            : savedJustNow
+              ? "Saved ✓"
+              : locked
+                ? "Save image"
+                : submitLabel}
         </Button>
       </div>
     </form>

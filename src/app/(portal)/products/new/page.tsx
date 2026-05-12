@@ -15,7 +15,12 @@ export default function NewProductPage() {
   async function onSubmit(values: CreateProductInput): Promise<void> {
     const created = await api.post<PublicProduct>("/products", values);
     await qc.invalidateQueries({ queryKey: ["products"] });
-    router.push(`/products/${created.id}`);
+    // Land on the preview page — it has a distinctly different layout
+    // from the form (hero image + readonly stats), so the vendor
+    // immediately sees they're past the create step. Sending them to
+    // the edit page made the form look unchanged and led to repeated
+    // Save clicks.
+    router.push(`/products/${created.id}/preview`);
   }
 
   return (

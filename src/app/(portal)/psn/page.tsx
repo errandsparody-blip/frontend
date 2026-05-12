@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 
+import { StorageTierGuide } from "@/components/portal/storage-tier-guide";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
@@ -37,11 +38,14 @@ export default function PsnListPage() {
         title="Inbound shipments"
         description="Declare each shipment before it arrives. The onboarding fee is locked in at submit time and the PSN moves to 'awaiting receipt'."
         actions={
-          <Link href="/psn/new">
-            <Button variant="amber" withArrow>
-              New PSN
-            </Button>
-          </Link>
+          <div className="flex items-center gap-3">
+            <StorageTierGuide />
+            <Link href="/psn/new">
+              <Button variant="amber" withArrow>
+                New PSN
+              </Button>
+            </Link>
+          </div>
         }
       />
 
