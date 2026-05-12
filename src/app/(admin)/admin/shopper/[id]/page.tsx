@@ -149,7 +149,7 @@ export default function AdminShopperDetailPage(): JSX.Element {
         />
       </section>
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_minmax(360px,420px)]">
+      <div className="grid gap-6 lg:grid-cols-[1fr_minmax(360px,420px)] lg:items-start">
         <div className="flex flex-col gap-6">
           <MoneyPanel request={request} />
           <LinesPanel
@@ -161,11 +161,23 @@ export default function AdminShopperDetailPage(): JSX.Element {
           <WorkflowPanel request={request} onChange={refresh} />
         </div>
 
-        <ChatPanel
-          requestId={id}
-          messages={messages}
-          onChange={refresh}
-        />
+        {/*
+          Sticky chat rail. Without this, the chat panel scrolls with
+          the rest of the document — and because the left column is
+          much taller (Money + Lines + Workflow + Danger zone) the
+          chat would slide out of view long before the admin reaches
+          the danger zone. With `lg:sticky` the panel stays glued to
+          the viewport at `top-6` and gets its own height-clamp so
+          the internal message scroller (inside ChatPanel) is what
+          moves, not the whole page.
+        */}
+        <div className="lg:sticky lg:top-6 lg:h-[calc(100vh-3rem)] lg:max-h-[calc(100vh-3rem)]">
+          <ChatPanel
+            requestId={id}
+            messages={messages}
+            onChange={refresh}
+          />
+        </div>
       </div>
     </div>
   );
@@ -928,7 +940,11 @@ function ChatPanel({
   });
 
   return (
-    <section className="flex h-full flex-col rounded-md border border-line bg-white p-6">
+    // The wrapper sets the height-clamp; this section just fills it. We
+    // also need `min-h-0` so flex children can shrink — without it the
+    // child message list can't trigger overflow because its computed
+    // min-content height pushes the form out of the box.
+    <section className="flex h-full min-h-0 flex-col overflow-hidden rounded-md border border-line bg-white p-6">
       <h2 className="mb-4 font-mono text-mono-label uppercase text-text-muted">Conversation</h2>
 
       {bannerError ? (
@@ -937,7 +953,7 @@ function ChatPanel({
         </div>
       ) : null}
 
-      <ol className="flex max-h-[640px] flex-1 flex-col gap-3 overflow-y-auto pr-1">
+      <ol className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1">
         {messages.length === 0 ? (
           <li className="text-body-sm text-text-muted">No messages yet.</li>
         ) : (
