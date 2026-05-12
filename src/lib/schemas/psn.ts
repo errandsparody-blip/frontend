@@ -75,6 +75,10 @@ export interface PublicPsn {
     receivedQty: number;
     acceptedQty: number;
     damagedQty: number;
+    // Migration 0024 — items declared but absent at receive. Same value
+    // the admin recorded on the receive page; vendors see it on their
+    // PSN detail so they know exactly what the warehouse counted.
+    missingQty: number;
     notes: string | null;
   }>;
 }

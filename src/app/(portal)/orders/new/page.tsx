@@ -596,7 +596,7 @@ function AddressForm({
             placeholder="#1042"
           />
         </Field>
-        <Field label="Phone (optional)" error={fieldErrors.recipientPhone}>
+        <Field label="Phone" error={fieldErrors.recipientPhone}>
           <Input
             type="tel"
             value={address.recipientPhone ?? ""}

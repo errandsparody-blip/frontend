@@ -263,6 +263,11 @@ export default function PsnDetailPage() {
           <Th align="right">Declared</Th>
           <Th align="right">Received</Th>
           <Th align="right">Accepted</Th>
+          {/* Migration 0024 — show the missing count alongside damaged
+              so vendors see the SAME outcome columns the admin filled
+              in at receive. Sits before Damaged to mirror the admin
+              receive page's column order (Accept → Missing → Damaged). */}
+          <Th align="right">Missing</Th>
           <Th align="right">Damaged</Th>
         </THead>
         <TBody>
@@ -280,7 +285,12 @@ export default function PsnDetailPage() {
                 <Td num>{l.declaredQty}</Td>
                 <Td num>{l.receivedQty}</Td>
                 <Td num className="text-success">{l.acceptedQty}</Td>
-                <Td num className="text-error">{l.damagedQty}</Td>
+                <Td num className={l.missingQty > 0 ? "text-amber" : "text-text-muted"}>
+                  {l.missingQty}
+                </Td>
+                <Td num className={l.damagedQty > 0 ? "text-error" : "text-text-muted"}>
+                  {l.damagedQty}
+                </Td>
               </TR>
             );
           })}
