@@ -31,12 +31,18 @@ import { useEffect, useId, useState } from "react";
 
 import { homeForRole, useAuth } from "@/lib/auth-context";
 
-// Same link list the desktop nav renders, plus Log in. Kept here so
-// the two stay in sync when we add / rename a marketing page — or
-// extract into a shared module if it grows further.
+// Same surface area as the desktop nav, flattened so phone users get
+// a single scroll list instead of a nested dropdown. Order mirrors the
+// desktop bar: About → Services → How it works → Pricing → Contact →
+// Shop for me (CTA). Integrations + Security have moved off the top
+// nav and live under About; they appear at the bottom of the drawer
+// so they're still reachable.
 const NAV_LINKS: ReadonlyArray<{ href: string; label: string; accent?: boolean }> = [
+  { href: "/about", label: "About" },
+  { href: "/services", label: "Services" },
   { href: "/how-it-works", label: "How it works" },
   { href: "/pricing", label: "Pricing" },
+  { href: "/contact", label: "Contact" },
   // Personal Shopper gets the amber accent treatment to match the
   // desktop pill, since it's a distinct consumer-direct product.
   { href: "/shopper", label: "Shop for me", accent: true },

@@ -1,95 +1,113 @@
+import { Package, ShoppingBag, Zap } from "lucide-react";
 import Link from "next/link";
 
+import { FadeUp } from "@/components/marketing/fade-up";
 import { Button } from "@/components/ui/button";
+
+// Editorial photo for the hero. We use a direct Unsplash URL with sizing
+// query params instead of `next/image` to avoid extra config + bundle
+// surface — the marketing site is static-friendly and one hot image is
+// fine to ship via <img>. Swap the URL freely; the layout grid expects
+// a portrait/landscape-flexible photo with negative space on one side.
+//
+// Curated alternatives (paste-and-swap):
+//   1607082348824-0a96f2a4b9da — woman holding shopping packages (warm)
+//   1556909114-f6e7ad7d3136    — woman with shopping bags (street)
+//   1607113256158-56a934936ef1 — warehouse rows + amber light
+//   1604719312566-8912e9227c6a — close-up of a parcel being signed for
+//
+// `auto=format` lets Unsplash pick the best modern format (AVIF / WebP)
+// per Accept header; `fit=crop&w=1200&q=80` caps the served bytes at a
+// reasonable size for retina displays.
+const HERO_IMAGE_URL =
+  "https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?auto=format&fit=crop&w=1400&q=80";
 
 export default function HomePage() {
   return (
     <>
-      {/* HERO */}
+      {/* HERO — image-led, two-column. Left rail carries the message;
+          right rail is a single editorial photo. The amber accent line
+          at the corner of the image keeps the design-system fingerprint
+          on screen without overlaying text on the photo. */}
       <section className="relative overflow-hidden bg-constellation">
         <div className="mx-auto grid max-w-[84rem] gap-12 px-8 py-24 lg:grid-cols-[1fr_1fr] lg:items-center">
-          <div>
-            <h1 className="text-display-xl font-medium leading-[0.98] tracking-[-2px] text-ink">
-              Ship from
-              <br />
-              anywhere.
-              <br />
-              <span className="text-amber">Sell to America.</span>
-            </h1>
-            <p className="mt-10 max-w-md text-body-lg text-text-muted">
-              Hold your best-selling inventory in our U.S. warehouse. We pick, pack, and ship every order
-              locally — no U.S. business required.
-            </p>
-            <div className="mt-10 flex flex-wrap gap-3">
-              <Link href="/signup">
-                <Button variant="primary" size="lg" withArrow>
-                  Get started
-                </Button>
-              </Link>
-              <Link href="/how-it-works">
-                <Button variant="outline" size="lg">
-                  See how it works
-                </Button>
-              </Link>
+          <FadeUp>
+            <div>
+              <div className="font-mono text-mono-eyebrow uppercase text-amber">
+                Personal shopper · 3PL · Forwarding
+              </div>
+              <h1 className="mt-4 text-display-xl font-medium leading-[0.98] tracking-[-2px] text-ink">
+                Ship from
+                <br />
+                anywhere.
+                <br />
+                <span className="text-amber">Sell to America.</span>
+              </h1>
+              <p className="mt-10 max-w-md text-body-lg text-text-muted">
+                Hold your best-selling inventory in our U.S. warehouse, or
+                let our personal-shopper desk buy from any U.S. store on
+                your behalf. One platform, two products, zero forwarders.
+              </p>
+              <div className="mt-10 flex flex-wrap gap-3">
+                <Link href="/signup">
+                  <Button variant="primary" size="lg" withArrow>
+                    Get started
+                  </Button>
+                </Link>
+                <Link href="/services">
+                  <Button variant="outline" size="lg">
+                    See our services
+                  </Button>
+                </Link>
+              </div>
+              <p className="mt-8 text-body-sm text-text-muted">
+                Just want to buy something from a U.S. store?{" "}
+                <Link
+                  href="/shopper"
+                  className="font-medium text-amber underline-offset-4 hover:underline"
+                >
+                  Open a personal shopper request →
+                </Link>
+              </p>
             </div>
-            {/* Buyer-side entry. Distinct visual line so the seller CTAs above
-                stay primary, and the buyer audience finds their flow without
-                having to parse seller copy. */}
-            <p className="mt-8 text-body-sm text-text-muted">
-              Just want to buy something from a U.S. store?{" "}
-              <Link
-                href="/shopper"
-                className="font-medium text-amber underline-offset-4 hover:underline"
-              >
-                Open a personal shopper request →
-              </Link>
-            </p>
-          </div>
+          </FadeUp>
 
-          {/* Inline dashboard widget mockup. P1+ replaces this with a real preview. */}
-          <div className="rounded-md border border-line bg-white">
-            <div className="flex items-center gap-5 border-b border-line px-5 py-4">
-              <span className="text-[14px] font-bold text-ink">UE</span>
-              <span className="font-mono text-[11px] font-semibold uppercase tracking-[1.2px] text-ink">
-                Overview
-              </span>
-              <span className="font-mono text-[11px] uppercase tracking-[1.2px] text-text-muted">
-                Inventory
-              </span>
-              <span className="font-mono text-[11px] uppercase tracking-[1.2px] text-text-muted">
-                Wallet
-              </span>
-            </div>
-            <div className="p-5">
-              <div className="flex items-start justify-between border-b border-line pb-4">
-                <div>
-                  <div className="text-[18px] font-medium text-ink">Active inventory</div>
-                  <span className="mr-2 inline-block rounded-xs border border-line-strong bg-white px-2 py-0.5 font-mono text-[11px] text-text-muted">
-                    Nov 1–30, 2025
-                  </span>
-                  <span className="inline-block rounded-xs bg-amber/10 px-2 py-0.5 font-mono text-[11px] text-amber">
-                    +8.2% vs Oct
-                  </span>
-                </div>
-                <div className="text-right">
-                  <div className="font-mono text-[10px] uppercase tracking-[1.2px] text-text-muted">
-                    Units on hand
+          <FadeUp delay={120}>
+            <div className="relative">
+              {/* Image container — fixed aspect ratio so the layout
+                  doesn't shift while the photo loads. The container
+                  is bordered to match the design-system card chrome. */}
+              <div className="relative aspect-[4/5] overflow-hidden rounded-md border border-line bg-cream-soft shadow-2">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={HERO_IMAGE_URL}
+                  alt="A shopper holding a wrapped parcel — what USA Errands does for buyers and sellers."
+                  className="h-full w-full object-cover"
+                  loading="eager"
+                  decoding="async"
+                />
+                {/* Subtle bottom gradient + tagline overlay. Sits on
+                    the photo so the eye lands on something readable
+                    even when the image itself is busy. */}
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink/70 via-ink/30 to-transparent p-6">
+                  <div className="font-mono text-mono-label uppercase tracking-[1.4px] text-amber">
+                    Two products · One warehouse
                   </div>
-                  <div className="font-mono text-[24px] font-medium tabular-nums text-ink">12,480</div>
+                  <div className="mt-1 text-h3 font-medium text-text-inv">
+                    The country you&apos;re in stops mattering.
+                  </div>
                 </div>
               </div>
-              <div className="mt-4 grid grid-cols-2 gap-3">
-                <KpiCell label="Apparel" value="$82,400" delta="↓ 12%" deltaTone="success" />
-                <KpiCell label="Electronics" value="$61,200" delta="↑ 4%" deltaTone="error" />
-              </div>
+              {/* Amber tape — design-system accent strip in the top-left
+                  corner. Mirrors the same amber strip on the SiteMark
+                  logo so the brand fingerprint shows up even without
+                  the wordmark. */}
+              <div
+                aria-hidden
+                className="absolute -left-3 top-10 h-1.5 w-24 -rotate-6 bg-amber shadow-2"
+              />
             </div>
-            <div className="flex items-center justify-between bg-ink px-5 py-2.5 font-mono text-[10px] uppercase tracking-[1.4px] text-text-inv">
-              <span className="flex items-center gap-2">
-                <ColorTrio /> All systems operational
-              </span>
-              <span className="text-text-inv/60">Last sync: 14s ago</span>
-            </div>
-          </div>
+          </FadeUp>
         </div>
       </section>
 
@@ -103,48 +121,183 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* SECTION 02 — eyebrow + display */}
-      <section className="mx-auto max-w-[84rem] px-8 py-24">
-        <div className="font-mono text-mono-eyebrow uppercase text-amber">[02] How it works</div>
-        <h2 className="mt-3 max-w-3xl text-display font-medium leading-[1.05] tracking-[-1px] text-ink">
-          You ship. We hold. They get it tomorrow.
-        </h2>
-        <p className="mt-4 max-w-2xl text-body-lg text-text-muted">
-          The path from international shelf to American front door, in four steps.
-        </p>
+      {/* SERVICES — three cards, the spine of the marketing site. */}
+      <section className="border-b border-line">
+        <div className="mx-auto max-w-[84rem] px-8 py-24">
+          <FadeUp>
+            <div className="font-mono text-mono-eyebrow uppercase text-amber">
+              [02] What we do
+            </div>
+            <h2 className="mt-3 max-w-3xl text-display font-medium leading-[1.05] tracking-[-1px] text-ink">
+              Two ways into U.S. retail. Pick yours.
+            </h2>
+            <p className="mt-4 max-w-2xl text-body-lg text-text-muted">
+              We run a single warehouse, a single ledger, and a single
+              checkout for both sides of cross-border commerce.
+            </p>
+          </FadeUp>
+
+          <div className="mt-12 grid gap-6 md:grid-cols-3">
+            {SERVICES.map((s, i) => (
+              <FadeUp key={s.title} delay={i * 90}>
+                <Link
+                  href={s.href}
+                  className="group flex h-full flex-col gap-4 rounded-md border border-line bg-white p-8 transition-transform duration-300 ease-out hover:-translate-y-1 hover:shadow-2"
+                >
+                  <s.Icon className="h-6 w-6 text-amber" aria-hidden />
+                  <div className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
+                    {s.tag}
+                  </div>
+                  <h3 className="text-h2 font-medium leading-tight text-ink">
+                    {s.title}
+                  </h3>
+                  <p className="text-body text-text-muted">{s.body}</p>
+                  <div className="mt-auto pt-4 font-mono text-mono-label uppercase tracking-[1.2px] text-ink group-hover:text-amber">
+                    {s.cta} →
+                  </div>
+                </Link>
+              </FadeUp>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* HOW IT WORKS — keep the prior section intact. */}
+      <section className="border-b border-line bg-cream-soft">
+        <div className="mx-auto max-w-[84rem] px-8 py-24">
+          <FadeUp>
+            <div className="font-mono text-mono-eyebrow uppercase text-amber">
+              [03] How it works
+            </div>
+            <h2 className="mt-3 max-w-3xl text-display font-medium leading-[1.05] tracking-[-1px] text-ink">
+              You ship. We hold. They get it tomorrow.
+            </h2>
+            <p className="mt-4 max-w-2xl text-body-lg text-text-muted">
+              The path from international shelf to American front door, in
+              four steps.
+            </p>
+          </FadeUp>
+
+          <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+            {STEPS.map((s, i) => (
+              <FadeUp key={s.label} delay={i * 90}>
+                <div className="flex h-full flex-col gap-3 rounded-md border border-line bg-white p-6">
+                  <div className="font-mono text-mono-label uppercase tracking-[1.2px] text-amber">
+                    {String(i + 1).padStart(2, "0")}
+                  </div>
+                  <div className="text-h3 font-medium text-ink">{s.label}</div>
+                  <p className="text-body-sm text-text-muted">{s.body}</p>
+                </div>
+              </FadeUp>
+            ))}
+          </div>
+
+          <div className="mt-10">
+            <Link
+              href="/how-it-works"
+              className="font-mono text-mono-label uppercase tracking-[1.2px] text-amber hover:text-amber-hi"
+            >
+              Walk the whole flow →
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section className="border-b border-line">
+        <div className="mx-auto grid max-w-[84rem] gap-16 px-8 py-24 lg:grid-cols-[1fr_2fr]">
+          <FadeUp>
+            <div>
+              <div className="font-mono text-mono-eyebrow uppercase text-amber">
+                [04] FAQ
+              </div>
+              <h2 className="mt-3 text-h2 font-medium leading-tight tracking-[-0.5px] text-ink">
+                The questions everyone asks first.
+              </h2>
+              <p className="mt-4 text-body text-text-muted">
+                Don&apos;t see your question?{" "}
+                <Link
+                  href="/contact"
+                  className="font-medium text-amber underline-offset-4 hover:underline"
+                >
+                  Drop us a line.
+                </Link>
+              </p>
+            </div>
+          </FadeUp>
+
+          <FadeUp delay={80}>
+            {/* Native <details> + <summary> — zero JS, accessible by
+                default, and animates the open/close transition with
+                pure CSS. */}
+            <div className="flex flex-col divide-y divide-line border-y border-line">
+              {FAQS.map((f) => (
+                <details
+                  key={f.q}
+                  className="group py-5 transition-colors hover:bg-cream-soft/40"
+                >
+                  <summary className="flex cursor-pointer items-start justify-between gap-6 list-none [&::-webkit-details-marker]:hidden">
+                    <span className="text-body font-medium text-ink">
+                      {f.q}
+                    </span>
+                    <span
+                      aria-hidden
+                      className="mt-1 inline-block shrink-0 font-mono text-text-muted transition-transform duration-300 ease-out group-open:rotate-45"
+                    >
+                      +
+                    </span>
+                  </summary>
+                  <p className="mt-3 text-body-sm text-text-muted">{f.a}</p>
+                </details>
+              ))}
+            </div>
+          </FadeUp>
+        </div>
+      </section>
+
+      {/* FINAL CTA */}
+      <section>
+        <div className="mx-auto max-w-[84rem] px-8 py-24">
+          <FadeUp>
+            <div className="flex flex-col items-start gap-6 rounded-md border border-line bg-ink px-10 py-14 text-text-inv md:flex-row md:items-center md:justify-between">
+              <div>
+                <h2 className="max-w-xl text-h2 font-medium leading-tight tracking-[-0.5px]">
+                  Ready to ship from the U.S. without being in the U.S.?
+                </h2>
+                <p className="mt-3 max-w-lg text-body text-text-inv/80">
+                  Create an account in two minutes. Onboarding is four
+                  days, end-to-end.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <Link href="/signup">
+                  <Button variant="amber" size="lg" withArrow>
+                    Get started
+                  </Button>
+                </Link>
+                <Link href="/contact">
+                  <Button variant="outline" size="lg">
+                    Talk to sales
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          </FadeUp>
+        </div>
       </section>
     </>
-  );
-}
-
-function KpiCell(props: { label: string; value: string; delta: string; deltaTone: "success" | "error" }) {
-  return (
-    <div className="rounded-sm border border-line p-4">
-      <div className="mb-3 flex items-start justify-between">
-        <span className="text-body-sm font-medium text-text">{props.label}</span>
-        <span
-          className={
-            "font-mono text-[11px] " +
-            (props.deltaTone === "success" ? "text-success" : "text-error")
-          }
-        >
-          {props.delta}
-        </span>
-      </div>
-      <div className="flex items-baseline justify-between">
-        <span className="font-mono text-[10px] uppercase tracking-[1.2px] text-text-muted">
-          Current month
-        </span>
-        <span className="font-mono text-[16px] font-medium tabular-nums text-ink">{props.value}</span>
-      </div>
-    </div>
   );
 }
 
 function Stat({ value, label, amber }: { value: string; label: string; amber?: boolean }) {
   return (
     <div className="border-line p-12 [&:not(:last-child)]:border-r">
-      <div className={"text-[40px] font-medium leading-none tabular-nums tracking-[-1.2px] " + (amber ? "text-amber" : "text-ink")}>
+      <div
+        className={
+          "text-[40px] font-medium leading-none tabular-nums tracking-[-1.2px] " +
+          (amber ? "text-amber" : "text-ink")
+        }
+      >
         {value}
       </div>
       <div className="mt-3 font-mono text-mono-label uppercase text-text-muted">{label}</div>
@@ -152,12 +305,82 @@ function Stat({ value, label, amber }: { value: string; label: string; amber?: b
   );
 }
 
-function ColorTrio() {
-  return (
-    <span className="inline-flex gap-px">
-      <span className="inline-block h-2.5 w-2.5 bg-text-muted" />
-      <span className="inline-block h-2.5 w-2.5 bg-black" />
-      <span className="inline-block h-2.5 w-2.5 bg-amber" />
-    </span>
-  );
-}
+const SERVICES: ReadonlyArray<{
+  Icon: typeof Package;
+  tag: string;
+  title: string;
+  body: string;
+  cta: string;
+  href: string;
+}> = [
+  {
+    Icon: ShoppingBag,
+    tag: "For buyers",
+    title: "Personal shopping",
+    body: "Paste any U.S. store URL. We buy it for you, consolidate, and ship to anywhere your address forwarder can't.",
+    cta: "Open a request",
+    href: "/shopper",
+  },
+  {
+    Icon: Package,
+    tag: "For sellers",
+    title: "3PL fulfillment",
+    body: "Hold inventory in our U.S. warehouse. We pick, pack, and ship every order in days — no U.S. business required.",
+    cta: "Become a vendor",
+    href: "/services#3pl",
+  },
+  {
+    Icon: Zap,
+    tag: "For partners",
+    title: "Integrations",
+    body: "Shopify, WooCommerce, REST API — plug us into the store you already run.",
+    cta: "See connectors",
+    href: "/integrations",
+  },
+];
+
+const STEPS: ReadonlyArray<{ label: string; body: string }> = [
+  {
+    label: "Onboard",
+    body: "Sign up, submit KYC, and connect your storefront. Average path is four working days.",
+  },
+  {
+    label: "Send a pallet",
+    body: "Declare a Pre-Shipment Notice, pay onboarding, and ship to our facility.",
+  },
+  {
+    label: "We receive + label",
+    body: "Same day your pallet lands, every unit is weighed, photographed, and stocked.",
+  },
+  {
+    label: "Pick, pack, ship",
+    body: "Orders flow in via the API. We ship locally — most orders within six working hours.",
+  },
+];
+
+const FAQS: ReadonlyArray<{ q: string; a: string }> = [
+  {
+    q: "Do I need a U.S. business to use the platform?",
+    a: "No. The whole point is that you don't. We hold inventory in our name at our facility and ship it on your behalf. Sellers anywhere can sign up.",
+  },
+  {
+    q: "How does pricing work?",
+    a: "Two halves: monthly storage by tier (Small / Medium / Large / X-Large / Pallet) and per-shipment fulfillment (pick, pack, label). All flat-rate, no per-touch surcharges. The pricing page has the full card.",
+  },
+  {
+    q: "What stores can I shop from via the personal shopper?",
+    a: "Any U.S. retailer with an online store. Paste a product URL, our admin team verifies it, and we check out on your behalf with a Stripe-backed intake payment.",
+  },
+  {
+    q: "How long does it take to receive my order?",
+    a: "Most domestic U.S. orders ship the same day or next working day from our warehouse. International shopper requests are consolidated, then shipped via your chosen forwarder or directly.",
+  },
+  {
+    q: "Can I integrate my Shopify store?",
+    a: "Yes. We connect to Shopify and WooCommerce out of the box; everything else has a REST API. Orders flow into our pick queue automatically.",
+  },
+  {
+    q: "What happens if a parcel is lost or damaged?",
+    a: "Every PSN is photographed at receive. Damage claims are filed against the carrier and the wallet is credited the same day. The ledger keeps the full trail.",
+  },
+];
