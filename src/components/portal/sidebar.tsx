@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import {
   BadgeCheck,
+  Bell,
   Boxes,
   ClipboardList,
   CreditCard,
@@ -17,6 +18,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { api } from "@/lib/api-client";
+import { useUnreadCounts, type NotificationCategory } from "@/lib/notifications";
 import { cn } from "@/lib/utils";
 
 interface NavItem {
@@ -31,6 +33,12 @@ interface NavItem {
    * action — like KYC verification when the account is still PENDING.
    */
   needsAttention?: (ctx: { kycStatus?: string }) => boolean;
+  /**
+   * Notification category this tab represents. Drives the per-tab
+   * unread-count badge. The Notifications entry uses `__total__` so it
+   * mirrors the bell's count.
+   */
+  category?: NotificationCategory | "__total__";
 }
 
 const NAV: NavItem[] = [
@@ -40,13 +48,15 @@ const NAV: NavItem[] = [
     label: "Verification",
     icon: BadgeCheck,
     needsAttention: ({ kycStatus }) => kycStatus !== "APPROVED",
+    category: "verification",
   },
   { href: "/products", label: "Products", icon: Package },
   { href: "/inventory", label: "Inventory", icon: Boxes },
-  { href: "/psn", label: "Pre-Shipment Notices", icon: ClipboardList },
-  { href: "/wallet", label: "Wallet", icon: CreditCard },
-  { href: "/orders", label: "Orders", icon: Truck },
-  { href: "/returns", label: "Returns", icon: Undo2 },
+  { href: "/psn", label: "Pre-Shipment Notices", icon: ClipboardList, category: "psn" },
+  { href: "/wallet", label: "Wallet", icon: CreditCard, category: "wallet" },
+  { href: "/orders", label: "Orders", icon: Truck, category: "order" },
+  { href: "/returns", label: "Returns", icon: Undo2, category: "return" },
+  { href: "/notifications", label: "Notifications", icon: Bell, category: "__total__" },
   { href: "/team", label: "Team", icon: Users },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
@@ -70,6 +80,17 @@ export function Sidebar(): JSX.Element {
   });
   const kycStatus = meQ.data?.kycStatus;
 
+  // Unread counts → per-tab badges. Same 30 s poll as the bell so the
+  // sidebar and the dropdown stay in sync.
+  const countsQ = useUnreadCounts();
+  const counts = countsQ.data;
+
+  function badgeFor(item: NavItem): number {
+    if (!item.category || !counts) return 0;
+    if (item.category === "__total__") return counts.total;
+    return counts.byCategory[item.category] ?? 0;
+  }
+
   return (
     <aside className="flex h-screen w-60 shrink-0 flex-col border-r border-line bg-cream-soft">
       <div className="border-b border-line px-6 py-5">
@@ -90,6 +111,8 @@ export function Sidebar(): JSX.Element {
             ? "pointer-events-none text-text-subtle"
             : "text-text hover:bg-cream-deep";
           const activeClass = active && !item.disabled ? "bg-ink text-text-inv hover:bg-ink" : "";
+          const attention = item.needsAttention?.({ kycStatus }) ?? false;
+          const badge = badgeFor(item);
           return (
             <Link
               key={item.href}
@@ -108,7 +131,17 @@ export function Sidebar(): JSX.Element {
                 <span className="ml-auto font-mono text-[9px] uppercase tracking-[1px] text-text-subtle">
                   Soon
                 </span>
-              ) : item.needsAttention?.({ kycStatus }) ? (
+              ) : badge > 0 ? (
+                <span
+                  aria-label={`${badge} unread`}
+                  className={cn(
+                    "ml-auto inline-flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 font-mono text-[10px] font-semibold leading-none",
+                    active ? "bg-text-inv text-ink" : "bg-error text-text-inv",
+                  )}
+                >
+                  {badge > 99 ? "99+" : badge}
+                </span>
+              ) : attention ? (
                 <span
                   aria-label="Action needed"
                   className="ml-auto h-2 w-2 shrink-0 rounded-full bg-amber"

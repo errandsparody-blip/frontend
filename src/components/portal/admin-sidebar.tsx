@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Bell,
   Building2,
   ClipboardCheck,
   ClipboardList,
@@ -18,23 +19,37 @@ import { usePathname } from "next/navigation";
 
 import { SiteLogo } from "@/components/brand/site-logo";
 import { cn } from "@/lib/utils";
+import { useUnreadCounts, type NotificationCategory } from "@/lib/notifications";
 
 interface NavItem {
   href: string;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   disabled?: boolean;
+  /**
+   * Notification category this tab represents. Drives the per-tab
+   * unread-count badge in the sidebar. The `notifications` entry
+   * itself uses the special token `__total__` so it lights up with
+   * the bell's overall unread count, not a single category.
+   */
+  category?: NotificationCategory | "__total__";
 }
 
 const NAV: NavItem[] = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/admin/psn", label: "Receiving", icon: ClipboardCheck },
-  { href: "/admin/vendors", label: "Vendors", icon: Building2 },
+  { href: "/admin/psn", label: "Receiving", icon: ClipboardCheck, category: "psn" },
+  { href: "/admin/vendors", label: "Vendors", icon: Building2, category: "vendor" },
   { href: "/admin/inventory", label: "Inventory", icon: Package },
-  { href: "/admin/orders", label: "Orders", icon: ClipboardList },
-  { href: "/admin/returns", label: "Returns", icon: Undo2 },
-  { href: "/admin/shopper", label: "Shopper", icon: ShoppingBag },
-  { href: "/admin/finance", label: "Finance", icon: CreditCard },
+  { href: "/admin/orders", label: "Orders", icon: ClipboardList, category: "order" },
+  { href: "/admin/returns", label: "Returns", icon: Undo2, category: "return" },
+  { href: "/admin/shopper", label: "Shopper", icon: ShoppingBag, category: "shopper" },
+  { href: "/admin/finance", label: "Finance", icon: CreditCard, category: "wallet" },
+  {
+    href: "/admin/notifications",
+    label: "Notifications",
+    icon: Bell,
+    category: "__total__",
+  },
   { href: "/admin/config/fees", label: "Pricing (3PL)", icon: Tag },
   // Shopper has its own commission + freight + tax editor — separate
   // from the 3PL fee schedule above. Dedicated entry so admins don't
@@ -46,6 +61,17 @@ const NAV: NavItem[] = [
 
 export function AdminSidebar(): JSX.Element {
   const pathname = usePathname();
+  // Unread counts power the per-tab badges. A query error hides every
+  // badge silently — navigation still works, the badges are advisory.
+  const countsQ = useUnreadCounts();
+  const counts = countsQ.data;
+
+  function badgeFor(item: NavItem): number {
+    if (!item.category || !counts) return 0;
+    if (item.category === "__total__") return counts.total;
+    return counts.byCategory[item.category] ?? 0;
+  }
+
   return (
     <aside className="flex h-screen w-60 shrink-0 flex-col border-r border-line bg-ink text-text-inv">
       <div className="border-b border-white/10 px-6 py-5">
@@ -72,6 +98,7 @@ export function AdminSidebar(): JSX.Element {
             ? "pointer-events-none text-white/30"
             : "text-white/70 hover:bg-white/5 hover:text-text-inv";
           const activeClass = active && !item.disabled ? "bg-amber text-ink hover:bg-amber" : "";
+          const badge = badgeFor(item);
           return (
             <Link
               key={item.href}
@@ -89,6 +116,16 @@ export function AdminSidebar(): JSX.Element {
               {item.disabled ? (
                 <span className="ml-auto font-mono text-[9px] uppercase tracking-[1px] text-white/30">
                   Soon
+                </span>
+              ) : badge > 0 ? (
+                <span
+                  aria-label={`${badge} unread`}
+                  className={cn(
+                    "ml-auto inline-flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 font-mono text-[10px] font-semibold leading-none",
+                    active ? "bg-ink text-text-inv" : "bg-error text-text-inv",
+                  )}
+                >
+                  {badge > 99 ? "99+" : badge}
                 </span>
               ) : null}
             </Link>

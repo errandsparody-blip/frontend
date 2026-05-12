@@ -1,11 +1,20 @@
 "use client";
 
 import { LogOut } from "lucide-react";
+import { usePathname } from "next/navigation";
 
 import { useAuth } from "@/lib/auth-context";
 
+import { NotificationBell } from "./notification-bell";
+
 export function Topbar(): JSX.Element {
   const { user, logout } = useAuth();
+  const pathname = usePathname();
+  // Admin pages live under /admin; everything else is the vendor portal.
+  // The bell needs the right "See all" target so clicking through lands
+  // on the matching notifications route for whichever console is active.
+  const isAdmin = pathname?.startsWith("/admin") ?? false;
+  const seeAllHref = isAdmin ? "/admin/notifications" : "/notifications";
 
   const initials = user?.email
     ? user.email
@@ -25,6 +34,7 @@ export function Topbar(): JSX.Element {
       <div className="flex items-center gap-3">
         {user ? (
           <>
+            <NotificationBell seeAllHref={seeAllHref} />
             <div className="flex items-center gap-2">
               <div className="flex h-8 w-8 items-center justify-center bg-ink font-mono text-[10px] font-semibold uppercase text-text-inv">
                 {initials}
