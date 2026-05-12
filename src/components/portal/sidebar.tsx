@@ -9,6 +9,7 @@ import {
   CreditCard,
   LayoutDashboard,
   Package,
+  Repeat,
   Settings,
   Truck,
   Undo2,
@@ -58,6 +59,7 @@ const NAV: NavItem[] = [
   { href: "/inventory", label: "Inventory", icon: Boxes },
   { href: "/psn", label: "Pre-Shipment Notices", icon: ClipboardList, category: "psn" },
   { href: "/wallet", label: "Wallet", icon: CreditCard, category: "wallet" },
+  { href: "/wallet/recurring", label: "Recurring storage", icon: Repeat },
   { href: "/orders", label: "Orders", icon: Truck, category: "order" },
   { href: "/returns", label: "Returns", icon: Undo2, category: "return" },
   { href: "/notifications", label: "Notifications", icon: Bell, category: "__total__" },
@@ -120,8 +122,16 @@ export function Sidebar(): JSX.Element {
       <nav className="flex-1 overflow-y-auto px-3 py-4">
         {NAV.map((item) => {
           const Icon = item.icon;
-          const active =
-            item.href === "/dashboard" ? pathname === "/dashboard" : pathname?.startsWith(item.href);
+          // The "Wallet" parent entry has sub-pages (/wallet/recurring,
+          // /wallet/fund, /wallet/statements) that each get their own
+          // sidebar row, so we need an exact-match for /wallet to avoid
+          // lighting up both rows when the user is on a sub-page.
+          // Same rule for /dashboard which has no sub-pages but shouldn't
+          // match anything that starts with /dashboard.
+          const exactOnly = item.href === "/dashboard" || item.href === "/wallet";
+          const active = exactOnly
+            ? pathname === item.href
+            : pathname?.startsWith(item.href);
           const disabledClass = item.disabled
             ? "pointer-events-none text-text-subtle"
             : "text-text hover:bg-cream-deep";

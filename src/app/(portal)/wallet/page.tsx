@@ -53,6 +53,12 @@ export default function WalletPage() {
         actions={
           <div className="flex items-center gap-3">
             <Link
+              href="/wallet/recurring"
+              className="font-mono text-[11px] uppercase tracking-[1.2px] text-text-muted hover:text-ink"
+            >
+              Recurring storage →
+            </Link>
+            <Link
               href="/wallet/statements"
               className="font-mono text-[11px] uppercase tracking-[1.2px] text-text-muted hover:text-ink"
             >
