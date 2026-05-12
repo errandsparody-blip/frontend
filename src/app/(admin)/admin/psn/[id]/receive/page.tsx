@@ -297,10 +297,29 @@ export default function ReceivePsnPage() {
             return (
               <TR key={l.id} className={overReceive ? "bg-error/5" : ""}>
                 <Td>
-                  <div className="font-medium text-ink">{l.product?.name ?? l.productId}</div>
-                  <div className="font-mono text-[11px] text-text-muted">
-                    {l.product?.code ?? "—"} · {l.product?.variant ?? "STD"}
-                  </div>
+                  {/* Product name + code/variant. The backend join always
+                      returns `product` (FK is ON DELETE RESTRICT), so the
+                      fallback below should never fire in practice — but
+                      we render a friendly placeholder instead of the raw
+                      UUID when it does, so operators never have to read
+                      a hex string off the receiving sheet. */}
+                  {l.product ? (
+                    <>
+                      <div className="font-medium text-ink">{l.product.name}</div>
+                      <div className="font-mono text-[11px] text-text-muted">
+                        {l.product.code} · {l.product.variant || "STD"}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="font-medium text-text-muted italic">
+                        Unknown product
+                      </div>
+                      <div className="font-mono text-[11px] text-text-subtle">
+                        Ref: {l.productId.slice(0, 8)}
+                      </div>
+                    </>
+                  )}
                 </Td>
                 <Td>
                   {tierKey ? (
