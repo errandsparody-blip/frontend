@@ -394,7 +394,7 @@ function VendorAcceptanceForm({ isReaccept }: { isReaccept: boolean }): JSX.Elem
 // vendor signs the new version.
 // ---------------------------------------------------------------------------
 
-const AGREEMENT_EFFECTIVE_DATE = "May 9, 2026";
+const AGREEMENT_EFFECTIVE_DATE = "May 12, 2026";
 
 function AgreementText(): JSX.Element {
   return (

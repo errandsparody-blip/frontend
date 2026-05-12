@@ -42,6 +42,7 @@ const NAV_LINKS: ReadonlyArray<{ href: string; label: string; accent?: boolean }
   { href: "/services", label: "Services" },
   { href: "/how-it-works", label: "How it works" },
   { href: "/pricing", label: "Pricing" },
+  { href: "/faq", label: "FAQ" },
   { href: "/contact", label: "Contact" },
   // Personal Shopper gets the amber accent treatment to match the
   // desktop pill, since it's a distinct consumer-direct product.

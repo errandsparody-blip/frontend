@@ -256,6 +256,17 @@ export default function HomePage() {
                 </details>
               ))}
             </div>
+
+            <div className="mt-8 flex flex-wrap items-center gap-4">
+              <Link href="/faq">
+                <Button variant="outline" withArrow>
+                  View full FAQ
+                </Button>
+              </Link>
+              <span className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
+                18 answers across 6 topics
+              </span>
+            </div>
           </FadeUp>
         </div>
       </section>
@@ -366,29 +377,39 @@ const STEPS: ReadonlyArray<{ label: string; body: string }> = [
   },
 ];
 
+// Eight high-converting questions for the homepage. The deeper, 18-question
+// version lives at /faq, surfaced via the "View full FAQ" CTA below.
 const FAQS: ReadonlyArray<{ q: string; a: string }> = [
   {
-    q: "Do I need a U.S. business to use the platform?",
-    a: "No. The whole point is that you don't. We hold inventory in our name at our facility and ship it on your behalf. Sellers anywhere can sign up.",
+    q: "Do I need a U.S. business or address to sign up?",
+    a: "No. USA Errands exists precisely so sellers outside the U.S. can ship into the U.S. without setting up a local entity. We hold and dispatch inventory under our own roof; you keep ownership and we keep the storefront.",
   },
   {
-    q: "How does pricing work?",
-    a: "Two halves: monthly storage by tier (Small / Medium / Large / X-Large / Pallet) and per-shipment fulfillment (pick, pack, label). All flat-rate, no per-touch surcharges. The pricing page has the full card.",
+    q: "How long does onboarding take?",
+    a: "Most vendors are live in four working days, end-to-end: create an account, complete KYC, fund the wallet, and submit a Pre-Shipment Notice. Faster paths are common once your KYC documents are clean.",
   },
   {
-    q: "What stores can I shop from via the personal shopper?",
-    a: "Any U.S. retailer with an online store. Paste a product URL, our admin team verifies it, and we check out on your behalf with a Stripe-backed intake payment.",
+    q: "How is pricing structured?",
+    a: "Two halves. Monthly storage is billed per box-tier (Small, Medium, Large, X-Large, or Pallet). Fulfillment is a flat base + per-additional-unit pick-and-pack fee. Shipping is at-cost via the carrier you pick. No hidden per-touch surcharges.",
   },
   {
-    q: "How long does it take to receive my order?",
-    a: "Most domestic U.S. orders ship the same day or next working day from our warehouse. International shopper requests are consolidated, then shipped via your chosen forwarder or directly.",
+    q: "What can I store and ship?",
+    a: "Almost any legal, non-hazardous consumer good. We can't accept weapons, explosives, restricted medical products, counterfeits, or unpermitted perishables. The full prohibited-products list is in the Vendor Agreement.",
   },
   {
-    q: "Can I integrate my Shopify store?",
-    a: "Yes. We connect to Shopify and WooCommerce out of the box; everything else has a REST API. Orders flow into our pick queue automatically.",
+    q: "What happens if a shipment is damaged or lost?",
+    a: "Every PSN is photographed and counted at receive — we catch damage before it enters stock. Lost or damaged outbound parcels are filed against the carrier and your wallet is credited the same day the claim resolves, with the full audit trail on your ledger.",
   },
   {
-    q: "What happens if a parcel is lost or damaged?",
-    a: "Every PSN is photographed at receive. Damage claims are filed against the carrier and the wallet is credited the same day. The ledger keeps the full trail.",
+    q: "How do storage fees work — do they keep running if I don't sell?",
+    a: "Yes. Storage is billed on the 1st of each month regardless of sales velocity, against the wallet balance you've prefunded. Quarterly storage-tier audits identify boxes you can consolidate or downsize to lower your monthly bill.",
+  },
+  {
+    q: "Can I integrate my Shopify, WooCommerce, or custom store?",
+    a: "Yes. Shopify and WooCommerce connect out of the box. Anything else hits our REST API. Orders flow into the pick queue automatically and tracking numbers post back the moment a label is generated.",
+  },
+  {
+    q: "I just want to buy something from a U.S. store — can you help?",
+    a: "That's exactly what the personal-shopper service does. Paste a U.S. retailer URL, we verify it, you pay an intake fee, we buy it, consolidate, and ship to your address worldwide. Orders over $1,000 require government-issued ID and a wire transfer for compliance.",
   },
 ];

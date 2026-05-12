@@ -93,6 +93,9 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
             <Link href="/pricing" className="transition-colors hover:text-amber">
               Pricing
             </Link>
+            <Link href="/faq" className="transition-colors hover:text-amber">
+              FAQ
+            </Link>
             <Link href="/contact" className="transition-colors hover:text-amber">
               Contact
             </Link>
@@ -129,6 +132,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
             <FooterCol heading="Company">
               <FooterLink href="/about">About</FooterLink>
               <FooterLink href="/services">Services</FooterLink>
+              <FooterLink href="/faq">FAQ</FooterLink>
               <FooterLink href="/contact">Contact</FooterLink>
             </FooterCol>
             <FooterCol heading="Sellers">

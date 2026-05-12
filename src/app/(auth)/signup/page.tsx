@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
+import { z } from "zod";
 
 import { ErrorBanner } from "@/components/errors/error-banner";
 import { Button } from "@/components/ui/button";
@@ -12,14 +13,35 @@ import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { api } from "@/lib/api-client";
 import { useApiErrorHandler } from "@/lib/errors";
-import { signupSchema, type SignupInput } from "@/lib/schemas/auth";
+import { signupSchema } from "@/lib/schemas/auth";
+
+// Client-only extension — the API schema can't add `agreementAccepted` without
+// a mirrored backend change, so we wrap signupSchema here, validate the
+// checkbox, then strip the field before POSTing. The acceptance is still
+// captured properly: after email + 2FA + KYC the vendor lands on
+// /legal/vendor-agreement?reaccept=1 and signs the current published version,
+// which records timestamp + IP + version on the audit trail.
+const signupFormSchema = signupSchema.extend({
+  agreementAccepted: z.literal(true, {
+    errorMap: () => ({
+      message: "Tick the box to confirm you accept the Vendor Agreement.",
+    }),
+  }),
+});
+type SignupFormInput = z.infer<typeof signupFormSchema>;
 
 export default function SignupPage() {
   const router = useRouter();
 
-  const form = useForm<SignupInput>({
-    resolver: zodResolver(signupSchema),
-    defaultValues: { email: "", password: "", businessName: "", country: "" },
+  const form = useForm<SignupFormInput>({
+    resolver: zodResolver(signupFormSchema),
+    defaultValues: {
+      email: "",
+      password: "",
+      businessName: "",
+      country: "",
+      agreementAccepted: false as unknown as true,
+    },
   });
   const {
     register,
@@ -29,10 +51,15 @@ export default function SignupPage() {
 
   const { bannerError, handle, clear } = useApiErrorHandler(form);
 
-  async function onSubmit(values: SignupInput): Promise<void> {
+  async function onSubmit(values: SignupFormInput): Promise<void> {
     clear();
     try {
-      await api.post<{ ok: true; userId: string }>("/auth/signup", values);
+      // Strip the client-only consent field before sending — the API schema
+      // doesn't accept it. The vendor formally re-accepts the versioned
+      // agreement after KYC via /legal/vendor-agreement.
+      const { agreementAccepted: _ignored, ...payload } = values;
+      void _ignored;
+      await api.post<{ ok: true; userId: string }>("/auth/signup", payload);
       // Carry the email through so the verify form can pre-fill it for the
       // POST /auth/verify-email request without making the user retype.
       router.push(`/signup/verify-email?email=${encodeURIComponent(values.email)}`);
@@ -102,6 +129,53 @@ export default function SignupPage() {
         </Field>
 
         <ErrorBanner error={bannerError} onAction={onAction} />
+
+        <div>
+          <label className="flex items-start gap-3 rounded-sm border border-line-strong bg-cream-soft p-4">
+            <input
+              type="checkbox"
+              className="mt-1 h-4 w-4 shrink-0 cursor-pointer accent-amber"
+              aria-invalid={!!errors.agreementAccepted}
+              aria-describedby={errors.agreementAccepted ? "agreement-error" : undefined}
+              {...register("agreementAccepted")}
+            />
+            <span className="text-body-sm text-text">
+              I have read and accept the{" "}
+              <Link
+                href="/legal/vendor-agreement"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-ink underline-offset-4 hover:underline"
+              >
+                USA Errands Vendor Agreement
+              </Link>
+              ,{" "}
+              <Link
+                href="/legal/terms"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-ink underline-offset-4 hover:underline"
+              >
+                Terms of Service
+              </Link>
+              , and{" "}
+              <Link
+                href="/legal/privacy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-ink underline-offset-4 hover:underline"
+              >
+                Privacy Policy
+              </Link>
+              .
+            </span>
+          </label>
+          {errors.agreementAccepted ? (
+            <span id="agreement-error" className="mt-2 block text-caption text-error">
+              {errors.agreementAccepted.message}
+            </span>
+          ) : null}
+        </div>
 
         <Button type="submit" variant="primary" size="lg" withArrow loading={isSubmitting}>
           {isSubmitting ? "Creating account" : "Create account"}
