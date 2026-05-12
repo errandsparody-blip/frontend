@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 
 import { ErrorBanner } from "@/components/errors/error-banner";
 import { BackButton } from "@/components/portal/back-button";
+import { PsnChatPanel } from "@/components/portal/psn-chat-panel";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
@@ -296,6 +297,12 @@ export default function PsnDetailPage() {
           </Button>
         </div>
       ) : null}
+
+      {/* Per-PSN chat with USA Errands. Available as soon as the PSN
+          exists so vendors can flag carrier issues / corrections /
+          repackaging questions ahead of receipt. Messages also go out
+          by email — see PsnMessageService.postFromAdmin. */}
+      <PsnChatPanel psnId={psn.id} viewer="vendor" />
     </div>
   );
 }

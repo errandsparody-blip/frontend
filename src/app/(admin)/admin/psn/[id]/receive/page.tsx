@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { ErrorBanner } from "@/components/errors/error-banner";
+import { PsnChatPanel } from "@/components/portal/psn-chat-panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
@@ -13,6 +14,12 @@ import { StatusPill } from "@/components/ui/status-pill";
 import { DataTable, TBody, THead, Th, TR, Td } from "@/components/ui/table";
 import { api } from "@/lib/api-client";
 import { normalizeError, useApiErrorHandler } from "@/lib/errors";
+import {
+  FALLBACK_TIERS,
+  formatDimensionsLabel,
+  type StorageTierKey,
+  type StorageTiersResponse,
+} from "@/lib/storage-tiers";
 
 interface AdminPsn {
   id: string;
@@ -39,8 +46,18 @@ interface AdminPsn {
     receivedQty: number;
     acceptedQty: number;
     damagedQty: number;
+    // Migration 0024 — items declared but absent from the box.
+    missingQty: number;
     notes: string | null;
-    product?: { code: string; name: string; variant: string };
+    // Migration 0024 — product include now returns the storage tier so we
+    // can render a "Tier size" column. Older PSNs missing it default to
+    // SMALL on the Product side, so this is always defined at runtime.
+    product?: {
+      code: string;
+      name: string;
+      variant: string;
+      storageTier?: "SMALL" | "MEDIUM" | "LARGE" | "X_LARGE" | "PALLET";
+    };
   }>;
   exceptions: Array<{ id: string; resolution: string; notes: string | null }>;
 }
@@ -59,6 +76,8 @@ type DialogKind = null | "hold" | "reject" | "returnRequest";
 interface ReceivingState {
   acceptedQty: number;
   damagedQty: number;
+  // Migration 0024 — items declared on the PSN but absent from the box.
+  missingQty: number;
   notes: string;
 }
 
@@ -73,6 +92,19 @@ export default function ReceivePsnPage() {
     enabled: !!params.id,
   });
 
+  // Live tier-size data. Same endpoint the vendor PSN pricing card pulls
+  // from — we render the configured dimensions for each declared tier
+  // so the operator can verify the box at receive without leaving the
+  // page. Falls back to seed defaults if the API errors.
+  const tiersQ = useQuery({
+    queryKey: ["fees", "storage-tiers"],
+    queryFn: () => api.get<StorageTiersResponse>("/fees/storage-tiers"),
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+    retry: 1,
+  });
+  const tiers = tiersQ.data ?? FALLBACK_TIERS;
+
   const [rows, setRows] = useState<Record<string, ReceivingState>>({});
 
   const { bannerError, handle, clear } = useApiErrorHandler();
@@ -86,6 +118,7 @@ export default function ReceivePsnPage() {
         seed[l.id] = {
           acceptedQty: l.declaredQty - l.receivedQty,
           damagedQty: 0,
+          missingQty: 0,
           notes: l.notes ?? "",
         };
       }
@@ -100,6 +133,7 @@ export default function ReceivePsnPage() {
           lineId,
           acceptedQty: r.acceptedQty,
           damagedQty: r.damagedQty,
+          missingQty: r.missingQty,
           notes: r.notes || undefined,
         })),
       }),
@@ -237,18 +271,29 @@ export default function ReceivePsnPage() {
       <DataTable>
         <THead>
           <Th>Product</Th>
+          {/* Migration 0024 — declared tier + its physical dimensions,
+              sourced live from /v1/fees/storage-tiers. Operators can
+              eyeball whether the box on the dock matches the tier the
+              vendor claimed. */}
+          <Th>Tier size</Th>
           <Th align="right">Declared</Th>
           <Th align="right">Already received</Th>
           <Th align="right">Accept</Th>
+          {/* Migration 0024 — missing column sits BEFORE Damaged so the
+              eye moves left-to-right through the negative outcomes in
+              order of severity (nothing → not in the box → broken). */}
+          <Th align="right">Missing</Th>
           <Th align="right">Damaged</Th>
           <Th>Notes</Th>
         </THead>
         <TBody>
           {psn.lines.map((l) => {
             const remaining = l.declaredQty - l.receivedQty;
-            const r = rows[l.id] ?? { acceptedQty: 0, damagedQty: 0, notes: "" };
+            const r = rows[l.id] ?? { acceptedQty: 0, damagedQty: 0, missingQty: 0, notes: "" };
             const total = Number(r.acceptedQty || 0) + Number(r.damagedQty || 0);
             const overReceive = total > remaining;
+            const tierKey = l.product?.storageTier as StorageTierKey | undefined;
+            const dims = tierKey ? tiers.dimensions?.[tierKey] : undefined;
             return (
               <TR key={l.id} className={overReceive ? "bg-error/5" : ""}>
                 <Td>
@@ -256,6 +301,20 @@ export default function ReceivePsnPage() {
                   <div className="font-mono text-[11px] text-text-muted">
                     {l.product?.code ?? "—"} · {l.product?.variant ?? "STD"}
                   </div>
+                </Td>
+                <Td>
+                  {tierKey ? (
+                    <div>
+                      <div className="font-mono text-mono-label uppercase tracking-[1.2px] text-text">
+                        {tierKey.replace("_", "-")}
+                      </div>
+                      <div className="font-mono text-[11px] text-text-muted">
+                        {formatDimensionsLabel(dims)}
+                      </div>
+                    </div>
+                  ) : (
+                    <span className="font-mono text-[11px] text-text-muted">—</span>
+                  )}
                 </Td>
                 <Td num>{l.declaredQty}</Td>
                 <Td num className="text-text-muted">{l.receivedQty}</Td>
@@ -270,6 +329,18 @@ export default function ReceivePsnPage() {
                     disabled={isFinal}
                     value={r.acceptedQty}
                     onChange={(e) => setRow(l.id, { acceptedQty: Number(e.target.value) })}
+                  />
+                </Td>
+                <Td align="right">
+                  <Input
+                    type="number"
+                    min={0}
+                    max={remaining}
+                    step={1}
+                    className="w-20 text-right"
+                    disabled={isFinal}
+                    value={r.missingQty}
+                    onChange={(e) => setRow(l.id, { missingQty: Number(e.target.value) })}
                   />
                 </Td>
                 <Td align="right">
@@ -299,6 +370,12 @@ export default function ReceivePsnPage() {
           })}
         </TBody>
       </DataTable>
+
+      {/* Chat panel — opens a per-PSN thread so admin and vendor can
+          coordinate about discrepancies in-app (and via email). Mounted
+          right below the line table so the operator can ask a question
+          while staring at the line that prompted it. */}
+      <PsnChatPanel psnId={psn.id} viewer="admin" />
 
       {hasOverReceive ? (
         <div
