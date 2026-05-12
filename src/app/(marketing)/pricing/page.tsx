@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
+import { STORAGE_TIERS } from "@/lib/storage-tiers";
 
 export const metadata = {
   title: "Pricing — USA Errands",
@@ -8,21 +9,16 @@ export const metadata = {
     "Pay only for what you use. Onboarding, storage, fulfillment, and shipping — all itemised, all transparent, all reconciled to a single wallet ledger.",
 };
 
-interface FeeRow {
-  tier: string;
-  size: string;
-  stocking: string;
-  storage: string;
-  total: string;
-}
-
-const ONBOARDING: FeeRow[] = [
-  { tier: "Small", size: "Up to 12″ × 9″ × 4″ · ≤ 5 lbs", stocking: "$1.00", storage: "$1.00", total: "$2.00" },
-  { tier: "Medium", size: "Up to 16″ × 12″ × 8″ · ≤ 15 lbs", stocking: "$2.00", storage: "$2.00", total: "$4.00" },
-  { tier: "Large", size: "Up to 24″ × 18″ × 12″ · ≤ 30 lbs", stocking: "$3.00", storage: "$4.00", total: "$7.00" },
-  { tier: "X-Large", size: "Up to 36″ × 24″ × 18″ · ≤ 70 lbs", stocking: "$5.00", storage: "$6.00", total: "$11.00" },
-  { tier: "Pallet", size: "48″ × 40″ pallet · ≤ 1500 lbs", stocking: "Negotiated", storage: "Negotiated", total: "—" },
-];
+// Pull the tier rows from the shared module so the marketing page and
+// the vendor PSN cards can never drift. We map to the legacy shape this
+// file's <Td> components expect.
+const ONBOARDING = STORAGE_TIERS.map((t) => ({
+  tier: t.tier,
+  size: `Up to ${t.sizeInches}`,
+  stocking: t.stocking,
+  storage: t.storage,
+  total: t.total,
+}));
 
 const FULFILLMENT = [
   { label: "Pick & pack", first: "$2.50", additional: "$0.75 each" },

@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 
-import { StorageTierGuide } from "@/components/portal/storage-tier-guide";
+import { StorageTierCards } from "@/components/portal/storage-tier-guide";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
@@ -38,16 +38,20 @@ export default function PsnListPage() {
         title="Inbound shipments"
         description="Declare each shipment before it arrives. The onboarding fee is locked in at submit time and the PSN moves to 'awaiting receipt'."
         actions={
-          <div className="flex items-center gap-3">
-            <StorageTierGuide />
-            <Link href="/psn/new">
-              <Button variant="amber" withArrow>
-                New PSN
-              </Button>
-            </Link>
-          </div>
+          <Link href="/psn/new">
+            <Button variant="amber" withArrow>
+              New PSN
+            </Button>
+          </Link>
         }
       />
+
+      {/* Pricing-by-tier panel — replaces the old "Storage tier guide"
+          modal button so vendors see the per-box cost upfront, without
+          hunting through a popup. Data is shared with the marketing
+          /pricing page via `lib/storage-tiers.ts` so the numbers can
+          never drift. */}
+      <StorageTierCards />
 
       {isLoading ? (
         <div className="font-mono text-mono-label uppercase text-text-muted">Loading…</div>

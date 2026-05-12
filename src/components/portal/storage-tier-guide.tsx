@@ -1,84 +1,37 @@
 "use client";
 
 /**
- * StorageTierGuide — a button + modal that explains how the platform's
- * storage tiers are sized and priced. Used on the PSN pages and on the
- * product form so vendors can quickly look up which tier a product
- * belongs in without leaving the screen.
+ * Storage tier UI — two exports off the same shared data:
  *
- * Data here mirrors the operations team's pricing card (the PDF in the
- * shared drive). Numbers MUST stay in sync — if the pricing card moves,
- * update both. The frontend doesn't fetch this from the API because:
- *   - It's reference info, not transactional data.
- *   - The PSN page already issues plenty of queries; one fewer is one
- *     fewer waterfall.
- *   - Pricing changes are quarterly at most.
+ *   1. `StorageTierGuide` — small "Info" button + modal table. Used in
+ *      tight spots like the product form where we don't have room for a
+ *      full inline panel.
+ *
+ *   2. `StorageTierCards` — large, prominent inline card grid (one per
+ *      tier). Used on the PSN list + PSN new pages so vendors see the
+ *      pricing without an extra click. Each card shows a scaled "box"
+ *      icon so the size hierarchy reads at a glance, plus stocking +
+ *      first-month storage as separate lines, plus the combined total.
+ *
+ * Tier data lives in `lib/storage-tiers.ts`. Both this file and the
+ * marketing /pricing page import from there so they never drift.
  */
 
-import { Info, X } from "lucide-react";
+import { AlertTriangle, Info, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
-interface TierRow {
-  tier: string;
-  dimensionsInches: string;
-  dimensionsCm: string;
-  cubicInches: string;
-  cubicFeet: string;
-  monthlyPrice: string;
-}
+import {
+  STORAGE_TIERS,
+  STORAGE_TIER_MATCH_INSTRUCTION,
+  STORAGE_TIER_NOTES,
+  type StorageTier,
+} from "@/lib/storage-tiers";
 
-const TIERS: ReadonlyArray<TierRow> = [
-  {
-    tier: "Small",
-    dimensionsInches: "16 × 12 × 12",
-    dimensionsCm: "40 × 30 × 30",
-    cubicInches: "2,304",
-    cubicFeet: "1.33 ft³",
-    monthlyPrice: "$9 / month",
-  },
-  {
-    tier: "Medium",
-    dimensionsInches: "18 × 18 × 16",
-    dimensionsCm: "45 × 45 × 40",
-    cubicInches: "5,184",
-    cubicFeet: "3.00 ft³",
-    monthlyPrice: "$15 / month",
-  },
-  {
-    tier: "Large",
-    dimensionsInches: "18 × 18 × 24",
-    dimensionsCm: "45 × 45 × 60",
-    cubicInches: "7,776",
-    cubicFeet: "4.50 ft³",
-    monthlyPrice: "$22 / month",
-  },
-  {
-    tier: "X-Large",
-    dimensionsInches: "24 × 18 × 24",
-    dimensionsCm: "60 × 45 × 60",
-    cubicInches: "10,368",
-    cubicFeet: "6.00 ft³",
-    monthlyPrice: "$30 / month",
-  },
-  {
-    tier: "Standard Pallet",
-    dimensionsInches: "40 × 48 × 60",
-    dimensionsCm: "102 × 122 × 152",
-    cubicInches: "115,200",
-    cubicFeet: "66.67 ft³",
-    monthlyPrice: "$25 – $40 / month",
-  },
-];
+// =============================================================================
+// StorageTierGuide — small button + modal (legacy, kept for product-form)
+// =============================================================================
 
-const OPERATIONAL_NOTES: ReadonlyArray<string> = [
-  "Storage fees are billed on the 1st day of every month.",
-  "Pricing is based on occupied warehouse space and inventory handling requirements.",
-  "Oversized or irregular inventory may require custom pricing.",
-  "Quarterly storage audits may be conducted to optimize inventory usage and reduce unnecessary storage costs.",
-  "Pallet storage pricing varies based on stackability, turnover rate, and special handling.",
-];
-
-interface Props {
+interface ModalProps {
   /** Customise the trigger label — defaults to "Storage tier guide". */
   triggerLabel?: string;
   /** Render as a compact icon-only button. */
@@ -88,13 +41,13 @@ interface Props {
 export function StorageTierGuide({
   triggerLabel = "Storage tier guide",
   iconOnly = false,
-}: Props): JSX.Element {
+}: ModalProps): JSX.Element {
   const [open, setOpen] = useState(false);
 
   // Close on Escape — keyboard parity with the X button.
   useEffect(() => {
     if (!open) return;
-    function handler(e: KeyboardEvent) {
+    function handler(e: KeyboardEvent): void {
       if (e.key === "Escape") setOpen(false);
     }
     document.addEventListener("keydown", handler);
@@ -102,7 +55,7 @@ export function StorageTierGuide({
   }, [open]);
 
   // Lock body scroll while the modal is open so the page underneath
-  // doesn't scroll on touch / wheel.
+  // doesn't move on touch / wheel.
   useEffect(() => {
     if (!open) return;
     const prev = document.body.style.overflow;
@@ -163,34 +116,36 @@ export function StorageTierGuide({
                 USA Errands storage tiers
               </h2>
               <p className="mt-2 text-body-sm text-text-muted">
-                Recommended dimensions, cubic volume, and monthly storage price
-                for each tier. Pick the smallest tier your product fits into so
+                Per-box pricing. Pick the smallest tier your product fits into so
                 you don&apos;t over-pay for warehouse space.
               </p>
             </header>
+
+            {/* Match-instruction callout. Sits above the table so vendors
+                read the rule BEFORE eyeballing the prices and rushing to
+                pick a tier. */}
+            <MatchInstruction />
 
             <div className="overflow-x-auto rounded-md border border-line">
               <table className="w-full border-collapse text-body-sm">
                 <thead className="bg-cream-soft">
                   <tr>
                     <Th>Tier</Th>
-                    <Th>Dimensions (in)</Th>
-                    <Th>Dimensions (cm)</Th>
-                    <Th align="right">Cubic in</Th>
-                    <Th align="right">Cubic ft</Th>
-                    <Th align="right">Monthly</Th>
+                    <Th>Size</Th>
+                    <Th align="right">Stocking</Th>
+                    <Th align="right">First-month storage</Th>
+                    <Th align="right">Total at submit</Th>
                   </tr>
                 </thead>
                 <tbody>
-                  {TIERS.map((t) => (
+                  {STORAGE_TIERS.map((t) => (
                     <tr key={t.tier} className="border-t border-line">
                       <Td strong>{t.tier}</Td>
-                      <Td>{t.dimensionsInches}</Td>
-                      <Td>{t.dimensionsCm}</Td>
-                      <Td align="right">{t.cubicInches}</Td>
-                      <Td align="right">{t.cubicFeet}</Td>
+                      <Td>{t.sizeInches}</Td>
+                      <Td align="right">{t.stocking}</Td>
+                      <Td align="right">{t.storage}</Td>
                       <Td align="right" strong>
-                        {t.monthlyPrice}
+                        {t.total}
                       </Td>
                     </tr>
                   ))}
@@ -203,7 +158,7 @@ export function StorageTierGuide({
                 Operational notes
               </h3>
               <ul className="mt-3 flex flex-col gap-2 text-body-sm text-text">
-                {OPERATIONAL_NOTES.map((note) => (
+                {STORAGE_TIER_NOTES.map((note) => (
                   <li key={note} className="flex items-start gap-2">
                     <span className="mt-1.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-amber" />
                     <span>{note}</span>
@@ -211,12 +166,6 @@ export function StorageTierGuide({
                 ))}
               </ul>
             </section>
-
-            <p className="mt-6 text-caption text-text-muted">
-              Need a custom arrangement (cold storage, hazmat, fragile pallets)?
-              Get in touch with the operations team — pallet pricing is
-              negotiable for high-turnover or stackable inventory.
-            </p>
           </div>
         </div>
       ) : null}
@@ -224,8 +173,199 @@ export function StorageTierGuide({
   );
 }
 
-// Tiny th/td helpers so the modal markup stays compact. Local to this
-// file because they're styled specifically for the guide table.
+// =============================================================================
+// StorageTierCards — inline panel with one card per tier
+// =============================================================================
+
+interface CardsProps {
+  /**
+   * Whether to wrap the cards in their own bordered section + heading.
+   * Default: true. Pass `false` if the parent is already a section.
+   */
+  framed?: boolean;
+  /** Override the panel heading text. */
+  heading?: string;
+  /** Override the panel description text. */
+  description?: string;
+}
+
+/**
+ * Five tier cards in a responsive grid. Each card carries:
+ *   • a scaled "box" SVG so the size hierarchy reads visually,
+ *   • the tier name + size constraints,
+ *   • the stocking and first-month storage fees on separate lines,
+ *   • the combined "total at submit" as the headline number.
+ *
+ * Designed to be noticeable: amber eyebrow, cream-soft backdrop, +
+ * a subtle amber accent border on the largest tier so the eye lands
+ * somewhere. The whole panel sits inline on the PSN list / new
+ * pages — no modal click required.
+ */
+export function StorageTierCards({
+  framed = true,
+  heading = "Pricing by tier",
+  description = "Per-box stocking + first-month storage. Pick the smallest tier your product fits into.",
+}: CardsProps = {}): JSX.Element {
+  const inner = (
+    <>
+      <header className="mb-5 flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
+        <div>
+          <div className="font-mono text-mono-eyebrow uppercase tracking-[1.4px] text-amber">
+            [ Pricing guide ]
+          </div>
+          <h2 className="mt-1 text-h2 font-semibold tracking-[-0.2px] text-ink">
+            {heading}
+          </h2>
+          <p className="mt-1 text-body-sm text-text-muted">{description}</p>
+        </div>
+        {/* Quick legend so the visual scale is unambiguous. */}
+        <div className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
+          Smaller → Larger
+        </div>
+      </header>
+
+      {/* Match-instruction callout. We render it INSIDE the panel so it
+          reads as part of the pricing guide, not as a separate banner —
+          but it gets stronger visual weight (warning icon, amber border)
+          so it's the first thing the eye lands on after the heading. */}
+      <div className="mb-5">
+        <MatchInstruction />
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        {STORAGE_TIERS.map((tier) => (
+          <TierCard key={tier.tier} tier={tier} />
+        ))}
+      </div>
+
+      <ul className="mt-5 grid gap-2 text-body-sm text-text-muted md:grid-cols-2">
+        {STORAGE_TIER_NOTES.map((note) => (
+          <li key={note} className="flex items-start gap-2">
+            <span className="mt-1.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-amber" />
+            <span>{note}</span>
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+
+  if (!framed) return <div>{inner}</div>;
+
+  return (
+    <section
+      aria-label="USA Errands storage tier pricing"
+      className="rounded-md border border-line bg-cream-soft p-6 md:p-8"
+    >
+      {inner}
+    </section>
+  );
+}
+
+/**
+ * Single tier card. The "box" graphic at the top is a CSS-scaled square
+ * — we keep a fixed container height (96px) and scale the inner box
+ * down so all five cards align cleanly. The "Pallet" tier picks up an
+ * amber accent border to draw the eye to the negotiated-pricing rail.
+ */
+function TierCard({ tier }: { tier: StorageTier }): JSX.Element {
+  const isPallet = tier.tier === "Pallet";
+  // Map scale 1..5 to a visual percentage. 1 = ~40%, 5 = 100%.
+  const sizePct = 30 + (tier.scale - 1) * 17;
+
+  return (
+    <article
+      className={
+        "flex flex-col rounded-md border bg-white p-5 shadow-sm transition-colors " +
+        (isPallet
+          ? "border-amber/60 ring-1 ring-amber/30"
+          : "border-line hover:border-line-strong")
+      }
+    >
+      {/* Scaled box graphic — drawn with two rounded rectangles so it
+          reads as a stylised parcel rather than a flat square. */}
+      <div className="mb-4 flex h-[88px] items-end justify-center">
+        <div
+          aria-hidden
+          className="relative"
+          style={{ width: `${sizePct}%`, height: `${sizePct}%` }}
+        >
+          <div className="absolute inset-0 rounded-sm border-2 border-ink bg-cream-soft" />
+          {/* Vertical "tape" strip in amber, mirrors the SiteMark logo. */}
+          <div className="absolute inset-y-0 left-1/2 w-[18%] -translate-x-1/2 bg-amber/70" />
+        </div>
+      </div>
+
+      <div className="flex items-baseline justify-between">
+        <h3 className="text-h3 font-semibold text-ink">{tier.tier}</h3>
+        <span className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
+          T{tier.scale}
+        </span>
+      </div>
+      <p className="mt-1 text-body-sm text-text-muted">{tier.sizeInches}</p>
+
+      <dl className="mt-4 flex flex-col gap-2 border-t border-line pt-3 font-mono text-body-sm tabular-nums">
+        <div className="flex items-baseline justify-between">
+          <dt className="text-text-muted">Stocking</dt>
+          <dd className="text-ink">{tier.stocking}</dd>
+        </div>
+        <div className="flex items-baseline justify-between">
+          <dt className="text-text-muted">Storage / month</dt>
+          <dd className="text-ink">{tier.storage}</dd>
+        </div>
+      </dl>
+
+      <div className="mt-4 flex items-baseline justify-between border-t border-line pt-3">
+        <span className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
+          Total at submit
+        </span>
+        <span
+          className={
+            "font-mono text-h2 font-semibold tabular-nums " +
+            (isPallet ? "text-amber" : "text-ink")
+          }
+        >
+          {tier.total}
+        </span>
+      </div>
+    </article>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// MatchInstruction — the "match your box to the tier" callout. Rendered
+// at the top of both the inline cards panel AND the modal guide so the
+// rule is impossible to miss. Amber-accented with a warning icon so it
+// reads as actionable, not decorative.
+// ---------------------------------------------------------------------------
+
+function MatchInstruction(): JSX.Element {
+  const { eyebrow, headline, body } = STORAGE_TIER_MATCH_INSTRUCTION;
+  return (
+    <div
+      role="note"
+      className="flex items-start gap-3 rounded-md border-l-4 border-amber bg-amber/10 px-4 py-3"
+    >
+      <AlertTriangle
+        className="mt-0.5 h-5 w-5 shrink-0 text-amber"
+        aria-hidden
+      />
+      <div>
+        <div className="font-mono text-mono-label uppercase tracking-[1.4px] text-amber">
+          {eyebrow}
+        </div>
+        <div className="mt-0.5 text-body font-semibold text-ink">
+          {headline}
+        </div>
+        <p className="mt-1 text-body-sm text-text">{body}</p>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Tiny th/td helpers for the modal table.
+// ---------------------------------------------------------------------------
+
 function Th({
   children,
   align,

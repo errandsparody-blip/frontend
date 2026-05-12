@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { Controller, useFieldArray, useForm } from "react-hook-form";
 
 import { ErrorBanner } from "@/components/errors/error-banner";
-import { StorageTierGuide } from "@/components/portal/storage-tier-guide";
+import { StorageTierCards } from "@/components/portal/storage-tier-guide";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -164,9 +164,13 @@ export default function NewPsnPage() {
       <PageHeader
         eyebrow="[04] PSN / New"
         title="New Pre-Shipment Notice"
-        description="Declare every product and box you're shipping. The onboarding fee is computed from the box mix at submit. Not sure which tier to pick? Open the storage tier guide."
-        actions={<StorageTierGuide />}
+        description="Declare every product and box you're shipping. The onboarding fee is computed from the box mix at submit — the tier cards below show what each box will cost."
       />
+
+      {/* Pricing-by-tier panel. Lives directly under the header so the
+          vendor sees the per-box stocking + storage cost before they
+          start picking tiers in the line table below. */}
+      <StorageTierCards />
 
       <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-8" noValidate>
         {/* Shipment meta */}
