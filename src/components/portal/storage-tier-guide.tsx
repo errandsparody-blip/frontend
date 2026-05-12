@@ -1,40 +1,113 @@
 "use client";
 
 /**
- * Storage tier UI — two exports off the same shared data:
+ * Storage tier UI — two exports off the SAME live data source:
  *
- *   1. `StorageTierGuide` — small "Info" button + modal table. Used in
- *      tight spots like the product form where we don't have room for a
- *      full inline panel.
+ *   1. `StorageTierGuide` — small "Info" button + modal table.
+ *   2. `StorageTierCards` — large inline grid (one card per tier).
  *
- *   2. `StorageTierCards` — large, prominent inline card grid (one per
- *      tier). Used on the PSN list + PSN new pages so vendors see the
- *      pricing without an extra click. Each card shows a scaled "box"
- *      icon so the size hierarchy reads at a glance, plus stocking +
- *      first-month storage as separate lines, plus the combined total.
+ * Both fetch `GET /v1/fees/storage-tiers`, which reads from the same
+ * config rows (`fee_schedule` + `tier_dimensions`) that drive the actual
+ * wallet debit at PSN submit. If finance bumps a price in the admin
+ * config editor, vendors see the new number on their next page load —
+ * the displayed amount can NEVER disagree with what the wallet charges.
  *
- * Tier data lives in `lib/storage-tiers.ts`. Both this file and the
- * marketing /pricing page import from there so they never drift.
+ * On API failure we fall back to the conservative seed defaults from
+ * `lib/storage-tiers.ts` so the panel always renders something useful.
  */
 
+import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, Info, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
+import { api } from "@/lib/api-client";
 import {
-  STORAGE_TIERS,
+  cubicFeetFrom,
+  cubicInchesFrom,
+  FALLBACK_TIERS,
+  formatCentsAsDollars,
+  formatDimensionsLabel,
   STORAGE_TIER_MATCH_INSTRUCTION,
   STORAGE_TIER_NOTES,
-  type StorageTier,
+  STORAGE_TIER_ORDER,
+  TIER_METADATA,
+  type StorageTierDimensions,
+  type StorageTierKey,
+  type StorageTierOnboarding,
+  type StorageTiersResponse,
 } from "@/lib/storage-tiers";
 
 // =============================================================================
-// StorageTierGuide — small button + modal (legacy, kept for product-form)
+// Shared data hook — one place that knows how to fetch + fall back.
+// Both the modal and the inline cards use it so a single network round
+// trip per page render covers every surface that needs the data.
+// =============================================================================
+
+function useStorageTiers(): {
+  data: StorageTiersResponse;
+  isLoading: boolean;
+  isFallback: boolean;
+} {
+  const q = useQuery({
+    queryKey: ["fees", "storage-tiers"],
+    queryFn: () => api.get<StorageTiersResponse>("/fees/storage-tiers"),
+    // Storage tier prices change quarterly at most — cache aggressively
+    // so the panel doesn't re-fetch on every tab switch.
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+    retry: 1,
+  });
+  if (q.data) return { data: q.data, isLoading: false, isFallback: false };
+  // Loading and error states both render the fallback — `isLoading=true`
+  // keeps callers free to render a skeleton if they want, but the data
+  // they get back is always a valid response shape.
+  return { data: FALLBACK_TIERS, isLoading: q.isLoading, isFallback: !q.isLoading };
+}
+
+/**
+ * Convenience: read everything a card needs for ONE tier off the
+ * loaded response. Returns null when the tier somehow doesn't exist in
+ * the response (defensive — should never happen with a healthy seed).
+ */
+function tierView(
+  data: StorageTiersResponse,
+  tier: StorageTierKey,
+): {
+  label: string;
+  scale: 1 | 2 | 3 | 4 | 5;
+  onboarding: StorageTierOnboarding;
+  monthlyStorageCents: number | null;
+  dims: StorageTierDimensions | undefined;
+  isNegotiated: boolean;
+  stockingCents: number | null;
+  firstMonthStorageCents: number | null;
+  totalCents: number | null;
+} | null {
+  const onboarding = data.onboarding[tier];
+  if (!onboarding) return null;
+  const meta = TIER_METADATA[tier];
+  const isNegotiated = "negotiated" in onboarding && onboarding.negotiated === true;
+  return {
+    label: meta.label,
+    scale: meta.scale,
+    onboarding,
+    monthlyStorageCents: data.monthlyStorage[tier],
+    dims: data.dimensions?.[tier],
+    isNegotiated,
+    stockingCents: isNegotiated ? null : (onboarding as { stockingCents: number }).stockingCents,
+    firstMonthStorageCents: isNegotiated
+      ? null
+      : (onboarding as { firstMonthStorageCents: number }).firstMonthStorageCents,
+    totalCents: isNegotiated ? null : (onboarding as { totalCents: number }).totalCents,
+  };
+}
+
+// =============================================================================
+// StorageTierGuide — modal (used by product-form)
 // =============================================================================
 
 interface ModalProps {
-  /** Customise the trigger label — defaults to "Storage tier guide". */
   triggerLabel?: string;
-  /** Render as a compact icon-only button. */
   iconOnly?: boolean;
 }
 
@@ -43,8 +116,8 @@ export function StorageTierGuide({
   iconOnly = false,
 }: ModalProps): JSX.Element {
   const [open, setOpen] = useState(false);
+  const { data, isFallback } = useStorageTiers();
 
-  // Close on Escape — keyboard parity with the X button.
   useEffect(() => {
     if (!open) return;
     function handler(e: KeyboardEvent): void {
@@ -54,8 +127,6 @@ export function StorageTierGuide({
     return () => document.removeEventListener("keydown", handler);
   }, [open]);
 
-  // Lock body scroll while the modal is open so the page underneath
-  // doesn't move on touch / wheel.
   useEffect(() => {
     if (!open) return;
     const prev = document.body.style.overflow;
@@ -89,16 +160,13 @@ export function StorageTierGuide({
           aria-label="USA Errands storage tier pricing guide"
           className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto px-4 py-8"
         >
-          {/* Backdrop — a real <button> so keyboard users can dismiss
-              by tabbing to it and pressing Enter. The button fills the
-              viewport and sits behind the card via z-order. */}
           <button
             type="button"
             aria-label="Close pricing guide"
             onClick={() => setOpen(false)}
             className="fixed inset-0 -z-10 cursor-default bg-ink/40"
           />
-          <div className="relative w-full max-w-3xl rounded-md border border-line bg-white p-8 shadow-xl">
+          <div className="relative w-full max-w-4xl rounded-md border border-line bg-white p-8 shadow-xl">
             <button
               type="button"
               onClick={() => setOpen(false)}
@@ -119,36 +187,56 @@ export function StorageTierGuide({
                 Per-box pricing. Pick the smallest tier your product fits into so
                 you don&apos;t over-pay for warehouse space.
               </p>
+              {isFallback ? <FallbackNotice /> : null}
             </header>
 
-            {/* Match-instruction callout. Sits above the table so vendors
-                read the rule BEFORE eyeballing the prices and rushing to
-                pick a tier. */}
             <MatchInstruction />
 
-            <div className="overflow-x-auto rounded-md border border-line">
+            <div className="mt-4 overflow-x-auto rounded-md border border-line">
               <table className="w-full border-collapse text-body-sm">
                 <thead className="bg-cream-soft">
                   <tr>
                     <Th>Tier</Th>
-                    <Th>Size</Th>
+                    <Th>Dimensions</Th>
+                    <Th align="right">Cubic in</Th>
+                    <Th align="right">Cubic ft</Th>
                     <Th align="right">Stocking</Th>
                     <Th align="right">First-month storage</Th>
+                    <Th align="right">Monthly storage</Th>
                     <Th align="right">Total at submit</Th>
                   </tr>
                 </thead>
                 <tbody>
-                  {STORAGE_TIERS.map((t) => (
-                    <tr key={t.tier} className="border-t border-line">
-                      <Td strong>{t.tier}</Td>
-                      <Td>{t.sizeInches}</Td>
-                      <Td align="right">{t.stocking}</Td>
-                      <Td align="right">{t.storage}</Td>
-                      <Td align="right" strong>
-                        {t.total}
-                      </Td>
-                    </tr>
-                  ))}
+                  {STORAGE_TIER_ORDER.map((tier) => {
+                    const v = tierView(data, tier);
+                    if (!v) return null;
+                    const ci = cubicInchesFrom(v.dims);
+                    const cf = cubicFeetFrom(v.dims);
+                    return (
+                      <tr key={tier} className="border-t border-line">
+                        <Td strong>{v.label}</Td>
+                        <Td>{formatDimensionsLabel(v.dims)}</Td>
+                        <Td align="right">{ci != null ? ci.toLocaleString() : "—"}</Td>
+                        <Td align="right">{cf != null ? `${cf.toFixed(2)} ft³` : "—"}</Td>
+                        <Td align="right">
+                          {v.isNegotiated ? "Negotiated" : formatCentsAsDollars(v.stockingCents)}
+                        </Td>
+                        <Td align="right">
+                          {v.isNegotiated
+                            ? "Negotiated"
+                            : formatCentsAsDollars(v.firstMonthStorageCents)}
+                        </Td>
+                        <Td align="right">
+                          {v.monthlyStorageCents == null
+                            ? "Negotiated"
+                            : `${formatCentsAsDollars(v.monthlyStorageCents)} / mo`}
+                        </Td>
+                        <Td align="right" strong>
+                          {v.isNegotiated ? "—" : formatCentsAsDollars(v.totalCents)}
+                        </Td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -174,38 +262,32 @@ export function StorageTierGuide({
 }
 
 // =============================================================================
-// StorageTierCards — inline panel with one card per tier
+// StorageTierCards — inline panel (used on PSN list + PSN new)
 // =============================================================================
 
 interface CardsProps {
-  /**
-   * Whether to wrap the cards in their own bordered section + heading.
-   * Default: true. Pass `false` if the parent is already a section.
-   */
   framed?: boolean;
-  /** Override the panel heading text. */
   heading?: string;
-  /** Override the panel description text. */
   description?: string;
 }
 
-/**
- * Five tier cards in a responsive grid. Each card carries:
- *   • a scaled "box" SVG so the size hierarchy reads visually,
- *   • the tier name + size constraints,
- *   • the stocking and first-month storage fees on separate lines,
- *   • the combined "total at submit" as the headline number.
- *
- * Designed to be noticeable: amber eyebrow, cream-soft backdrop, +
- * a subtle amber accent border on the largest tier so the eye lands
- * somewhere. The whole panel sits inline on the PSN list / new
- * pages — no modal click required.
- */
 export function StorageTierCards({
   framed = true,
   heading = "Pricing by tier",
-  description = "Per-box stocking + first-month storage. Pick the smallest tier your product fits into.",
+  description = "Per-box stocking + first-month storage. Live from the same config that drives your wallet at PSN submit.",
 }: CardsProps = {}): JSX.Element {
+  const { data, isLoading, isFallback } = useStorageTiers();
+
+  // Build the tier views once per render so the JSX below stays small.
+  const tiers = useMemo(
+    () =>
+      STORAGE_TIER_ORDER.map((t) => ({ key: t, view: tierView(data, t) })).filter(
+        (x): x is { key: StorageTierKey; view: NonNullable<ReturnType<typeof tierView>> } =>
+          x.view !== null,
+      ),
+    [data],
+  );
+
   const inner = (
     <>
       <header className="mb-5 flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
@@ -217,24 +299,29 @@ export function StorageTierCards({
             {heading}
           </h2>
           <p className="mt-1 text-body-sm text-text-muted">{description}</p>
+          {isFallback ? (
+            <div className="mt-2">
+              <FallbackNotice />
+            </div>
+          ) : null}
         </div>
-        {/* Quick legend so the visual scale is unambiguous. */}
         <div className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
           Smaller → Larger
         </div>
       </header>
 
-      {/* Match-instruction callout. We render it INSIDE the panel so it
-          reads as part of the pricing guide, not as a separate banner —
-          but it gets stronger visual weight (warning icon, amber border)
-          so it's the first thing the eye lands on after the heading. */}
       <div className="mb-5">
         <MatchInstruction />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        {STORAGE_TIERS.map((tier) => (
-          <TierCard key={tier.tier} tier={tier} />
+        {tiers.map(({ key, view }) => (
+          <TierCard
+            key={key}
+            tierKey={key}
+            view={view}
+            loading={isLoading && !isFallback}
+          />
         ))}
       </div>
 
@@ -261,16 +348,23 @@ export function StorageTierCards({
   );
 }
 
-/**
- * Single tier card. The "box" graphic at the top is a CSS-scaled square
- * — we keep a fixed container height (96px) and scale the inner box
- * down so all five cards align cleanly. The "Pallet" tier picks up an
- * amber accent border to draw the eye to the negotiated-pricing rail.
- */
-function TierCard({ tier }: { tier: StorageTier }): JSX.Element {
-  const isPallet = tier.tier === "Pallet";
-  // Map scale 1..5 to a visual percentage. 1 = ~40%, 5 = 100%.
-  const sizePct = 30 + (tier.scale - 1) * 17;
+// =============================================================================
+// Single tier card
+// =============================================================================
+
+function TierCard({
+  tierKey,
+  view,
+  loading,
+}: {
+  tierKey: StorageTierKey;
+  view: NonNullable<ReturnType<typeof tierView>>;
+  loading: boolean;
+}): JSX.Element {
+  const isPallet = tierKey === "PALLET";
+  const sizePct = 30 + (view.scale - 1) * 17;
+  const cubicIn = cubicInchesFrom(view.dims);
+  const cubicFt = cubicFeetFrom(view.dims);
 
   return (
     <article
@@ -278,11 +372,11 @@ function TierCard({ tier }: { tier: StorageTier }): JSX.Element {
         "flex flex-col rounded-md border bg-white p-5 shadow-sm transition-colors " +
         (isPallet
           ? "border-amber/60 ring-1 ring-amber/30"
-          : "border-line hover:border-line-strong")
+          : "border-line hover:border-line-strong") +
+        (loading ? " opacity-70" : "")
       }
     >
-      {/* Scaled box graphic — drawn with two rounded rectangles so it
-          reads as a stylised parcel rather than a flat square. */}
+      {/* Scaled "box" graphic — visual cue for the tier's size. */}
       <div className="mb-4 flex h-[88px] items-end justify-center">
         <div
           aria-hidden
@@ -290,28 +384,54 @@ function TierCard({ tier }: { tier: StorageTier }): JSX.Element {
           style={{ width: `${sizePct}%`, height: `${sizePct}%` }}
         >
           <div className="absolute inset-0 rounded-sm border-2 border-ink bg-cream-soft" />
-          {/* Vertical "tape" strip in amber, mirrors the SiteMark logo. */}
           <div className="absolute inset-y-0 left-1/2 w-[18%] -translate-x-1/2 bg-amber/70" />
         </div>
       </div>
 
       <div className="flex items-baseline justify-between">
-        <h3 className="text-h3 font-semibold text-ink">{tier.tier}</h3>
+        <h3 className="text-h3 font-semibold text-ink">{view.label}</h3>
         <span className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
-          T{tier.scale}
+          T{view.scale}
         </span>
       </div>
-      <p className="mt-1 text-body-sm text-text-muted">{tier.sizeInches}</p>
+      <p className="mt-1 text-body-sm text-text-muted">{formatDimensionsLabel(view.dims)}</p>
 
-      <dl className="mt-4 flex flex-col gap-2 border-t border-line pt-3 font-mono text-body-sm tabular-nums">
-        <div className="flex items-baseline justify-between">
-          <dt className="text-text-muted">Stocking</dt>
-          <dd className="text-ink">{tier.stocking}</dd>
-        </div>
-        <div className="flex items-baseline justify-between">
-          <dt className="text-text-muted">Storage / month</dt>
-          <dd className="text-ink">{tier.storage}</dd>
-        </div>
+      {/* Cubic info — surfaced as a small inline row so vendors can match
+          their actual box volume against the tier ceiling. */}
+      <div className="mt-2 flex items-baseline justify-between font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
+        <span>
+          Cubic:{" "}
+          <span className="text-text">
+            {cubicIn != null ? cubicIn.toLocaleString() : "—"} in³
+          </span>
+        </span>
+        <span className="text-text">
+          {cubicFt != null ? `${cubicFt.toFixed(2)} ft³` : "—"}
+        </span>
+      </div>
+
+      <dl className="mt-3 flex flex-col gap-2 border-t border-line pt-3 font-mono text-body-sm tabular-nums">
+        <Row
+          label="Stocking"
+          value={view.isNegotiated ? "Negotiated" : formatCentsAsDollars(view.stockingCents)}
+          muted={view.isNegotiated}
+        />
+        <Row
+          label="First-month storage"
+          value={
+            view.isNegotiated ? "Negotiated" : formatCentsAsDollars(view.firstMonthStorageCents)
+          }
+          muted={view.isNegotiated}
+        />
+        <Row
+          label="Storage / month"
+          value={
+            view.monthlyStorageCents == null
+              ? "Negotiated"
+              : formatCentsAsDollars(view.monthlyStorageCents)
+          }
+          muted={view.monthlyStorageCents == null}
+        />
       </dl>
 
       <div className="mt-4 flex items-baseline justify-between border-t border-line pt-3">
@@ -324,18 +444,33 @@ function TierCard({ tier }: { tier: StorageTier }): JSX.Element {
             (isPallet ? "text-amber" : "text-ink")
           }
         >
-          {tier.total}
+          {view.isNegotiated ? "—" : formatCentsAsDollars(view.totalCents)}
         </span>
       </div>
     </article>
   );
 }
 
+function Row({
+  label,
+  value,
+  muted,
+}: {
+  label: string;
+  value: string;
+  muted?: boolean;
+}): JSX.Element {
+  return (
+    <div className="flex items-baseline justify-between">
+      <dt className="text-text-muted">{label}</dt>
+      <dd className={muted ? "text-text-muted" : "text-ink"}>{value}</dd>
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------
-// MatchInstruction — the "match your box to the tier" callout. Rendered
-// at the top of both the inline cards panel AND the modal guide so the
-// rule is impossible to miss. Amber-accented with a warning icon so it
-// reads as actionable, not decorative.
+// Match-instruction callout — appears at the top of both the cards
+// panel and the modal so the rule is impossible to miss.
 // ---------------------------------------------------------------------------
 
 function MatchInstruction(): JSX.Element {
@@ -345,19 +480,31 @@ function MatchInstruction(): JSX.Element {
       role="note"
       className="flex items-start gap-3 rounded-md border-l-4 border-amber bg-amber/10 px-4 py-3"
     >
-      <AlertTriangle
-        className="mt-0.5 h-5 w-5 shrink-0 text-amber"
-        aria-hidden
-      />
+      <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber" aria-hidden />
       <div>
         <div className="font-mono text-mono-label uppercase tracking-[1.4px] text-amber">
           {eyebrow}
         </div>
-        <div className="mt-0.5 text-body font-semibold text-ink">
-          {headline}
-        </div>
+        <div className="mt-0.5 text-body font-semibold text-ink">{headline}</div>
         <p className="mt-1 text-body-sm text-text">{body}</p>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Banner shown when we couldn't reach the API and are falling back to
+ * the seed defaults. Vendors get a clear "these numbers might not match
+ * what gets charged" warning rather than silently being misled.
+ */
+function FallbackNotice(): JSX.Element {
+  return (
+    <div
+      role="status"
+      className="inline-flex items-center gap-2 rounded-sm border border-line bg-cream px-2.5 py-1 font-mono text-[11px] uppercase tracking-[1.2px] text-text-muted"
+    >
+      <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber" aria-hidden />
+      Showing fallback defaults — couldn&apos;t reach pricing service.
     </div>
   );
 }

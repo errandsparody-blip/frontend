@@ -36,7 +36,7 @@ export default function HomePage() {
           <FadeUp>
             <div>
               <div className="font-mono text-mono-eyebrow uppercase text-amber">
-                Personal shopper · 3PL · Forwarding
+                3PL · Personal shopper · Forwarding
               </div>
               <h1 className="mt-4 text-display-xl font-medium leading-[0.98] tracking-[-2px] text-ink">
                 Ship from
@@ -318,14 +318,9 @@ const SERVICES: ReadonlyArray<{
   cta: string;
   href: string;
 }> = [
-  {
-    Icon: ShoppingBag,
-    tag: "For buyers",
-    title: "Personal shopping",
-    body: "Paste any U.S. store URL. We buy it for you, consolidate, and ship to anywhere your address forwarder can't.",
-    cta: "Open a request",
-    href: "/shopper",
-  },
+  // Ordering rule: 3PL fulfillment is the MAIN service and must always
+  // appear first across every public surface (services page, homepage
+  // cards, nav). Personal shopping + integrations follow.
   {
     Icon: Package,
     tag: "For sellers",
@@ -333,6 +328,14 @@ const SERVICES: ReadonlyArray<{
     body: "Hold inventory in our U.S. warehouse. We pick, pack, and ship every order in days — no U.S. business required.",
     cta: "Become a vendor",
     href: "/services#3pl",
+  },
+  {
+    Icon: ShoppingBag,
+    tag: "For buyers",
+    title: "Personal shopping",
+    body: "Paste any U.S. store URL. We buy it for you, consolidate, and ship to anywhere your address forwarder can't.",
+    cta: "Open a request",
+    href: "/shopper",
   },
   {
     Icon: Zap,

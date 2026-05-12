@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 
-import { StorageTierCards } from "@/components/portal/storage-tier-guide";
+import { StorageTierGuide } from "@/components/portal/storage-tier-guide";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
@@ -46,12 +46,27 @@ export default function PsnListPage() {
         }
       />
 
-      {/* Pricing-by-tier panel — replaces the old "Storage tier guide"
-          modal button so vendors see the per-box cost upfront, without
-          hunting through a popup. Data is shared with the marketing
-          /pricing page via `lib/storage-tiers.ts` so the numbers can
-          never drift. */}
-      <StorageTierCards />
+      {/* Boxes by tier — prominent reference card. The button opens the
+          full pricing modal (live-from-admin-config data: dimensions,
+          cubic in/ft, stocking, first-month + monthly storage, total).
+          Sitting right under the page header makes the pricing one
+          click away from a vendor about to submit a PSN. */}
+      <section className="flex flex-wrap items-center justify-between gap-4 rounded-md border border-line bg-cream-soft px-6 py-5">
+        <div>
+          <div className="font-mono text-mono-label uppercase tracking-[1.4px] text-amber">
+            Boxes by tier
+          </div>
+          <h2 className="mt-1 text-h3 font-semibold text-ink">
+            Look up storage tier pricing
+          </h2>
+          <p className="mt-1 max-w-prose text-body-sm text-text-muted">
+            Dimensions, cubic volume, stocking fee, and monthly storage for each
+            tier — sourced live from the admin pricing config, so what you see
+            is exactly what your wallet is debited at submit.
+          </p>
+        </div>
+        <StorageTierGuide triggerLabel="Open storage tier guide" />
+      </section>
 
       {isLoading ? (
         <div className="font-mono text-mono-label uppercase text-text-muted">Loading…</div>

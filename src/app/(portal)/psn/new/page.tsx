@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { Controller, useFieldArray, useForm } from "react-hook-form";
 
 import { ErrorBanner } from "@/components/errors/error-banner";
-import { StorageTierCards } from "@/components/portal/storage-tier-guide";
+import { StorageTierGuide } from "@/components/portal/storage-tier-guide";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -164,13 +164,28 @@ export default function NewPsnPage() {
       <PageHeader
         eyebrow="[04] PSN / New"
         title="New Pre-Shipment Notice"
-        description="Declare every product and box you're shipping. The onboarding fee is computed from the box mix at submit — the tier cards below show what each box will cost."
+        description="Declare every product and box you're shipping. The onboarding fee is computed from the box mix at submit — open the storage tier guide if you're unsure which tier to pick."
       />
 
-      {/* Pricing-by-tier panel. Lives directly under the header so the
-          vendor sees the per-box stocking + storage cost before they
-          start picking tiers in the line table below. */}
-      <StorageTierCards />
+      {/* Boxes by tier — same prominent reference card as on the PSN list.
+          Lives under the header so a vendor about to fill in box counts
+          can look up the live pricing without leaving the form. */}
+      <section className="flex flex-wrap items-center justify-between gap-4 rounded-md border border-line bg-cream-soft px-6 py-5">
+        <div>
+          <div className="font-mono text-mono-label uppercase tracking-[1.4px] text-amber">
+            Boxes by tier
+          </div>
+          <h2 className="mt-1 text-h3 font-semibold text-ink">
+            Look up storage tier pricing
+          </h2>
+          <p className="mt-1 max-w-prose text-body-sm text-text-muted">
+            Dimensions, cubic volume, stocking fee, and monthly storage for each
+            tier — sourced live from the admin pricing config, so what you see
+            is exactly what your wallet is debited at submit.
+          </p>
+        </div>
+        <StorageTierGuide triggerLabel="Open storage tier guide" />
+      </section>
 
       <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-8" noValidate>
         {/* Shipment meta */}

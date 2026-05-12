@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 export const metadata = {
   title: "Services — USA Errands",
   description:
-    "Two products. Personal shopping for buyers anywhere. 3PL fulfillment for sellers outside the U.S. One U.S. warehouse, one checkout.",
+    "Two products. 3PL fulfillment for sellers outside the U.S. — our main service. Personal shopping for buyers anywhere. One U.S. warehouse, one checkout.",
 };
 
 export default function ServicesPage() {
@@ -31,44 +31,69 @@ export default function ServicesPage() {
         </div>
       </section>
 
-      {/* PERSONAL SHOPPING */}
-      <section id="personal-shopping" className="border-b border-line">
+      {/* 3PL FULFILLMENT — the main business, surfaced first. Text
+          column on the LEFT (where the eye lands), feature card on the
+          RIGHT. The amber "Main service" tag in the eyebrow reinforces
+          ordering for anyone scanning the page. */}
+      <section id="3pl" className="border-b border-line">
         <div className="mx-auto grid max-w-[84rem] gap-16 px-8 py-24 lg:grid-cols-[1fr_1fr] lg:items-center">
           <FadeUp>
-            <div className="font-mono text-mono-eyebrow uppercase text-amber">
-              [02] Personal shopping
+            <div className="flex items-center gap-3">
+              <div className="font-mono text-mono-eyebrow uppercase text-amber">
+                [02] 3PL fulfillment
+              </div>
+              <span className="rounded-full bg-amber/15 px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-[1.4px] text-amber">
+                Main service
+              </span>
             </div>
             <h2 className="mt-3 text-h2 font-medium leading-tight tracking-[-0.5px] text-ink">
-              Paste a URL. We buy it. You get it.
+              Ship a pallet. Sell from a U.S. address.
             </h2>
             <p className="mt-4 text-body text-text-muted">
-              Drop the link to anything on any U.S. store. Our admin team
-              checks out on your behalf, the item lands at our warehouse, we
-              consolidate, and it ships to your door. Stripe handles the
-              checkout end-to-end — every receipt, every refund, every
-              follow-up invoice posts to your thread automatically.
+              Send us inventory once. We stock it, label it, and ship every
+              order from a U.S. warehouse — locally, in days, with full
+              tracking. Connect Shopify or WooCommerce and orders flow
+              straight in; or push to the API yourself.
             </p>
-            <ul className="mt-6 flex flex-col gap-3 text-body-sm text-text">
-              <Bullet>One Stripe link. No bank-transfer surprises.</Bullet>
-              <Bullet>Live chat with the operator buying for you.</Bullet>
-              <Bullet>Auto-generated receipt with every checkpoint.</Bullet>
-              <Bullet>Refunds in one click if a store cancels.</Bullet>
-            </ul>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link href="/shopper">
+              <Link href="/signup">
                 <Button variant="amber" size="lg" withArrow>
-                  Open a request
+                  Become a vendor
                 </Button>
               </Link>
-              <Link href="/how-it-works">
+              <Link href="/pricing">
                 <Button variant="outline" size="lg">
-                  How shopper requests work
+                  See pricing
                 </Button>
               </Link>
             </div>
           </FadeUp>
 
           <FadeUp delay={80}>
+            <div className="rounded-md border border-line bg-white p-8">
+              <div className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
+                What the 3PL gives you
+              </div>
+              <ul className="mt-4 flex flex-col gap-4 text-body">
+                {THREEPL_FEATURES.map((f) => (
+                  <li key={f.title} className="border-t border-line pt-4 first:border-t-0 first:pt-0">
+                    <div className="font-medium text-ink">{f.title}</div>
+                    <p className="mt-1 text-body-sm text-text-muted">{f.body}</p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </FadeUp>
+        </div>
+      </section>
+
+      {/* PERSONAL SHOPPING — the secondary product. Alternating layout
+          (feature card on the LEFT, text on the RIGHT) so the page has
+          a visual rhythm. Background tinted cream-soft to differentiate
+          from the 3PL section above. */}
+      <section id="personal-shopping" className="border-b border-line bg-cream-soft">
+        <div className="mx-auto grid max-w-[84rem] gap-16 px-8 py-24 lg:grid-cols-[1fr_1fr] lg:items-center">
+          <FadeUp>
             <div className="rounded-md border border-line bg-white p-8">
               <div className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
                 Sample flow
@@ -92,50 +117,36 @@ export default function ServicesPage() {
               </ol>
             </div>
           </FadeUp>
-        </div>
-      </section>
-
-      {/* 3PL */}
-      <section id="3pl" className="border-b border-line bg-cream-soft">
-        <div className="mx-auto grid max-w-[84rem] gap-16 px-8 py-24 lg:grid-cols-[1fr_1fr] lg:items-center">
-          <FadeUp>
-            <div className="rounded-md border border-line bg-white p-8">
-              <div className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
-                What the 3PL gives you
-              </div>
-              <ul className="mt-4 flex flex-col gap-4 text-body">
-                {THREEPL_FEATURES.map((f) => (
-                  <li key={f.title} className="border-t border-line pt-4 first:border-t-0 first:pt-0">
-                    <div className="font-medium text-ink">{f.title}</div>
-                    <p className="mt-1 text-body-sm text-text-muted">{f.body}</p>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </FadeUp>
 
           <FadeUp delay={80}>
             <div className="font-mono text-mono-eyebrow uppercase text-amber">
-              [03] 3PL fulfillment
+              [03] Personal shopping
             </div>
             <h2 className="mt-3 text-h2 font-medium leading-tight tracking-[-0.5px] text-ink">
-              Ship a pallet. Sell from a U.S. address.
+              Paste a URL. We buy it. You get it.
             </h2>
             <p className="mt-4 text-body text-text-muted">
-              Send us inventory once. We stock it, label it, and ship every
-              order from a U.S. warehouse — locally, in days, with full
-              tracking. Connect Shopify or WooCommerce and orders flow
-              straight in; or push to the API yourself.
+              Drop the link to anything on any U.S. store. Our admin team
+              checks out on your behalf, the item lands at our warehouse, we
+              consolidate, and it ships to your door. Stripe handles the
+              checkout end-to-end — every receipt, every refund, every
+              follow-up invoice posts to your thread automatically.
             </p>
+            <ul className="mt-6 flex flex-col gap-3 text-body-sm text-text">
+              <Bullet>One Stripe link. No bank-transfer surprises.</Bullet>
+              <Bullet>Live chat with the operator buying for you.</Bullet>
+              <Bullet>Auto-generated receipt with every checkpoint.</Bullet>
+              <Bullet>Refunds in one click if a store cancels.</Bullet>
+            </ul>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link href="/signup">
-                <Button variant="primary" size="lg" withArrow>
-                  Become a vendor
+              <Link href="/shopper">
+                <Button variant="outline" size="lg" withArrow>
+                  Open a request
                 </Button>
               </Link>
-              <Link href="/pricing">
-                <Button variant="outline" size="lg">
-                  See pricing
+              <Link href="/how-it-works">
+                <Button variant="ghost" size="lg">
+                  How shopper requests work
                 </Button>
               </Link>
             </div>

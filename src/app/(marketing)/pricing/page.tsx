@@ -1,7 +1,13 @@
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
-import { STORAGE_TIERS } from "@/lib/storage-tiers";
+import {
+  FALLBACK_TIERS,
+  formatCentsAsDollars,
+  formatDimensionsLabel,
+  STORAGE_TIER_ORDER,
+  TIER_METADATA,
+} from "@/lib/storage-tiers";
 
 export const metadata = {
   title: "Pricing — USA Errands",
@@ -9,16 +15,27 @@ export const metadata = {
     "Pay only for what you use. Onboarding, storage, fulfillment, and shipping — all itemised, all transparent, all reconciled to a single wallet ledger.",
 };
 
-// Pull the tier rows from the shared module so the marketing page and
-// the vendor PSN cards can never drift. We map to the legacy shape this
-// file's <Td> components expect.
-const ONBOARDING = STORAGE_TIERS.map((t) => ({
-  tier: t.tier,
-  size: `Up to ${t.sizeInches}`,
-  stocking: t.stocking,
-  storage: t.storage,
-  total: t.total,
-}));
+// Marketing /pricing is a server-rendered public page (no auth, no
+// React Query). We can't hit the authenticated /v1/fees/storage-tiers
+// endpoint here, so we render the FALLBACK_TIERS seed defaults — they
+// match the values an admin would see on a freshly seeded environment.
+// The authoritative numbers always come from the admin config; if
+// finance changes pricing, the marketing page will lag until next
+// deploy. Vendors in the portal see live values immediately.
+const ONBOARDING = STORAGE_TIER_ORDER.map((tier) => {
+  const o = FALLBACK_TIERS.onboarding[tier];
+  const dims = FALLBACK_TIERS.dimensions?.[tier];
+  const negotiated = "negotiated" in o && o.negotiated === true;
+  return {
+    tier: TIER_METADATA[tier].label,
+    size: `Up to ${formatDimensionsLabel(dims)}`,
+    stocking: negotiated ? "Negotiated" : formatCentsAsDollars((o as { stockingCents: number }).stockingCents),
+    storage: negotiated
+      ? "Negotiated"
+      : formatCentsAsDollars((o as { firstMonthStorageCents: number }).firstMonthStorageCents),
+    total: negotiated ? "—" : formatCentsAsDollars((o as { totalCents: number }).totalCents),
+  };
+});
 
 const FULFILLMENT = [
   { label: "Pick & pack", first: "$2.50", additional: "$0.75 each" },
