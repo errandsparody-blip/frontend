@@ -76,10 +76,13 @@ export default function HomePage() {
 
           <FadeUp delay={120}>
             <div className="relative">
-              {/* Hero container — fixed 4:5 aspect ratio so the
-                  layout doesn't shift while the photo loads. Bordered
-                  + shadowed to match the design-system card chrome. */}
-              <div className="relative aspect-[4/5] overflow-hidden rounded-md border border-line bg-cream-soft shadow-2">
+              {/* Hero container — fixed 4:3 aspect ratio so the
+                  layout doesn't shift while the photo loads. We sit
+                  shorter than a portrait crop so the photo doesn't
+                  dominate the fold and the headline column stays
+                  weighted as the lead. Bordered + shadowed to match
+                  the design-system card chrome. */}
+              <div className="relative aspect-[4/3] overflow-hidden rounded-md border border-line bg-cream-soft shadow-2">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={HERO_IMAGE_URL}
