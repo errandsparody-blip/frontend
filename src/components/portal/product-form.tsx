@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
+import { ProductImageUploader } from "@/components/portal/product-image-uploader";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -185,6 +186,14 @@ export function ProductForm({
   // immutable product with stock under it.
   const locked = lockedProp || variantLocked;
   const [serverError, setServerError] = useState<string | null>(null);
+  // Image is intentionally held outside react-hook-form. The upload is
+  // asynchronous (presign → R2 PUT) and updates this state on completion;
+  // mixing that into the resolved-form-values flow would force the form
+  // to re-validate on every byte. The submit handler injects the URL into
+  // the wire payload at the very end.
+  const [imageUrl, setImageUrl] = useState<string | null>(
+    initial?.imageUrl ?? null,
+  );
 
   const {
     register,
@@ -288,6 +297,9 @@ export function ProductForm({
         ...rest,
         declaredValueCents: dollarsToCents(declaredValueDollars),
         weightOz: round2(weightOz),
+        // Inject the (async-uploaded) image URL or an explicit null so
+        // a PATCH can both set AND clear the column.
+        imageUrl: imageUrl ?? null,
       };
       await onSubmit(wireValues);
     } catch (err) {
@@ -309,13 +321,22 @@ export function ProductForm({
           <p className="mt-1 text-text">
             Once any inventory has been received under a product, the product details
             (name, weight, dimensions, declared value, country of origin, HS code,
-            storage tier) become read-only. This protects shipping rates, customs
-            declarations, and storage billing on the orders we&apos;ve already
-            processed for you. To change these details, archive this product and
-            create a new one.
+            storage tier) become read-only. The product image stays editable so you
+            can keep your catalog visuals current. To change other details, archive
+            this product and create a new one.
           </p>
         </div>
       ) : null}
+
+      {/* Product image — leads the form so the visual asset is the
+          first thing the vendor sees. Stays editable even when the rest
+          of the form is locked: image is cosmetic. */}
+      <section>
+        <h2 className="mb-2 font-mono text-mono-label uppercase text-text-muted">
+          Product image
+        </h2>
+        <ProductImageUploader value={imageUrl} onChange={setImageUrl} />
+      </section>
 
       <section className="grid gap-5 md:grid-cols-2">
         {showCode ? (
@@ -537,15 +558,24 @@ export function ProductForm({
       ) : null}
 
       <div className="flex justify-end">
+        {/* When the product is locked we still allow the form to save
+            so the vendor can update the image alone. The backend
+            ignores patch fields that match the current value (no-op
+            idempotent edits), so submitting a locked form with only
+            the image changed is accepted. */}
         <Button
           type="submit"
           variant="primary"
           size="lg"
           withArrow
           loading={isSubmitting}
-          disabled={locked || isSubmitting}
+          disabled={isSubmitting}
         >
-          {isSubmitting ? "Saving…" : locked ? "Locked" : submitLabel}
+          {isSubmitting
+            ? "Saving…"
+            : locked
+              ? "Save image"
+              : submitLabel}
         </Button>
       </div>
     </form>

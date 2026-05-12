@@ -54,6 +54,7 @@ export default function ProductsPage() {
       ) : (
         <DataTable>
           <THead>
+            <Th>Image</Th>
             <Th>Code</Th>
             <Th>Name</Th>
             <Th>Variant</Th>
@@ -66,6 +67,26 @@ export default function ProductsPage() {
           <TBody>
             {data.items.map((p) => (
               <TR key={p.id}>
+                <Td>
+                  {/* 48×48 thumbnail. Falls back to a quiet placeholder
+                      tile so unstyled rows don't shift when one product
+                      has an image and the next doesn't. */}
+                  <div className="h-12 w-12 overflow-hidden rounded-sm border border-line bg-cream-soft">
+                    {p.imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={p.imageUrl}
+                        alt={`${p.name} thumbnail`}
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center font-mono text-[9px] uppercase tracking-[1px] text-text-subtle">
+                        no image
+                      </div>
+                    )}
+                  </div>
+                </Td>
                 <Td mono>{p.code}</Td>
                 <Td strong>{p.name}</Td>
                 <Td mono className="text-text-muted">{p.variant}</Td>
@@ -78,12 +99,20 @@ export default function ProductsPage() {
                   </StatusPill>
                 </Td>
                 <Td align="right">
-                  <Link
-                    href={`/products/${p.id}`}
-                    className="font-mono text-[11px] uppercase tracking-[1.2px] text-text-muted hover:text-ink"
-                  >
-                    Edit →
-                  </Link>
+                  <div className="flex justify-end gap-3">
+                    <Link
+                      href={`/products/${p.id}/preview`}
+                      className="font-mono text-[11px] uppercase tracking-[1.2px] text-text-muted hover:text-ink"
+                    >
+                      Preview
+                    </Link>
+                    <Link
+                      href={`/products/${p.id}`}
+                      className="font-mono text-[11px] uppercase tracking-[1.2px] text-text-muted hover:text-ink"
+                    >
+                      Edit →
+                    </Link>
+                  </div>
                 </Td>
               </TR>
             ))}

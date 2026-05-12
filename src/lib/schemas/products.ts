@@ -35,6 +35,16 @@ export const storageTierSchema = z.enum([
 ]);
 export type StorageTier = z.infer<typeof storageTierSchema>;
 
+// Optional product image URL. Empty string clears, full http(s) URL sets.
+// We allow `null` so PATCH bodies can explicitly clear an existing image.
+const imageUrlField = z
+  .union([
+    z.string().trim().url().max(2048),
+    z.literal("").transform(() => null),
+    z.null(),
+  ])
+  .optional();
+
 export const createProductSchema = z.object({
   code: productCodeSchema,
   name: z.string().min(2).max(120),
@@ -47,6 +57,7 @@ export const createProductSchema = z.object({
   widthIn: optionalDimension,
   heightIn: optionalDimension,
   storageTier: storageTierSchema.default("SMALL"),
+  imageUrl: imageUrlField,
 });
 export type CreateProductInput = z.infer<typeof createProductSchema>;
 
@@ -71,14 +82,20 @@ export interface PublicProduct {
   widthIn: number | null;
   heightIn: number | null;
   storageTier: StorageTier;
+  /**
+   * Optional product image URL. `null` when the vendor hasn't uploaded
+   * one. Image stays editable even when the rest of the product is
+   * locked (cosmetic, no business-rule impact).
+   */
+  imageUrl: string | null;
   status: "ACTIVE" | "ARCHIVED";
   createdAt: string;
   updatedAt: string;
   /**
    * True once any SKU exists for this product (i.e. stock has been
-   * received). Locks all fields except `status` — vendors can still
-   * archive. Optional in the schema because the list endpoint omits
-   * the SKU-count round trip.
+   * received). Locks all fields except `status` and `imageUrl` —
+   * vendors can still archive and refresh the photo. Optional in the
+   * schema because the list endpoint omits the SKU-count round trip.
    */
   locked?: boolean;
 }
