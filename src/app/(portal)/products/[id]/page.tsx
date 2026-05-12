@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Lock } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 
@@ -20,13 +21,13 @@ export default function ProductDetailPage() {
     enabled: !!params.id,
   });
 
-  // The backend's GET /products/:id now returns a `locked` boolean computed
-  // from `count(skus where productId)`. Once any stock has been received,
-  // the entire product becomes immutable except for `status` (so vendors
-  // can still archive). The form mirrors this — every input renders
-  // disabled — and a backend patch that tries to change a lockable field
-  // returns 400 `product_locked` regardless. Defence in depth.
-  const locked = product?.locked ?? false;
+  // Products are always locked from the vendor's POV once they're
+  // created — the backend `update()` rejects any change to the
+  // identity / shipping / customs fields, and the response always
+  // reports `locked: true`. The form mirrors this by rendering every
+  // input disabled. Image upload + archive stay available outside
+  // this gate (they're cosmetic / lifecycle, not compliance).
+  const locked = product?.locked ?? true;
 
   async function onSubmit(values: CreateProductInput): Promise<void> {
     // Strip code (immutable) before sending PATCH.
@@ -77,6 +78,40 @@ export default function ProductDetailPage() {
           </div>
         }
       />
+      {/* Locked notice — products are immutable once created. The form
+          below already renders every input as read-only via `locked`,
+          but vendors deserve a clear, non-error explanation of why,
+          plus the escape hatch ("archive + recreate") rather than
+          guessing why the inputs are greyed out. */}
+      {locked ? (
+        <div
+          role="note"
+          className="flex items-start gap-3 rounded-md border-l-4 border-amber bg-amber/10 px-5 py-4"
+        >
+          <Lock className="mt-0.5 h-5 w-5 shrink-0 text-amber" aria-hidden />
+          <div>
+            <div className="font-mono text-mono-label uppercase tracking-[1.4px] text-amber">
+              Product locked
+            </div>
+            <div className="mt-0.5 text-body font-semibold text-ink">
+              Products can&apos;t be edited after they&apos;re created
+            </div>
+            <p className="mt-1 max-w-prose text-body-sm text-text">
+              Identity, customs, weight, dimensions, and storage tier are
+              all fixed at creation so we can guarantee the same values on
+              every PSN, order, and customs declaration tied to this
+              product. If something needs to change, archive this product
+              and create a new one with the corrected details — the new
+              one will get its own SKU and historical records stay clean.
+            </p>
+            <p className="mt-2 text-body-sm text-text-muted">
+              You can still update the product image below and archive the
+              product from this page.
+            </p>
+          </div>
+        </div>
+      ) : null}
+
       <div className="rounded-md border border-line bg-white p-8">
         <ProductForm
           showCode={false}

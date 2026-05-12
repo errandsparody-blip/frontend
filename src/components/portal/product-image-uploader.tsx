@@ -20,6 +20,7 @@ import { ImagePlus, Loader2, X } from "lucide-react";
 import { useId, useRef, useState } from "react";
 
 import { api } from "@/lib/api-client";
+import { convertHeicToJpeg, HeicConversionError, isHeicFile } from "@/lib/heic-to-jpeg";
 
 const ACCEPT = "image/jpeg,image/png,image/gif,image/webp,image/heic";
 const ALLOWED = new Set(ACCEPT.split(","));
@@ -49,17 +50,21 @@ export function ProductImageUploader({ value, onChange, disabled }: Props): JSX.
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   async function handlePick(e: React.ChangeEvent<HTMLInputElement>): Promise<void> {
-    const file = e.target.files?.[0];
+    const picked = e.target.files?.[0];
     // Reset the input so re-selecting the same file fires onChange again.
     e.target.value = "";
-    if (!file) return;
+    if (!picked) return;
 
-    if (!ALLOWED.has(file.type)) {
+    // Accept HEIC at the picker level — both via the canonical MIME and
+    // the `.heic` extension fallback (Android Chrome sometimes passes
+    // through `application/octet-stream`). Anything else has to match
+    // the strict allow-list.
+    if (!ALLOWED.has(picked.type) && !isHeicFile(picked)) {
       setStatus("error");
       setErrorMsg("Unsupported file type. Use JPG, PNG, WebP, GIF, or HEIC.");
       return;
     }
-    if (file.size > MAX_BYTES) {
+    if (picked.size > MAX_BYTES) {
       setStatus("error");
       setErrorMsg(`File too large — max ${MAX_BYTES / (1024 * 1024)} MB.`);
       return;
@@ -68,6 +73,27 @@ export function ProductImageUploader({ value, onChange, disabled }: Props): JSX.
     setStatus("uploading");
     setErrorMsg(null);
     try {
+      // HEIC preflight: convert iPhone photos to JPEG in the browser so
+      // every browser can render the result via `<img src>`. Chrome /
+      // Firefox / Edge don't natively decode HEIC — without this step,
+      // the upload "works" but every consumer of the public URL sees a
+      // broken image. The conversion lib + its libheif wasm bundle are
+      // dynamic-imported so we only pay the ~280 KB on the first HEIC
+      // file the vendor picks.
+      let file = picked;
+      if (isHeicFile(picked)) {
+        file = await convertHeicToJpeg(picked);
+        // Re-check size against the cap — HEIC is high-efficiency, so
+        // the resulting JPEG can be 2-3× larger and might cross 10 MB.
+        if (file.size > MAX_BYTES) {
+          setStatus("error");
+          setErrorMsg(
+            `Converted JPEG is too large — max ${MAX_BYTES / (1024 * 1024)} MB. Try resizing the photo first.`,
+          );
+          return;
+        }
+      }
+
       const presigned = await api.post<PresignResponse>("/products/uploads", {
         filename: file.name,
         contentType: file.type,
@@ -95,7 +121,14 @@ export function ProductImageUploader({ value, onChange, disabled }: Props): JSX.
       setStatus("idle");
     } catch (err) {
       setStatus("error");
-      setErrorMsg(friendlyUploadError(err));
+      // HeicConversionError carries its own user-friendly message —
+      // surface it directly rather than feeding it through the generic
+      // upload-error formatter (which would tag it with HTTP nonsense).
+      if (err instanceof HeicConversionError) {
+        setErrorMsg(err.message);
+      } else {
+        setErrorMsg(friendlyUploadError(err));
+      }
     }
   }
 

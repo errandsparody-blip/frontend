@@ -23,6 +23,7 @@ import { Paperclip, X } from "lucide-react";
 import { useId, useRef, useState } from "react";
 
 import { api } from "@/lib/api-client";
+import { convertHeicToJpeg, HeicConversionError, isHeicFile } from "@/lib/heic-to-jpeg";
 
 const ACCEPT = "image/jpeg,image/png,image/gif,image/webp,image/heic,application/pdf";
 const ALLOWED = new Set(ACCEPT.split(","));
@@ -77,27 +78,45 @@ export function AttachmentUploader({
     const remaining = MAX_ATTACHMENTS - value.length - pending.length;
     const accepted = files.slice(0, Math.max(remaining, 0));
 
-    for (const file of accepted) {
-      const id = `${Date.now()}-${file.name}-${Math.random().toString(36).slice(2, 8)}`;
+    for (const picked of accepted) {
+      const id = `${Date.now()}-${picked.name}-${Math.random().toString(36).slice(2, 8)}`;
 
-      if (!ALLOWED.has(file.type)) {
+      // Accept HEIC at the picker level via the canonical MIME OR the
+      // `.heic` extension fallback (some Android browsers pass through
+      // `application/octet-stream`). Anything else has to match the
+      // strict allow-list.
+      if (!ALLOWED.has(picked.type) && !isHeicFile(picked)) {
         setPending((p) => [
           ...p,
-          { id, name: file.name, status: "error", error: "Unsupported file type" },
+          { id, name: picked.name, status: "error", error: "Unsupported file type" },
         ]);
         continue;
       }
-      if (file.size > MAX_BYTES) {
+      if (picked.size > MAX_BYTES) {
         setPending((p) => [
           ...p,
-          { id, name: file.name, status: "error", error: "Too large (max 25 MB)" },
+          { id, name: picked.name, status: "error", error: "Too large (max 25 MB)" },
         ]);
         continue;
       }
 
-      setPending((p) => [...p, { id, name: file.name, status: "uploading" }]);
+      setPending((p) => [...p, { id, name: picked.name, status: "uploading" }]);
 
       try {
+        // HEIC preflight: convert iPhone photos to JPEG in the browser so
+        // every browser can render the result via `<img src>`. Same
+        // reasoning as the product image uploader — see lib/heic-to-jpeg.
+        let file = picked;
+        if (isHeicFile(picked)) {
+          file = await convertHeicToJpeg(picked);
+          // The JPEG can be 2-3× larger than the source HEIC; re-check
+          // the size cap and reject if we crossed it. Better than
+          // uploading something the server then 413s on.
+          if (file.size > MAX_BYTES) {
+            throw new Error("Converted JPEG is too large (max 25 MB).");
+          }
+        }
+
         const presigned = await api.post<PresignResponse>(presignEndpoint, {
           filename: file.name,
           contentType: file.type,
@@ -121,8 +140,13 @@ export function AttachmentUploader({
         pruneById(id);
         onChange([...value, presigned.publicUrl]);
       } catch (err) {
+        // HeicConversionError surfaces its own user-friendly message.
         const msg =
-          err instanceof Error ? err.message : "Upload failed — please try again.";
+          err instanceof HeicConversionError
+            ? err.message
+            : err instanceof Error
+              ? err.message
+              : "Upload failed — please try again.";
         setPending((p) =>
           p.map((f) => (f.id === id ? { ...f, status: "error", error: msg } : f)),
         );

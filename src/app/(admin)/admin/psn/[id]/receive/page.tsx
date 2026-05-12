@@ -73,10 +73,15 @@ const HOLD_REASON_OPTIONS: ReadonlyArray<{ code: string; label: string }> = [
 
 type DialogKind = null | "hold" | "reject" | "returnRequest";
 
+// Migration 0024 — Accept is no longer typed by the operator. They
+// enter Missing + Damaged; Accept is computed as
+//   remaining = declaredQty - receivedQty
+//   accepted  = remaining - missing - damaged   (clamped at zero)
+// This eliminates the over-receive class of mistake entirely — the
+// math always reconciles because Accept can never exceed what's
+// physically possible.
 interface ReceivingState {
-  acceptedQty: number;
   damagedQty: number;
-  // Migration 0024 — items declared on the PSN but absent from the box.
   missingQty: number;
   notes: string;
 }
@@ -116,7 +121,6 @@ export default function ReceivePsnPage() {
       const seed: Record<string, ReceivingState> = {};
       for (const l of psn.lines) {
         seed[l.id] = {
-          acceptedQty: l.declaredQty - l.receivedQty,
           damagedQty: 0,
           missingQty: 0,
           notes: l.notes ?? "",
@@ -126,16 +130,40 @@ export default function ReceivePsnPage() {
     });
   }, [psn]);
 
+  /**
+   * Compute the accepted quantity for a line from its current
+   * receiving-state entries. Always:
+   *   remaining = declared − already-received
+   *   accepted  = max(0, remaining − missing − damaged)
+   * `clamp(0)` is defensive — if an operator overshoots Missing or
+   * Damaged we render 0 rather than a negative count, and a banner
+   * tells them to dial back. The submit math relies on the same
+   * function so the wire payload and the on-screen total never
+   * disagree.
+   */
+  function deriveAccepted(line: AdminPsn["lines"][number]): number {
+    const r = rows[line.id] ?? { damagedQty: 0, missingQty: 0, notes: "" };
+    const remaining = line.declaredQty - line.receivedQty;
+    return Math.max(
+      0,
+      remaining - (Number(r.damagedQty) || 0) - (Number(r.missingQty) || 0),
+    );
+  }
+
   const submitMut = useMutation({
     mutationFn: () =>
       api.post<{ status: string; psnId: string }>(`/admin/psns/${params.id}/receive`, {
-        lines: Object.entries(rows).map(([lineId, r]) => ({
-          lineId,
-          acceptedQty: r.acceptedQty,
-          damagedQty: r.damagedQty,
-          missingQty: r.missingQty,
-          notes: r.notes || undefined,
-        })),
+        lines: psn!.lines.map((l) => {
+          const r = rows[l.id] ?? { damagedQty: 0, missingQty: 0, notes: "" };
+          return {
+            lineId: l.id,
+            // Accept is derived, not typed — see deriveAccepted.
+            acceptedQty: deriveAccepted(l),
+            damagedQty: Number(r.damagedQty) || 0,
+            missingQty: Number(r.missingQty) || 0,
+            notes: r.notes || undefined,
+          };
+        }),
       }),
     onMutate: clear,
     onSuccess: async () => {
@@ -227,26 +255,36 @@ export default function ReceivePsnPage() {
 
   const isFinal = ["RECEIVED", "CANCELLED", "DISCREPANCY"].includes(psn.status);
 
-  // Summary derived from operator entries.
-  const summary = Object.values(rows).reduce(
-    (acc, r) => ({
-      accepted: acc.accepted + Number(r.acceptedQty || 0),
-      damaged: acc.damaged + Number(r.damagedQty || 0),
-    }),
-    { accepted: 0, damaged: 0 },
+  // Summary — accepted is derived from each line via deriveAccepted, so
+  // it stays in lockstep with Missing + Damaged without an operator
+  // touching it. Missing gets its own summary box too so the dock has
+  // a single-glance view of all three buckets.
+  const summary = psn.lines.reduce(
+    (acc, l) => {
+      const r = rows[l.id] ?? { damagedQty: 0, missingQty: 0, notes: "" };
+      return {
+        accepted: acc.accepted + deriveAccepted(l),
+        damaged: acc.damaged + (Number(r.damagedQty) || 0),
+        missing: acc.missing + (Number(r.missingQty) || 0),
+      };
+    },
+    { accepted: 0, damaged: 0, missing: 0 },
   );
 
-  // Detect over-receive at the client so the operator gets immediate feedback
-  // instead of relying on a backend 400. The row tint already highlights which
-  // line is wrong; this flag also disables the submit button + shows a banner.
+  // Detect over-receive on the missing/damaged inputs — if the operator
+  // types more missing+damaged than physically possible (i.e. > remaining)
+  // we highlight the line, disable submit, and show a banner. Accept is
+  // derived so it can never itself overshoot; this gate catches the
+  // upstream typo.
   const overReceiveLines = psn.lines.filter((l) => {
     const remaining = l.declaredQty - l.receivedQty;
     const r = rows[l.id];
     if (!r) return false;
-    return Number(r.acceptedQty || 0) + Number(r.damagedQty || 0) > remaining;
+    return (Number(r.missingQty) || 0) + (Number(r.damagedQty) || 0) > remaining;
   });
   const hasOverReceive = overReceiveLines.length > 0;
-  const hasAnyEntry = summary.accepted > 0 || summary.damaged > 0;
+  const hasAnyEntry =
+    summary.accepted > 0 || summary.damaged > 0 || summary.missing > 0;
 
   function setRow(lineId: string, patch: Partial<ReceivingState>): void {
     setRows((prev) => ({ ...prev, [lineId]: { ...prev[lineId]!, ...patch } }));
@@ -289,9 +327,16 @@ export default function ReceivePsnPage() {
         <TBody>
           {psn.lines.map((l) => {
             const remaining = l.declaredQty - l.receivedQty;
-            const r = rows[l.id] ?? { acceptedQty: 0, damagedQty: 0, missingQty: 0, notes: "" };
-            const total = Number(r.acceptedQty || 0) + Number(r.damagedQty || 0);
-            const overReceive = total > remaining;
+            const r = rows[l.id] ?? { damagedQty: 0, missingQty: 0, notes: "" };
+            // Missing + Damaged can't exceed what's left to receive —
+            // when they do, this line tints red and submit is blocked
+            // upstream.
+            const overReceive =
+              (Number(r.missingQty) || 0) + (Number(r.damagedQty) || 0) > remaining;
+            // Auto-derived accept count for this line. Lives in a const
+            // here so both the Accept cell and any future reference
+            // (e.g. labels) read off the same value.
+            const accepted = deriveAccepted(l);
             const tierKey = l.product?.storageTier as StorageTierKey | undefined;
             const dims = tierKey ? tiers.dimensions?.[tierKey] : undefined;
             return (
@@ -338,17 +383,17 @@ export default function ReceivePsnPage() {
                 <Td num>{l.declaredQty}</Td>
                 <Td num className="text-text-muted">{l.receivedQty}</Td>
                 <Td align="right">
-                  <Input
-                    type="number"
-                    min={0}
-                    max={remaining}
-                    step={1}
-                    className="w-20 text-right"
-                    invalid={overReceive}
-                    disabled={isFinal}
-                    value={r.acceptedQty}
-                    onChange={(e) => setRow(l.id, { acceptedQty: Number(e.target.value) })}
-                  />
+                  {/* Accept is now AUTO-COMPUTED from
+                      remaining − missing − damaged. Displayed in
+                      green so the eye treats it as "the outcome",
+                      not "an input". An operator who needs to
+                      override would adjust Missing / Damaged. */}
+                  <div
+                    className="inline-flex h-9 min-w-[80px] items-center justify-end rounded-sm border border-line bg-cream-soft px-3 font-mono text-body tabular-nums text-success"
+                    aria-label="Accept (auto-computed from declared minus missing minus damaged)"
+                  >
+                    {accepted}
+                  </div>
                 </Td>
                 <Td align="right">
                   <Input
@@ -357,6 +402,7 @@ export default function ReceivePsnPage() {
                     max={remaining}
                     step={1}
                     className="w-20 text-right"
+                    invalid={overReceive}
                     disabled={isFinal}
                     value={r.missingQty}
                     onChange={(e) => setRow(l.id, { missingQty: Number(e.target.value) })}
@@ -403,18 +449,33 @@ export default function ReceivePsnPage() {
         >
           <div className="font-mono text-mono-label uppercase text-error">Over-received</div>
           <p className="mt-1 text-body-sm text-text">
-            {overReceiveLines.length} line(s) have accepted + damaged quantities greater than
+            {overReceiveLines.length} line(s) have missing + damaged quantities greater than
             the remaining declared count. Reduce them before submitting — a discrepancy
             should go through the exceptions workflow, not be quietly absorbed here.
           </p>
         </div>
       ) : null}
 
-      {/* Summary + submit */}
-      <section className="grid gap-6 rounded-md border border-line bg-white p-6 md:grid-cols-3">
+      {/* Summary + submit. Total Accepting is derived live from
+          declared − missing − damaged — operators see it update the
+          instant they type into Missing or Damaged. Total Missing is
+          its own bucket so the dock has a single-glance view of every
+          outcome without doing mental subtraction. */}
+      <section className="grid gap-6 rounded-md border border-line bg-white p-6 md:grid-cols-4">
         <div>
-          <div className="font-mono text-mono-label uppercase text-text-muted">Total accepting</div>
-          <div className="mt-2 text-h1 font-medium tabular-nums text-success">{summary.accepted}</div>
+          <div className="font-mono text-mono-label uppercase text-text-muted">
+            Total accepting
+          </div>
+          <div className="mt-2 text-h1 font-medium tabular-nums text-success">
+            {summary.accepted}
+          </div>
+          <div className="mt-1 font-mono text-[10px] uppercase tracking-[1.2px] text-text-subtle">
+            Auto from declared − missing − damaged
+          </div>
+        </div>
+        <div>
+          <div className="font-mono text-mono-label uppercase text-text-muted">Total missing</div>
+          <div className="mt-2 text-h1 font-medium tabular-nums text-amber">{summary.missing}</div>
         </div>
         <div>
           <div className="font-mono text-mono-label uppercase text-text-muted">Total damaged</div>

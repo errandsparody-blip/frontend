@@ -23,6 +23,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
+import { AttachmentUploader } from "@/components/portal/attachment-uploader";
 import { ErrorBanner } from "@/components/errors/error-banner";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api-client";
@@ -89,14 +90,16 @@ export function PsnChatPanel({
   }, [messagesQ.data, psnId, viewer, qc]);
 
   const [composer, setComposer] = useState("");
+  const [attachments, setAttachments] = useState<string[]>([]);
   const formRef = useRef<HTMLFormElement>(null);
   const { bannerError, handle, clear } = useApiErrorHandler();
 
   const post = useMutation({
-    mutationFn: (payload: { body: string }) =>
+    mutationFn: (payload: { body: string; attachmentUrls: string[] }) =>
       api.post<PsnMessage>(`${basePath(viewer)}/${psnId}/messages`, payload),
     onSuccess: () => {
       setComposer("");
+      setAttachments([]);
       void qc.invalidateQueries({ queryKey });
     },
     onError: (err) => handle(err),
@@ -105,8 +108,13 @@ export function PsnChatPanel({
   function onSubmit(e: React.FormEvent): void {
     e.preventDefault();
     clear();
-    if (composer.trim().length === 0) return;
-    post.mutate({ body: composer.trim() });
+    // Allow attachment-only messages (e.g. "here's the damage photo") —
+    // the body can be empty when the user has at least one attachment.
+    if (composer.trim().length === 0 && attachments.length === 0) return;
+    post.mutate({
+      body: composer.trim() || "(no message)",
+      attachmentUrls: attachments,
+    });
   }
 
   // Which side label is "you" vs "them" depends on the role this panel
@@ -202,11 +210,17 @@ export function PsnChatPanel({
           }
           className="w-full rounded-sm border border-line-strong bg-cream-soft px-4 py-3 text-body text-text outline-none placeholder:text-text-subtle focus:border-ink focus:ring-2 focus:ring-ink/10"
         />
-        {/* v1: text-only chat. Vendors and admins can paste R2 / Drive
-            URLs inline and the linkify helper renders them as click-
-            through anchors. A dedicated PSN attachment uploader would
-            need its own presign endpoint — out of scope for the first
-            ship of this feature. */}
+        {/* Attachment uploader — same component the shopper thread uses,
+            pointed at the role-appropriate presign endpoint. Both sides
+            (vendor + admin) can attach photos / PDFs / docs to any
+            message. The bytes land in R2 under `psn/<id>/{vendor|admin}/`
+            so a forensic audit can tell uploads from each side apart. */}
+        <AttachmentUploader
+          value={attachments}
+          onChange={setAttachments}
+          presignEndpoint={`${basePath(viewer)}/${psnId}/uploads`}
+          disabled={post.isPending}
+        />
         <div className="flex items-center justify-between">
           <span className="font-mono text-mono-label uppercase text-text-muted">
             {composer.length}/10000
@@ -215,7 +229,10 @@ export function PsnChatPanel({
             type="submit"
             variant="amber"
             size="md"
-            disabled={composer.trim().length === 0 || post.isPending}
+            disabled={
+              (composer.trim().length === 0 && attachments.length === 0) ||
+              post.isPending
+            }
             loading={post.isPending}
           >
             {post.isPending ? "Sending…" : "Send"}
