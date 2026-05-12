@@ -414,11 +414,23 @@ function WorkflowPanel({
   const id = r.id;
   const { bannerError, handle, clear } = useApiErrorHandler();
 
+  // After the Save shipping mutation succeeds we flash a "Saved ✓" label
+  // on the button. Held in state so a render between the mutation
+  // finishing and the parent query invalidating doesn't lose the flash.
+  // Cleared by a timeout so the next click can show "Saving…" again.
+  const [saveJustSucceeded, setSaveJustSucceeded] = useState(false);
+
   // Live action mutations. Each invalidates the parent query to repaint.
   const post = useMutation({
     mutationFn: (args: { path: string; body?: unknown }) =>
       api.post<unknown>(`/admin/shopper/${id}${args.path}`, args.body),
-    onSuccess: () => {
+    onSuccess: (_data, vars) => {
+      // Confirmation label on the Save button. Only for the shipping
+      // endpoint — other actions have their own card layouts.
+      if (vars.path === "/shipping") {
+        setSaveJustSucceeded(true);
+        setTimeout(() => setSaveJustSucceeded(false), 1800);
+      }
       onChange();
     },
     onError: (err) => handle(err),
@@ -427,17 +439,17 @@ function WorkflowPanel({
   // Per-status workflow buttons
   const actions = useMemo(() => statusActions(r.status), [r.status]);
 
-  // Freight rates — used to live-calculate the system shipping cost as
-  // the operator changes weight or method. Same map the backend uses at
-  // save time, so frontend preview and persisted number agree.
+  // Last-known per-method default rates from the API. Only used to
+  // pre-fill the rate input the first time the operator picks a method;
+  // after that they type the rate inline. Pricing config UI is gone —
+  // the rate is per-request and lives entirely on this page.
   const freightRatesQuery = useQuery({
     queryKey: ["admin", "shopper", "freight-rates"],
     queryFn: () =>
-      api.get<{ rates: Record<string, number>; methods: ReadonlyArray<string> }>(
-        "/admin/shopper/freight-rates",
-      ),
-    // Rates change at most a few times per quarter; an hour of cache
-    // saves a query per detail-page open without making the calc stale.
+      api.get<{
+        rates: Record<string, number>;
+        methods: ReadonlyArray<string>;
+      }>("/admin/shopper/freight-rates"),
     staleTime: 60 * 60 * 1000,
   });
   const freightRates = freightRatesQuery.data?.rates ?? {};
@@ -448,6 +460,16 @@ function WorkflowPanel({
   // shows weight × rate so the buyer can see exactly what was charged.
   const [shippingMethod, setShippingMethod] = useState<"" | "PLATFORM_FREIGHT" | "BUYER_FORWARDER" | "PICKUP">(
     (r.shippingMethod as "" | "PLATFORM_FREIGHT" | "BUYER_FORWARDER" | "PICKUP") ?? "",
+  );
+  // Phase 2 redesign — admin types the per-lb rate for this specific
+  // request right here in the workflow. Dollars on the wire, converted
+  // to whole cents at save time. Pre-filled from whatever the row
+  // already has (so re-opening an in-flight request shows the rate
+  // that was last persisted).
+  const [rateDollarsPerLb, setRateDollarsPerLb] = useState<string>(
+    r.freightRateCentsPerLb != null && r.freightRateCentsPerLb >= 0
+      ? (r.freightRateCentsPerLb / 100).toFixed(2)
+      : "",
   );
   // Weight is captured in pounds (LB). The backend persists ounces so the
   // receipt and rate-card math line up, so we convert at submit time:
@@ -516,36 +538,58 @@ function WorkflowPanel({
           (() => {
             // Live freight calculation. Mirrors the backend formula:
             //   cost (cents) = pounds × rate_cents_per_lb
-            // We display the result so the operator can sanity-check
-            // before saving. The server recomputes from the same map so
-            // the number on screen is the number the buyer is charged.
+            // Both the weight AND the rate are typed inline; the server
+            // recomputes from the same inputs at save time so the
+            // number on screen is the number the buyer is charged.
             const liveWeightLb = (() => {
               const n = Number(parcelWeightLb);
               return Number.isFinite(n) && n >= 0 ? n : 0;
             })();
-            const liveRateCentsPerLb = shippingMethod
-              ? freightRates[shippingMethod] ?? 0
-              : 0;
+            const liveRateCentsPerLb = (() => {
+              const n = Number(rateDollarsPerLb);
+              if (!Number.isFinite(n) || n < 0) return 0;
+              return Math.round(n * 100);
+            })();
             const liveCalculatedCents =
-              liveWeightLb > 0
+              liveWeightLb > 0 && liveRateCentsPerLb > 0
                 ? Math.round(liveWeightLb * liveRateCentsPerLb)
                 : 0;
             // Save is disabled unless every required field is filled —
-            // destination + method + a positive weight. Dimensions stay
-            // optional.
+            // method + rate + weight + dest. Dimensions stay optional.
             const destReady =
               destRecipientName.trim().length > 0 &&
               destLine1.trim().length > 0 &&
               destCity.trim().length > 0 &&
               /^[A-Za-z]{2}$/.test(destState.trim()) &&
               destPostalCode.trim().length > 0;
-            const shipReady = !!shippingMethod && liveWeightLb > 0 && destReady;
+            const shipReady =
+              !!shippingMethod &&
+              liveRateCentsPerLb > 0 &&
+              liveWeightLb > 0 &&
+              destReady;
+
+            // ----- Save-button state machine -----
+            // The mutation hook gives us pending/success/error directly.
+            // We use them to flip the button label so the operator gets
+            // immediate feedback: "Yes, save" → "Saving…" → "Saved ✓".
+            // The success label sticks for ~1.5s after the response so
+            // the user can see it before the form re-renders.
+            const isShipMutation =
+              post.variables != null &&
+              (post.variables as { path?: string }).path === "/shipping";
+            let saveLabel = "Yes, save";
+            if (isShipMutation && post.isPending) {
+              saveLabel = "Saving…";
+            } else if (isShipMutation && saveJustSucceeded) {
+              saveLabel = "Saved ✓";
+            }
             return (
               <Action
                 title="Save shipping"
-                description="Pick a method, enter parcel weight in pounds, and the destination. The system multiplies pounds × per-lb rate to compute shipping; the receipt always shows both numbers so the buyer can audit. Parcel dimensions are optional but recommended for the warehouse."
+                description="Pick a method, type the per-lb rate for this request, enter parcel weight in pounds, and the destination. The system multiplies pounds × per-lb rate to compute shipping; the receipt always shows both numbers so the buyer can audit. Parcel dimensions are optional but recommended for the warehouse."
                 disabled={post.isPending || !shipReady}
-                cta="Yes, save"
+                cta={saveLabel}
+                ctaTone={isShipMutation && saveJustSucceeded ? "success" : undefined}
                 onClick={() => {
                   clear();
                   const body: Record<string, unknown> = {
@@ -554,6 +598,9 @@ function WorkflowPanel({
                     // calculated cost. Always opt into the server's
                     // weight × rate math.
                     useCalculated: true,
+                    // Per-request rate, typed inline above. Sent as
+                    // whole cents to match the API contract.
+                    shippingRateCentsPerLb: liveRateCentsPerLb,
                   };
                   // Backend persists ounces — convert pounds at the wire.
                   body.parcelWeightOz = Math.round(liveWeightLb * 16 * 100) / 100;
@@ -579,32 +626,44 @@ function WorkflowPanel({
                   post.mutate({ path: "/shipping", body });
                 }}
               >
-                <div className="grid gap-3 md:grid-cols-[1fr_140px_1fr]">
+                {/* Method · Rate · Weight · Calc — four columns so the
+                    operator can scan the whole pricing decision in one
+                    row. Rate is typed inline (per-request); calc auto-
+                    updates as method/rate/weight change. */}
+                <div className="grid gap-3 md:grid-cols-[1fr_140px_140px_1fr]">
                   <Field label="Method">
                     <select
                       value={shippingMethod}
-                      onChange={(e) =>
-                        setShippingMethod(e.target.value as typeof shippingMethod)
-                      }
+                      onChange={(e) => {
+                        setShippingMethod(e.target.value as typeof shippingMethod);
+                        // First time the operator picks a method we
+                        // pre-fill the rate from the last-known default
+                        // for convenience. If they already typed a rate,
+                        // we leave it alone.
+                        if (rateDollarsPerLb.trim() === "") {
+                          const seed = freightRates[e.target.value];
+                          if (typeof seed === "number" && seed >= 0) {
+                            setRateDollarsPerLb((seed / 100).toFixed(2));
+                          }
+                        }
+                      }}
                       className="h-11 w-full rounded-sm border border-line-strong bg-cream-soft px-3 text-body text-text outline-none focus:border-ink focus:ring-2 focus:ring-ink/10"
                     >
                       <option value="">— pick a method —</option>
-                      <option value="PLATFORM_FREIGHT">
-                        Platform freight {freightRates.PLATFORM_FREIGHT != null
-                          ? `(${dollars(freightRates.PLATFORM_FREIGHT)}/lb)`
-                          : ""}
-                      </option>
-                      <option value="BUYER_FORWARDER">
-                        Buyer forwarder {freightRates.BUYER_FORWARDER != null
-                          ? `(${dollars(freightRates.BUYER_FORWARDER)}/lb)`
-                          : ""}
-                      </option>
-                      <option value="PICKUP">
-                        Pickup {freightRates.PICKUP != null
-                          ? `(${dollars(freightRates.PICKUP)}/lb)`
-                          : ""}
-                      </option>
+                      <option value="PLATFORM_FREIGHT">Platform freight</option>
+                      <option value="BUYER_FORWARDER">Buyer forwarder</option>
+                      <option value="PICKUP">Pickup</option>
                     </select>
+                  </Field>
+                  <Field label="Rate ($/lb)">
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min={0}
+                      value={rateDollarsPerLb}
+                      onChange={(e) => setRateDollarsPerLb(e.target.value)}
+                      placeholder="0.00"
+                    />
                   </Field>
                   <Field label="Total weight (lb)">
                     <Input
@@ -622,9 +681,11 @@ function WorkflowPanel({
                       <span className="font-mono text-mono-label uppercase text-text-muted">
                         {liveWeightLb > 0 && liveRateCentsPerLb > 0
                           ? `${liveWeightLb.toFixed(2)} lb × ${dollars(liveRateCentsPerLb)}/lb`
-                          : shippingMethod
-                            ? "enter weight"
-                            : "pick a method"}
+                          : !shippingMethod
+                            ? "pick a method"
+                            : liveRateCentsPerLb <= 0
+                              ? "enter rate"
+                              : "enter weight"}
                       </span>
                     </div>
                   </Field>
@@ -847,6 +908,7 @@ function Action({
   onClick,
   disabled,
   danger,
+  ctaTone,
   children,
 }: {
   title: string;
@@ -855,8 +917,19 @@ function Action({
   onClick: () => void;
   disabled?: boolean;
   danger?: boolean;
+  /** Overrides the button colour. Used by the Save shipping action to
+   * flash green after a successful mutation. */
+  ctaTone?: "success";
   children?: React.ReactNode;
 }): JSX.Element {
+  // Resolve the variant once so the JSX below stays readable. `ctaTone`
+  // takes precedence over `danger` — the success flash is a transient
+  // state and should override the default styling for that moment.
+  const variant: "primary" | "danger" | "success" = ctaTone === "success"
+    ? "success"
+    : danger
+      ? "danger"
+      : "primary";
   return (
     <div className="rounded-sm border border-line bg-cream-soft p-4">
       <div className="flex items-start justify-between gap-4">
@@ -866,10 +939,15 @@ function Action({
         </div>
         <Button
           type="button"
-          variant={danger ? "danger" : "primary"}
+          variant={variant === "success" ? "primary" : variant}
           size="sm"
           onClick={onClick}
           disabled={disabled}
+          className={
+            variant === "success"
+              ? "border-success bg-success text-text-inv hover:bg-success/90"
+              : undefined
+          }
         >
           {cta}
         </Button>

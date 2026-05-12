@@ -123,6 +123,38 @@ function labelForType(t: LedgerType): string {
   return TYPES.find((x) => x.value === t)?.label ?? t.replace(/_/g, " ");
 }
 
+/**
+ * Pull the most useful, single-line diagnostic out of whatever shape the
+ * api-client surfaced. Our error envelope from the API looks like:
+ *   { status, code?, message, details? }
+ * `react-query` hands us the raw thrown value, so we defensively probe
+ * each shape.
+ */
+function readableError(err: unknown): string {
+  if (!err) return "Unknown error.";
+  if (typeof err === "string") return err;
+  if (err instanceof Error) {
+    const anyErr = err as Error & { status?: number; code?: string };
+    const parts: string[] = [];
+    if (anyErr.status) parts.push(`HTTP ${anyErr.status}`);
+    if (anyErr.code) parts.push(`[${anyErr.code}]`);
+    if (anyErr.message) parts.push(anyErr.message);
+    return parts.length > 0 ? parts.join(" · ") : "Request failed.";
+  }
+  // Plain object envelope.
+  if (typeof err === "object") {
+    const o = err as { status?: number; code?: string; message?: string };
+    return [
+      o.status ? `HTTP ${o.status}` : null,
+      o.code ? `[${o.code}]` : null,
+      o.message ?? null,
+    ]
+      .filter(Boolean)
+      .join(" · ") || "Request failed.";
+  }
+  return "Unknown error.";
+}
+
 export default function AdminTransactionsPage(): JSX.Element {
   // Multi-select filter — empty Set means "all types".
   const [selected, setSelected] = useState<Set<LedgerType>>(new Set());
@@ -207,8 +239,16 @@ export default function AdminTransactionsPage(): JSX.Element {
           <div className="font-mono text-mono-label uppercase text-error">
             Couldn&#39;t load transactions
           </div>
+          {/* Admin-only page — show the real error so the operator can
+              triage without opening DevTools. Includes status code +
+              message + (when present) the API error `code` from our
+              normalised error envelope. */}
           <p className="mt-1 text-body-sm text-text">
-            Try refreshing. If it keeps failing, check the API logs and Sentry.
+            {readableError(query.error)}
+          </p>
+          <p className="mt-2 font-mono text-[11px] uppercase tracking-[1.2px] text-text-muted">
+            If this keeps happening, copy the line above into Sentry / API
+            logs to find the stack trace.
           </p>
         </div>
       ) : !query.data || query.data.items.length === 0 ? (
