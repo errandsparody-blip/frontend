@@ -71,6 +71,38 @@ export function NotificationBell({ seeAllHref }: NotificationBellProps): JSX.Ele
     return () => document.removeEventListener("keydown", handle);
   }, [open]);
 
+  /**
+   * Pull the most useful single-line diagnostic out of whatever shape
+   * the api-client surfaced. Mirrors the helper on the admin
+   * transactions page — admins can copy-paste this into Sentry / a bug
+   * report and we don't have to guess what went wrong.
+   */
+  function describeError(err: unknown): string {
+    if (!err) return "Unknown error.";
+    if (typeof err === "string") return err;
+    if (err instanceof Error) {
+      const e = err as Error & { status?: number; code?: string };
+      const parts: string[] = [];
+      if (e.status) parts.push(`HTTP ${e.status}`);
+      if (e.code) parts.push(`[${e.code}]`);
+      if (e.message) parts.push(e.message);
+      return parts.length > 0 ? parts.join(" · ") : "Request failed.";
+    }
+    if (typeof err === "object") {
+      const o = err as { status?: number; code?: string; message?: string };
+      return (
+        [
+          o.status ? `HTTP ${o.status}` : null,
+          o.code ? `[${o.code}]` : null,
+          o.message ?? null,
+        ]
+          .filter(Boolean)
+          .join(" · ") || "Request failed."
+      );
+    }
+    return "Unknown error.";
+  }
+
   function handleRowClick(n: AppNotification): void {
     // Mark read first so the badge updates immediately. If navigation
     // happens, the panel unmounts; no harm — the mutation has already
@@ -131,8 +163,17 @@ export function NotificationBell({ seeAllHref }: NotificationBellProps): JSX.Ele
                 Loading…
               </div>
             ) : listQ.error ? (
-              <div className="px-4 py-6 text-center text-body-sm text-error">
-                Couldn&apos;t load notifications.
+              <div className="px-4 py-6 text-body-sm text-error">
+                <div className="font-mono text-mono-label uppercase tracking-[1.2px] text-error">
+                  Couldn&apos;t load notifications
+                </div>
+                {/* Surface the real error message — admins can paste it
+                    into the bug report, and during dev it gives the
+                    operator a chance to spot a 403 / 500 / network
+                    issue at a glance. */}
+                <p className="mt-1 text-text">
+                  {describeError(listQ.error)}
+                </p>
               </div>
             ) : !listQ.data || listQ.data.items.length === 0 ? (
               <div className="px-4 py-6 text-center text-body-sm text-text-muted">

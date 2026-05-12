@@ -290,6 +290,11 @@ function LineRow({
   );
   const [productTitle, setProductTitle] = useState<string>(line.productTitle ?? "");
   const [notes, setNotes] = useState<string>("");
+  // After a successful Save line round-trip we flip the button to a
+  // green "Saved ✓" label for ~1.6 s. Pure UX — the admin needs to see
+  // *something* change after they click, otherwise they double-tap
+  // thinking nothing happened.
+  const [lineSavedFlash, setLineSavedFlash] = useState(false);
   const { bannerError, handle, clear } = useApiErrorHandler();
 
   const save = useMutation({
@@ -305,6 +310,11 @@ function LineRow({
     },
     onSuccess: () => {
       setNotes("");
+      setLineSavedFlash(true);
+      // 1.6 s gives the operator plenty of time to register the
+      // confirmation without leaving the button stuck in the "Saved"
+      // state if they want to make another edit.
+      window.setTimeout(() => setLineSavedFlash(false), 1600);
       onChange();
     },
     onError: (err) => handle(err),
@@ -379,14 +389,28 @@ function LineRow({
             type="button"
             variant="primary"
             size="sm"
-            disabled={save.isPending}
+            disabled={save.isPending || lineSavedFlash}
             loading={save.isPending}
             onClick={() => {
               clear();
               save.mutate();
             }}
+            // Tri-state: idle / saving / saved. The colour swap to
+            // green (via inline className override on the success state)
+            // is the strongest possible visual confirmation that the
+            // round-trip finished — much harder to miss than the
+            // implicit spinner on its own.
+            className={
+              lineSavedFlash
+                ? "border-success bg-success text-text-inv hover:bg-success/90"
+                : undefined
+            }
           >
-            Save line
+            {save.isPending
+              ? "Saving…"
+              : lineSavedFlash
+                ? "Saved ✓"
+                : "Save line"}
           </Button>
         ) : null}
         {bannerError ? (
