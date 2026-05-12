@@ -148,11 +148,31 @@ export default function NewPsnPage() {
     }
   }
 
-  function addPallet(): void {
-    setPallets((prev) => [
-      ...prev,
-      { id: crypto.randomUUID(), tier: "SMALL", boxCount: 0 },
-    ]);
+  // Mutating the pallet list re-renders the form section, which (when a
+  // field is later focused or the form revalidates) can cause the page
+  // to jump as the browser scrolls a field into view. Capture the scroll
+  // position on the click event and restore it on the next animation
+  // frame so the click feels like an in-place mutation.
+  function preserveScroll(fn: () => void): void {
+    const y = typeof window !== "undefined" ? window.scrollY : 0;
+    fn();
+    if (typeof window === "undefined") return;
+    // Restore on the next frame after React commits the new card to the
+    // DOM. A simple setTimeout(0) sometimes lands BEFORE the commit on
+    // slower machines; rAF is reliably post-commit.
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: y, behavior: "instant" as ScrollBehavior });
+    });
+  }
+
+  function addPallet(e?: React.MouseEvent): void {
+    e?.preventDefault();
+    preserveScroll(() => {
+      setPallets((prev) => [
+        ...prev,
+        { id: crypto.randomUUID(), tier: "SMALL", boxCount: 0 },
+      ]);
+    });
   }
 
   function updatePallet(id: string, patch: Partial<Omit<PalletSpec, "id">>): void {
@@ -160,7 +180,9 @@ export default function NewPsnPage() {
   }
 
   function removePallet(id: string): void {
-    setPallets((prev) => prev.filter((p) => p.id !== id));
+    preserveScroll(() => {
+      setPallets((prev) => prev.filter((p) => p.id !== id));
+    });
   }
 
   // Aggregate stats for the pallet summary row.
@@ -390,7 +412,12 @@ export default function NewPsnPage() {
                   {palletSummary.totalBoxes} box
                   {palletSummary.totalBoxes === 1 ? "" : "es"} total
                 </div>
-                <Button type="button" variant="outline" size="sm" onClick={addPallet}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={(e) => addPallet(e)}
+                >
                   <Plus className="h-4 w-4" /> Add pallet
                 </Button>
               </div>
