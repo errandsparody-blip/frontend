@@ -2,8 +2,9 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2 } from "lucide-react";
+import { Layers, Package, Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import { Controller, useFieldArray, useForm } from "react-hook-form";
 
 import { ErrorBanner } from "@/components/errors/error-banner";
@@ -23,6 +24,7 @@ import {
 } from "@/lib/schemas/psn";
 import {
   FALLBACK_PALLET_POLICY,
+  FALLBACK_TIERS,
   TIER_METADATA,
 } from "@/lib/storage-tiers";
 
@@ -73,6 +75,7 @@ export default function NewPsnPage() {
     register,
     control,
     handleSubmit,
+    setValue,
     watch,
     formState: { errors, isSubmitting },
   } = form;
@@ -82,27 +85,138 @@ export default function NewPsnPage() {
   const { fields, append, remove } = useFieldArray({ control, name: "lines" });
   const declaredBoxCounts = watch("declaredBoxCounts");
 
-  // Live preview total: sum count × tier.totalCents using whatever the
-  // backend currently publishes. If the schedule hasn't loaded yet (slow
-  // network, server temporarily unreachable), we fall back to null and the
-  // UI shows "—" instead of guessing — better to be silent than to lie.
+  // ---------------------------------------------------------------------------
+  // Shipping mode — loose boxes vs palletised. Local-only state; the wire
+  // payload stays as `declaredBoxCounts` so the backend doesn't need to
+  // learn a new shape. When the vendor flips to pallet mode we keep a
+  // separate `pallets` array and aggregate it into declaredBoxCounts:
+  //   { SMALL: sum_of_small_boxes_across_pallets, …, PALLET: pallet_count }
+  // That preserves the existing fee-preview math AND lets the warehouse
+  // know how many pallets to expect at receive.
+  // ---------------------------------------------------------------------------
+  type ShippingMode = "loose" | "pallet";
+  type PalletBoxTier = "SMALL" | "MEDIUM" | "LARGE" | "X_LARGE";
+  interface PalletSpec {
+    id: string;
+    tier: PalletBoxTier;
+    boxCount: number;
+  }
+  const PALLET_BOX_TIERS: PalletBoxTier[] = ["SMALL", "MEDIUM", "LARGE", "X_LARGE"];
+
+  const [shippingMode, setShippingMode] = useState<ShippingMode>("loose");
+  const [pallets, setPallets] = useState<PalletSpec[]>([]);
+
+  // When pallets change OR the mode flips, push the aggregate counts back
+  // into the form's declaredBoxCounts so the existing preview/submit math
+  // (which reads from declaredBoxCounts) keeps working unchanged.
+  useEffect(() => {
+    if (shippingMode !== "pallet") return;
+    const agg: Record<StorageTier, number> = {
+      SMALL: 0,
+      MEDIUM: 0,
+      LARGE: 0,
+      X_LARGE: 0,
+      PALLET: 0,
+    };
+    for (const p of pallets) {
+      const n = Math.max(0, Math.floor(Number(p.boxCount) || 0));
+      if (n > 0) {
+        agg[p.tier] += n;
+        agg.PALLET += 1;
+      }
+    }
+    setValue("declaredBoxCounts", agg, { shouldDirty: true });
+    // We deliberately omit setValue from the deps — react-hook-form
+    // guarantees a stable reference.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pallets, shippingMode]);
+
+  // When the vendor flips between modes, reset declaredBoxCounts so we
+  // don't carry stale numbers across. The user gets a clean slate to
+  // enter the box mix or pallet plan from scratch.
+  function flipShippingMode(next: ShippingMode): void {
+    if (next === shippingMode) return;
+    setShippingMode(next);
+    setValue(
+      "declaredBoxCounts",
+      { SMALL: 0, MEDIUM: 0, LARGE: 0, X_LARGE: 0, PALLET: 0 },
+      { shouldDirty: true },
+    );
+    if (next === "pallet" && pallets.length === 0) {
+      // Bootstrap with one empty pallet so the vendor sees the picker.
+      setPallets([{ id: crypto.randomUUID(), tier: "SMALL", boxCount: 0 }]);
+    }
+  }
+
+  function addPallet(): void {
+    setPallets((prev) => [
+      ...prev,
+      { id: crypto.randomUUID(), tier: "SMALL", boxCount: 0 },
+    ]);
+  }
+
+  function updatePallet(id: string, patch: Partial<Omit<PalletSpec, "id">>): void {
+    setPallets((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+  }
+
+  function removePallet(id: string): void {
+    setPallets((prev) => prev.filter((p) => p.id !== id));
+  }
+
+  // Aggregate stats for the pallet summary row.
+  const palletSummary = useMemo(() => {
+    let totalBoxes = 0;
+    let validPallets = 0;
+    for (const p of pallets) {
+      const n = Math.max(0, Math.floor(Number(p.boxCount) || 0));
+      if (n > 0) {
+        totalBoxes += n;
+        validPallets += 1;
+      }
+    }
+    return { totalBoxes, validPallets };
+  }, [pallets]);
+
+  // Live preview total. Mirrors the backend's computeOnboardingFeeCents():
+  //   - Loose mode (PALLET = 0): per-box stocking + first-month storage
+  //     (the entry's `totalCents`).
+  //   - Pallet mode (PALLET > 0): per-box stocking ONLY (no first-month
+  //     storage — the pallet's $45/mo covers storage going forward), plus
+  //     the pallet's monthly-storage rate × pallet count as the pallet's
+  //     first-month line at submit.
+  // Falls back to null when the live schedule hasn't loaded so the UI
+  // doesn't show a guessed estimate.
   const onboardingFees = feesQ.data?.onboarding;
   const previewIsLive = !!onboardingFees;
+  const palletDeclared = Number(declaredBoxCounts?.PALLET ?? 0);
+  const isPalletMode = palletDeclared > 0;
+  // Pallet monthly storage rate. The /v1/fees/onboarding endpoint doesn't
+  // surface monthly storage rates — we read it from FALLBACK_TIERS, which
+  // mirrors prisma/seed.ts. KEEP IN SYNC if pallet pricing changes.
+  const palletMonthlyCents = FALLBACK_TIERS.monthlyStorage.PALLET ?? 0;
   const previewFeeCents = onboardingFees
     ? TIERS.reduce((acc, tier) => {
         const count = Number(declaredBoxCounts?.[tier] ?? 0);
         if (count <= 0) return acc;
+        if (tier === "PALLET") {
+          // Pallet's first-month storage charge at submit, only in pallet mode.
+          return isPalletMode ? acc + palletMonthlyCents * count : acc;
+        }
         const entry = onboardingFees[tier];
         if (!entry || ("negotiated" in entry && entry.negotiated)) return acc;
-        return acc + entry.totalCents * count;
+        // Pallet mode: stocking only (the pallet's monthly covers storage).
+        // Loose mode: full stocking + first-month per box.
+        const perBox = isPalletMode ? entry.stockingCents : entry.totalCents;
+        return acc + perBox * count;
       }, 0)
     : null;
-  // A tier is "negotiated" if the live schedule says so. We mark PALLET
-  // declarations as negotiated even pre-load (its near-universal default).
+  // A non-PALLET tier is "negotiated" if the live schedule says so. PALLET
+  // is no longer auto-negotiated — it has a real $45/mo rate now.
   const hasNegotiatedDeclared = TIERS.some((t) => {
+    if (t === "PALLET") return false;
     const count = Number(declaredBoxCounts?.[t] ?? 0);
     if (count <= 0) return false;
-    if (!onboardingFees) return t === "PALLET";
+    if (!onboardingFees) return false;
     const entry = onboardingFees[t];
     return !!entry && "negotiated" in entry && entry.negotiated;
   });
@@ -215,24 +329,186 @@ export default function NewPsnPage() {
           </Field>
         </section>
 
-        {/* Box counts */}
+        {/* Shipment composition — vendor picks loose-boxes OR pallet
+            shipping. Loose mode keeps the simple per-tier box-count
+            row. Pallet mode renders a per-pallet builder where each
+            pallet has a uniform box tier and a count capped by the
+            policy. Both modes write through to declaredBoxCounts so
+            the fee preview and submit math are identical downstream. */}
         <section className="rounded-md border border-line bg-white p-8">
-          <h2 className="mb-4 font-mono text-mono-label uppercase text-text-muted">Boxes by tier</h2>
-          <div className="grid gap-5 md:grid-cols-5">
-            {TIERS.map((tier) => (
-              <Field key={tier} label={tier.replace("_", "-")}>
-                <Input
-                  type="number"
-                  min={0}
-                  step={1}
-                  {...register(`declaredBoxCounts.${tier}`, { valueAsNumber: true })}
-                />
-              </Field>
-            ))}
+          <h2 className="mb-1 font-mono text-mono-label uppercase text-text-muted">
+            Shipment composition
+          </h2>
+          <p className="mb-5 max-w-prose text-body-sm text-text-muted">
+            Loose boxes drop into our receiving lanes one carton at a time. A
+            pallet is a single bulk unit with uniform-tier boxes on top — same
+            per-box receiving &amp; setup fees, but the pallet itself is
+            billed at the static pallet storage rate going forward.
+          </p>
+
+          <div role="radiogroup" aria-label="Shipping mode" className="grid gap-3 md:grid-cols-2">
+            <ModeCard
+              active={shippingMode === "loose"}
+              icon={Package}
+              title="Loose boxes"
+              body="Individual cartons declared per tier. Receiving fees + first-month storage charged at PSN submit per box."
+              onSelect={() => flipShippingMode("loose")}
+            />
+            <ModeCard
+              active={shippingMode === "pallet"}
+              icon={Layers}
+              title="Pallet shipment"
+              body="One pallet = one bulk unit. Each pallet carries a single uniform box tier (e.g. all Small or all Medium — never mixed). Per-box receiving fees apply, then $45/month per pallet from the next billing cycle."
+              onSelect={() => flipShippingMode("pallet")}
+            />
           </div>
+
+          {shippingMode === "loose" ? (
+            // Loose-box inputs — four tiers (PALLET stays out of this row;
+            // pallets live in the other mode).
+            <div className="mt-6 grid gap-5 md:grid-cols-4">
+              {PALLET_BOX_TIERS.map((tier) => (
+                <Field key={tier} label={tier.replace("_", "-")}>
+                  <Input
+                    type="number"
+                    min={0}
+                    step={1}
+                    {...register(`declaredBoxCounts.${tier}`, { valueAsNumber: true })}
+                  />
+                </Field>
+              ))}
+            </div>
+          ) : (
+            // Pallet-builder mode. Each pallet card picks its uniform
+            // box tier (radio) + box count (capped by the policy). The
+            // declaredBoxCounts aggregation runs in useEffect above.
+            <div className="mt-6 flex flex-col gap-4">
+              <div className="flex flex-wrap items-baseline justify-between gap-3">
+                <div className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
+                  {palletSummary.validPallets} pallet
+                  {palletSummary.validPallets === 1 ? "" : "s"} ·{" "}
+                  {palletSummary.totalBoxes} box
+                  {palletSummary.totalBoxes === 1 ? "" : "es"} total
+                </div>
+                <Button type="button" variant="outline" size="sm" onClick={addPallet}>
+                  <Plus className="h-4 w-4" /> Add pallet
+                </Button>
+              </div>
+
+              {pallets.length === 0 ? (
+                <div className="rounded-md border border-dashed border-line-strong bg-cream-soft px-6 py-8 text-center text-body-sm text-text-muted">
+                  Click <strong>Add pallet</strong> to start declaring pallets.
+                </div>
+              ) : (
+                pallets.map((p, idx) => {
+                  const cap =
+                    FALLBACK_PALLET_POLICY.maxBoxesPerPallet[p.tier] ?? 50;
+                  const over = p.boxCount > cap;
+                  return (
+                    <div
+                      key={p.id}
+                      className={
+                        "rounded-md border bg-cream-soft p-5 " +
+                        (over ? "border-error" : "border-line")
+                      }
+                    >
+                      <div className="mb-3 flex items-baseline justify-between">
+                        <div className="font-mono text-mono-label uppercase tracking-[1.2px] text-text">
+                          Pallet #{idx + 1}
+                        </div>
+                        {pallets.length > 1 ? (
+                          <button
+                            type="button"
+                            onClick={() => removePallet(p.id)}
+                            className="inline-flex items-center gap-1 font-mono text-[11px] uppercase tracking-[1.2px] text-text-muted hover:text-error"
+                            aria-label={`Remove pallet ${idx + 1}`}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" /> Remove
+                          </button>
+                        ) : null}
+                      </div>
+
+                      <div className="grid gap-4 md:grid-cols-[1fr_180px]">
+                        <div>
+                          <div className="mb-2 font-mono text-[10px] uppercase tracking-[1.4px] text-text-muted">
+                            Box tier on this pallet
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                            {PALLET_BOX_TIERS.map((t) => {
+                              const checked = p.tier === t;
+                              return (
+                                <label
+                                  key={t}
+                                  className={
+                                    "flex cursor-pointer flex-col gap-1 rounded-sm border px-3 py-2 text-body-sm transition-colors " +
+                                    (checked
+                                      ? "border-amber bg-amber/10 text-ink"
+                                      : "border-line bg-white text-text hover:border-line-strong")
+                                  }
+                                >
+                                  <input
+                                    type="radio"
+                                    name={`pallet-${p.id}-tier`}
+                                    value={t}
+                                    checked={checked}
+                                    onChange={() =>
+                                      updatePallet(p.id, {
+                                        tier: t,
+                                        // Clamp the existing count down to the
+                                        // new tier's cap so we don't carry a
+                                        // 50-box count across to LARGE (max 8).
+                                        boxCount: Math.min(
+                                          p.boxCount,
+                                          FALLBACK_PALLET_POLICY
+                                            .maxBoxesPerPallet[t] ?? 50,
+                                        ),
+                                      })
+                                    }
+                                    className="sr-only"
+                                  />
+                                  <span className="font-medium">
+                                    {t.replace("_", "-")}
+                                  </span>
+                                  <span className="font-mono text-[10px] uppercase tracking-[1.2px] text-text-muted">
+                                    up to {FALLBACK_PALLET_POLICY.maxBoxesPerPallet[t]} boxes
+                                  </span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        <Field
+                          label="Box count"
+                          hint={`Max ~${cap} for this tier`}
+                          error={over ? `Over the ~${cap}-box recommendation.` : undefined}
+                        >
+                          <Input
+                            type="number"
+                            min={0}
+                            step={1}
+                            value={p.boxCount}
+                            invalid={over}
+                            onChange={(e) =>
+                              updatePallet(p.id, {
+                                boxCount: Math.max(0, Math.floor(Number(e.target.value) || 0)),
+                              })
+                            }
+                          />
+                        </Field>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          )}
+
           <div className="mt-6 flex items-baseline justify-between border-t border-line pt-4">
             <span className="font-mono text-mono-label uppercase text-text-muted">
-              Estimated onboarding fee
+              {shippingMode === "pallet"
+                ? "Receiving & setup (per-box) at submit"
+                : "Estimated onboarding fee"}
             </span>
             <span className="font-mono text-h2 tabular-nums">
               {previewIsLive && previewFeeCents !== null ? (
@@ -256,17 +532,25 @@ export default function NewPsnPage() {
               )}
             </span>
           </div>
+          {shippingMode === "pallet" && palletSummary.validPallets > 0 ? (
+            <p className="mt-2 text-caption text-text-muted">
+              Pallet mode: stocking fees apply per box on every pallet; per-box
+              storage is replaced by the pallet&apos;s ${(palletMonthlyCents / 100).toFixed(0)}/month
+              rate (charged for the first month at submit, then monthly on the
+              1st going forward).
+            </p>
+          ) : null}
           {errors.declaredBoxCounts ? (
             <span className="mt-2 block text-caption text-error">
               {errors.declaredBoxCounts.message ?? "Declare at least one box."}
             </span>
           ) : null}
 
-          {/* Pallet policy reminder — only shown when the vendor has
-              actually declared PALLET boxes. Surfaces the uniform-tier
-              rule and per-tier max box counts so they don't hit a hold
-              on receipt for a packed-too-many or mixed-tier pallet. */}
-          {Number(declaredBoxCounts?.PALLET ?? 0) > 0 ? (
+          {/* Pallet policy reminder — only shown in pallet mode. The
+              uniform-tier rule is already enforced per-pallet by the UI,
+              so this reminder mostly serves to surface the max-box
+              counts for each tier. */}
+          {shippingMode === "pallet" && palletSummary.validPallets > 0 ? (
             <PalletPolicyReminder
               declared={declaredBoxCounts ?? {
                 SMALL: 0,
@@ -374,6 +658,51 @@ export default function NewPsnPage() {
         </div>
       </form>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// ModeCard — radio-style selector card for the shipping-mode toggle.
+// Clicking the card flips the form into either loose-box or pallet mode.
+// ---------------------------------------------------------------------------
+
+function ModeCard({
+  active,
+  icon: Icon,
+  title,
+  body,
+  onSelect,
+}: {
+  active: boolean;
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  body: string;
+  onSelect: () => void;
+}): JSX.Element {
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={active}
+      onClick={onSelect}
+      className={
+        "flex flex-col gap-3 rounded-md border p-5 text-left transition-colors " +
+        (active
+          ? "border-amber bg-amber/10 text-ink"
+          : "border-line bg-white text-text hover:border-line-strong")
+      }
+    >
+      <div className="flex items-center gap-2">
+        <Icon className={"h-5 w-5 " + (active ? "text-amber" : "text-text-muted")} aria-hidden />
+        <span className="font-medium text-ink">{title}</span>
+        {active ? (
+          <span className="ml-auto rounded-sm border border-amber/40 bg-amber/15 px-2 py-0.5 font-mono text-[10px] uppercase tracking-[1.2px] text-amber">
+            Selected
+          </span>
+        ) : null}
+      </div>
+      <p className="text-body-sm text-text-muted">{body}</p>
+    </button>
   );
 }
 
