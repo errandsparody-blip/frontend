@@ -4,41 +4,25 @@ import Link from "next/link";
 import { FadeUp } from "@/components/marketing/fade-up";
 import { Button } from "@/components/ui/button";
 
-// Editorial photo for the hero. We use a direct Unsplash URL with sizing
-// query params instead of `next/image` to avoid extra config + bundle
-// surface — the marketing site is static-friendly and one hot image is
-// fine to ship via <img>. Swap the URL freely; the layout grid expects
-// a portrait/landscape-flexible photo with negative space on one side.
+// Hero photo — Erik Mclean, "a person holding a cardboard box in their
+// hand," free under the Unsplash License. Tagged "package delivery",
+// "cardboard", "package" — exactly the brief.
 //
-// The brief: a *person* with a *parcel* or in a *delivery scene*. The
-// previous URL (1607082348824-…) rendered as a shopping-bags closeup
-// which read more "retail" than "fulfillment." Curated delivery-themed
-// alternatives below — preview each on Unsplash and paste the ID you
-// prefer. All of these are editorial-quality, warm-toned, and play
-// nicely with the cream + ink + amber palette.
+// Source page: https://unsplash.com/photos/ICaUOZ0PL70
+// Photographer: https://unsplash.com/@introspectivedsgn
+// Image URL was verified against the actual Unsplash page (not blindly
+// guessed). The `1680281707970-fa96c99f2ada` slug is the real photo id.
 //
-//   Recommended (in order of preference for a 4:5 portrait crop):
-//     1607602132700-068258431c6c — courier handing over a brown box
-//     1601158935942-52255782d322 — woman receiving a parcel at the door
-//     1611174243036-be2c0d3f5e6e — delivery worker with stack of boxes
-//     1566576912321-d58ddd7a6088 — friendly person carrying boxes
-//     1620109302234-fb83289dbb4d — person stacking parcels (warehouse)
+// `auto=format` lets Unsplash serve AVIF / WebP per Accept header;
+// `fit=crop&w=1400&q=80` keeps the served bytes reasonable for retina
+// without blowing past a 2× hero size.
 //
-//   Wider / landscape crops (use if you change the container to 16:9):
-//     1568010967684-8e9ce29eb6a3 — hands signing for a parcel
-//     1554224155-8d04cb21cd6c    — parcel on a doorstep
-//
-// `auto=format` lets Unsplash pick the best modern format (AVIF / WebP)
-// per Accept header; `fit=crop&w=1400&q=80` caps the served bytes at a
-// reasonable size for retina displays.
-//
-// If none of these match your brand: search Unsplash for "delivery box
-// portrait" with the orientation filter set to portrait, copy the
-// photo ID from the URL (the bit after `photo-`), and paste it below.
-// If you'd prefer a custom AI-generated image, drop the file into
-// `public/` and replace this URL with `/hero.jpg`.
+// SWAP TO A DIFFERENT PHOTO. Find one on Unsplash, copy the
+// `photo-XXXXXXXXX-yyyyyyyyyyyy` slug from the rendered image URL on
+// the photo's page, and paste it below. Or drop a custom photo into
+// `usa-errands-web/public/hero.jpg` and change the URL to `/hero.jpg`.
 const HERO_IMAGE_URL =
-  "https://images.unsplash.com/photo-1607602132700-068258431c6c?auto=format&fit=crop&w=1400&q=80";
+  "https://images.unsplash.com/photo-1680281707970-fa96c99f2ada?auto=format&fit=crop&w=1400&q=80";
 
 export default function HomePage() {
   return (
@@ -92,14 +76,14 @@ export default function HomePage() {
 
           <FadeUp delay={120}>
             <div className="relative">
-              {/* Image container — fixed aspect ratio so the layout
-                  doesn't shift while the photo loads. The container
-                  is bordered to match the design-system card chrome. */}
+              {/* Hero container — fixed 4:5 aspect ratio so the
+                  layout doesn't shift while the photo loads. Bordered
+                  + shadowed to match the design-system card chrome. */}
               <div className="relative aspect-[4/5] overflow-hidden rounded-md border border-line bg-cream-soft shadow-2">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={HERO_IMAGE_URL}
-                  alt="A courier handing over a parcel — every USA Errands delivery, in one frame."
+                  alt="A person holding a cardboard parcel — Erik Mclean / Unsplash."
                   className="h-full w-full object-cover"
                   loading="eager"
                   decoding="async"
