@@ -41,6 +41,7 @@ const STATUS_TONE: Record<ShopperRequestStatus, "neutral" | "info" | "success" |
   AWAITING_INTAKE_PAYMENT: "warning",
   PAID: "info",
   PROCURING: "info",
+  AWAITING_DELIVERY: "info",
   AWAITING_RECONCILIATION: "warning",
   READY_TO_SHIP: "info",
   SHIPPED: "info",
@@ -53,6 +54,9 @@ const STATUS_LABEL: Record<ShopperRequestStatus, string> = {
   AWAITING_INTAKE_PAYMENT: "Payment needed",
   PAID: "Payment received",
   PROCURING: "Procuring items",
+  // Phase 2 — items bought, waiting to arrive at our warehouse before
+  // shipping onward to the buyer.
+  AWAITING_DELIVERY: "Items purchased — awaiting delivery to our warehouse",
   AWAITING_RECONCILIATION: "Final invoice ready",
   READY_TO_SHIP: "Ready to ship",
   SHIPPED: "In transit",
@@ -455,6 +459,8 @@ function buyerCallout(status: ShopperRequestStatus): string | null {
     case "PAID":
     case "PROCURING":
       return "We're sourcing your items. You'll see updates here as we go.";
+    case "AWAITING_DELIVERY":
+      return "Items purchased. Waiting for them to arrive at our warehouse, then we'll ship to you.";
     case "AWAITING_RECONCILIATION":
       return "Final invoice ready — check your email for the payment / refund details.";
     case "READY_TO_SHIP":

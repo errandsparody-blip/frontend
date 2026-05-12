@@ -210,15 +210,31 @@ export function AttachmentUploader({
       )}
 
       <div className="flex items-center gap-3">
-        <label
-          htmlFor={fileInputId}
+        {/*
+          Trigger via a button + programmatic .click() rather than
+          <label htmlFor>. Reason: the file input is positioned absolutely
+          via Tailwind's `sr-only` utility (off-screen at the parent's
+          origin). A label-htmlFor click transfers focus to that input,
+          and the browser scrolls to bring the focused element into view —
+          which manifests as the whole admin shopper page jumping up
+          whenever admin clicks Attach. Calling .click() on the ref
+          doesn't change focus, so no scroll happens.
+        */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            inputRef.current?.click();
+          }}
+          disabled={!canAddMore}
+          aria-controls={fileInputId}
           className={
-            "inline-flex h-9 cursor-pointer items-center gap-2 rounded-sm border border-line-strong bg-cream px-3 font-mono text-mono-label uppercase tracking-[1.2px] text-text hover:border-ink " +
-            (canAddMore ? "" : "pointer-events-none opacity-50")
+            "inline-flex h-9 items-center gap-2 rounded-sm border border-line-strong bg-cream px-3 font-mono text-mono-label uppercase tracking-[1.2px] text-text hover:border-ink " +
+            (canAddMore ? "cursor-pointer" : "cursor-not-allowed opacity-50")
           }
         >
           <Paperclip className="h-3.5 w-3.5" /> Attach
-        </label>
+        </button>
         <span className="font-mono text-mono-label uppercase text-text-muted">
           {value.length + pending.length}/{MAX_ATTACHMENTS} · max 25 MB · images / PDF
         </span>

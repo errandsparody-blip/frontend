@@ -54,6 +54,7 @@ const TONE: Record<ShopperRequestStatus, "neutral" | "info" | "success" | "warni
   AWAITING_INTAKE_PAYMENT: "warning",
   PAID: "info",
   PROCURING: "info",
+  AWAITING_DELIVERY: "info",
   AWAITING_RECONCILIATION: "warning",
   READY_TO_SHIP: "info",
   SHIPPED: "info",

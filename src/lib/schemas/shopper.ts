@@ -19,6 +19,9 @@ export const SHOPPER_REQUEST_STATUS = [
   "AWAITING_INTAKE_PAYMENT",
   "PAID",
   "PROCURING",
+  // Migration 0021 — Phase 2 shopper redesign. Items purchased; waiting
+  // for them to physically arrive at the warehouse before shipping out.
+  "AWAITING_DELIVERY",
   "AWAITING_RECONCILIATION",
   "READY_TO_SHIP",
   "SHIPPED",

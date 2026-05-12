@@ -3,16 +3,23 @@
 /**
  * Admin Shopper detail.
  *
+ * Phase 2 redesign (Migration 0021) — the estimate-vs-actual reconciliation
+ * flow has been retired. If a price/availability change in-store would
+ * materially affect the total, admin uses the chat to ask the buyer to
+ * cancel + rebook (parent-link supported) rather than mutating intake.
+ *
  * One screen, three columns of work:
- *   1. Header — buyer, status, money snapshot (intake + reconciliation)
- *   2. Lines — per-line reconciliation (actual price + procurement status)
+ *   1. Header — buyer, status, money snapshot
+ *   2. Lines — per-line procurement status (no actuals capture)
  *   3. Workflow rail — status-aware action buttons:
- *        PAID                  → Start procurement
- *        PROCURING             → Set shipping cost · Finalize reconciliation
- *        AWAITING_RECONCILIATION → Send follow-up (Checkout / Refund / Skip)
- *        READY_TO_SHIP         → Ship
- *        SHIPPED               → Mark delivered (manual override)
- *        any in-flight         → Cancel
+ *        PAID                → Start procurement
+ *        PROCURING           → Save shipping (method + weight + destination)
+ *                              Auto → AWAITING_DELIVERY when every line is
+ *                              marked purchased / unavailable.
+ *        AWAITING_DELIVERY   → Mark items delivered to warehouse
+ *        READY_TO_SHIP       → Ship (carrier + tracking)
+ *        SHIPPED             → done
+ *        any in-flight       → Cancel (footer danger zone)
  *   4. Chat panel — full thread, admin composer
  *
  * The page polls the thread every 12s while the tab is visible so a
@@ -54,6 +61,9 @@ const TONE: Record<ShopperRequestStatus, "neutral" | "info" | "success" | "warni
   AWAITING_INTAKE_PAYMENT: "warning",
   PAID: "info",
   PROCURING: "info",
+  // Migration 0021 — Phase 2 shopper redesign. Items purchased, waiting
+  // for them to arrive at our warehouse before shipping onward.
+  AWAITING_DELIVERY: "info",
   AWAITING_RECONCILIATION: "warning",
   READY_TO_SHIP: "info",
   SHIPPED: "info",
@@ -167,56 +177,29 @@ export default function AdminShopperDetailPage(): JSX.Element {
 
 function MoneyPanel({ request }: { request: ShopperRequestSnapshot }): JSX.Element {
   const r = request;
+  // Phase 2 redesign — the row of "actuals" disappeared because intake is
+  // the final cost the buyer pays. We still surface shipping cost separately
+  // because it's set during procurement (after intake) and admins need to
+  // know whether they've assigned a method yet.
   return (
     <section className="rounded-md border border-line bg-white p-6">
       <h2 className="mb-4 font-mono text-mono-label uppercase text-text-muted">Money</h2>
       <div className="grid gap-4 md:grid-cols-4">
-        <Stat label="Items estimate" value={dollars(r.itemsSubtotalCents)} />
+        <Stat label="Items" value={dollars(r.itemsSubtotalCents)} />
         <Stat label="Service fee" value={dollars(r.commissionCents)} />
         <Stat
           label={
             r.effectiveTaxState
-              ? `Est. ${r.effectiveTaxState} tax (${(r.estimatedTaxRateBps / 100).toFixed(2)}%)`
-              : "Est. sales tax"
+              ? `${r.effectiveTaxState} tax (${(r.estimatedTaxRateBps / 100).toFixed(2)}%)`
+              : "Sales tax"
           }
           value={dollars(r.estimatedTaxCents)}
         />
         <Stat label="Intake total" value={dollars(r.intakeTotalCents)} emphasis />
       </div>
-      <div className="mt-3 grid gap-4 md:grid-cols-4">
-        <Stat label="Items actual" value={dollars(r.itemsActualSubtotalCents)} />
-        <Stat label="Actual sales tax" value={dollars(r.actualTaxCents)} />
-        <Stat label="Shipping cost" value={dollars(r.shippingCostCents)} />
-        <Stat
-          label={
-            r.followupAmountCents == null
-              ? "Follow-up"
-              : r.followupAmountCents > 0
-                ? "Buyer owes"
-                : r.followupAmountCents < 0
-                  ? "Refund to buyer"
-                  : "Settled (zero delta)"
-          }
-          value={
-            r.followupAmountCents == null
-              ? "—"
-              : dollars(Math.abs(r.followupAmountCents))
-          }
-          emphasis
-          tone={
-            r.followupAmountCents == null
-              ? "neutral"
-              : r.followupAmountCents > 0
-                ? "amber"
-                : r.followupAmountCents < 0
-                  ? "success"
-                  : "neutral"
-          }
-        />
-      </div>
       <div className="mt-3 grid gap-4 md:grid-cols-3 font-mono text-mono-label uppercase text-text-muted">
         <span>Intake paid: {r.intakePaidAt ? fmtTime(r.intakePaidAt) : "—"}</span>
-        <span>Follow-up resolved: {r.followupResolvedAt ? fmtTime(r.followupResolvedAt) : "—"}</span>
+        <span>Shipping: {dollars(r.shippingCostCents)}</span>
         <span>
           Tracking: {r.carrier && r.trackingNumber ? `${r.carrier} · ${r.trackingNumber}` : "—"}
         </span>
@@ -240,25 +223,18 @@ function LinesPanel({
   status: ShopperRequestStatus;
   onChange: () => void;
 }): JSX.Element {
-  // Editing is gated to PROCURING — once admin has finalized reconciliation
-  // the actuals are snapshotted into the follow-up amount and shouldn't drift.
+  // Editing is gated to PROCURING — once admin has moved the request past
+  // procurement (AWAITING_DELIVERY onwards) the line statuses are locked.
+  // If price/availability changes after this point, admin cancels + rebooks
+  // rather than mutating in place.
   const editable = status === "PROCURING";
 
-  // Totals — derived purely from the lines on screen, no extra round trip.
-  // Shown so the admin (and the warehouse) can sanity-check the parcel
-  // weight against the sum-of-lines weight at pack time.
   const totalUnits = lines.reduce((sum, l) => sum + l.quantity, 0);
-  const linesWithWeight = lines.filter((l) => l.actualWeightOz != null);
-  const totalWeightOz = linesWithWeight.reduce(
-    (sum, l) => sum + (l.actualWeightOz ?? 0) * l.quantity,
-    0,
-  );
-  const allWeighed = linesWithWeight.length === lines.length && lines.length > 0;
 
   return (
     <section className="rounded-md border border-line bg-white p-6">
       <h2 className="mb-4 font-mono text-mono-label uppercase text-text-muted">
-        Lines {editable ? "" : "(read-only — reconciliation finalized)"}
+        Lines {editable ? "" : "(read-only)"}
       </h2>
       <ul className="flex flex-col divide-y divide-line">
         {lines.map((line) => (
@@ -272,24 +248,10 @@ function LinesPanel({
         ))}
       </ul>
 
-      {/* Totals footer — quick reference at pack time. */}
-      <div className="mt-4 grid gap-4 border-t border-line pt-4 md:grid-cols-3">
+      <div className="mt-4 grid gap-4 border-t border-line pt-4 md:grid-cols-2">
         <Stat label="Lines" value={String(lines.length)} />
         <Stat label="Total units" value={String(totalUnits)} />
-        <Stat
-          label={allWeighed ? "Total weight (oz)" : "Total weight (oz, partial)"}
-          value={
-            linesWithWeight.length === 0
-              ? "—"
-              : `${totalWeightOz.toFixed(2)}${allWeighed ? "" : " *"}`
-          }
-        />
       </div>
-      {!allWeighed && linesWithWeight.length > 0 ? (
-        <p className="mt-2 text-caption text-text-muted">
-          * Some lines don&apos;t have an actual weight yet. The sum above only counts those that do.
-        </p>
-      ) : null}
     </section>
   );
 }
@@ -305,48 +267,27 @@ function LineRow({
   editable: boolean;
   onChange: () => void;
 }): JSX.Element {
-  const [actualDollars, setActualDollars] = useState<string>(
-    line.actualUnitPriceCents != null ? (line.actualUnitPriceCents / 100).toFixed(2) : "",
-  );
+  // Phase 2 shopper redesign — actuals reconciliation is retired. If the
+  // price admin sees at the store differs from the buyer's estimate,
+  // admin uses the chat to ask the buyer to cancel + rebook rather than
+  // capturing actuals. So this row only carries: status, title override,
+  // optional note. The Save Line button persists those three and triggers
+  // the per-status notification email.
   const [procStatus, setProcStatus] = useState<ShopperLineProcurementStatus>(
     (line.procurementStatus as ShopperLineProcurementStatus) ?? "pending",
   );
   const [productTitle, setProductTitle] = useState<string>(line.productTitle ?? "");
   const [notes, setNotes] = useState<string>("");
-  // Per-line actual weight (oz, per unit — multiplied by quantity for the
-  // total). Float string so warehouse can enter fractional ounces.
-  const [actualWeight, setActualWeight] = useState<string>(
-    line.actualWeightOz != null ? line.actualWeightOz.toString() : "",
-  );
   const { bannerError, handle, clear } = useApiErrorHandler();
 
   const save = useMutation({
     mutationFn: () => {
       const body: Record<string, unknown> = { procurementStatus: procStatus };
-      const trimmedDollars = actualDollars.trim();
-      if (trimmedDollars.length > 0) {
-        const cents = Math.round(Number(trimmedDollars) * 100);
-        if (Number.isFinite(cents) && cents >= 0) {
-          body.actualUnitPriceCents = cents;
-        }
-      } else if (line.actualUnitPriceCents != null) {
-        // Explicit clear back to null.
-        body.actualUnitPriceCents = null;
-      }
       if (productTitle.trim() !== (line.productTitle ?? "")) {
         body.productTitle = productTitle.trim();
       }
       if (notes.trim().length > 0) {
         body.procurementNotes = notes.trim();
-      }
-      const trimmedWeight = actualWeight.trim();
-      if (trimmedWeight.length > 0) {
-        const oz = Number(trimmedWeight);
-        if (Number.isFinite(oz) && oz >= 0) {
-          body.actualWeightOz = oz;
-        }
-      } else if (line.actualWeightOz != null) {
-        body.actualWeightOz = null;
       }
       return api.patch<ShopperLineSnapshot>(`/admin/shopper/${requestId}/lines/${line.id}`, body);
     },
@@ -358,7 +299,7 @@ function LineRow({
   });
 
   return (
-    <li className="grid gap-3 py-4 md:grid-cols-[2fr_80px_120px_140px_120px_160px_auto]">
+    <li className="grid gap-3 py-4 md:grid-cols-[2fr_80px_120px_minmax(220px,1fr)]">
       <div className="min-w-0">
         <a
           href={line.productUrl}
@@ -392,34 +333,6 @@ function LineRow({
             value={dollars(line.estimatedUnitPriceCents)}
             disabled
             className="bg-cream text-text-muted"
-          />
-        </Field>
-      </div>
-
-      <div>
-        <Field label="Actual ($)">
-          <Input
-            type="number"
-            step="0.01"
-            min={0}
-            value={actualDollars}
-            disabled={!editable}
-            onChange={(e) => setActualDollars(e.target.value)}
-            placeholder="0.00"
-          />
-        </Field>
-      </div>
-
-      <div>
-        <Field label="Weight (oz, per unit)">
-          <Input
-            type="number"
-            step="0.01"
-            min={0}
-            value={actualWeight}
-            disabled={!editable}
-            onChange={(e) => setActualWeight(e.target.value)}
-            placeholder="0.00"
           />
         </Field>
       </div>
@@ -493,13 +406,7 @@ function WorkflowPanel({
   const post = useMutation({
     mutationFn: (args: { path: string; body?: unknown }) =>
       api.post<unknown>(`/admin/shopper/${id}${args.path}`, args.body),
-    onSuccess: (data, vars) => {
-      // Surface the Stripe Checkout URL when finalize→send-followup returns one.
-      if (vars.path === "/followup/send" && isCheckoutBranch(data)) {
-        if (typeof window !== "undefined" && data.payUrl?.startsWith("https://")) {
-          window.open(data.payUrl, "_blank", "noopener,noreferrer");
-        }
-      }
+    onSuccess: () => {
       onChange();
     },
     onError: (err) => handle(err),
@@ -523,25 +430,19 @@ function WorkflowPanel({
   });
   const freightRates = freightRatesQuery.data?.rates ?? {};
 
-  // Local form state (shipping cost, ship action carrier+tracking, cancel reason)
-  const [shippingDollars, setShippingDollars] = useState("");
-  // Default the method picker to whatever's already saved on the row so
-  // the operator doesn't have to re-pick on every save (and so the live
-  // calc has a method to multiply against on first render).
+  // Phase 2 redesign — actuals reconciliation + manual-override are retired.
+  // The setShipping action accepts: method, parcel weight (pounds), optional
+  // parcel dimensions, and the destination address. The receipt always
+  // shows weight × rate so the buyer can see exactly what was charged.
   const [shippingMethod, setShippingMethod] = useState<"" | "PLATFORM_FREIGHT" | "BUYER_FORWARDER" | "PICKUP">(
     (r.shippingMethod as "" | "PLATFORM_FREIGHT" | "BUYER_FORWARDER" | "PICKUP") ?? "",
   );
-  // Migration 0017 — admin can either trust the system calc or override
-  // it with a manual cost. Default to "use calculated" so the new flow
-  // is the path of least resistance.
-  const [useCalculated, setUseCalculated] = useState(true);
-  // Pre-populate the actual-tax input with whatever's already on the row,
-  // so an admin who's editing a previously-saved value sees it.
-  const [actualTaxDollars, setActualTaxDollars] = useState(
-    r.actualTaxCents != null ? (r.actualTaxCents / 100).toFixed(2) : "",
+  // Weight is captured in pounds (LB). The backend persists ounces so the
+  // receipt and rate-card math line up, so we convert at submit time:
+  //     pounds × 16 = ounces.
+  const [parcelWeightLb, setParcelWeightLb] = useState(
+    r.parcelWeightOz != null ? (r.parcelWeightOz / 16).toFixed(2) : "",
   );
-  // Parcel dimensions + total weight — pre-populated from the row so an
-  // admin who's editing a previously-saved value sees them.
   const [parcelLength, setParcelLength] = useState(
     r.parcelLengthIn != null ? r.parcelLengthIn.toString() : "",
   );
@@ -551,14 +452,23 @@ function WorkflowPanel({
   const [parcelHeight, setParcelHeight] = useState(
     r.parcelHeightIn != null ? r.parcelHeightIn.toString() : "",
   );
-  const [parcelWeight, setParcelWeight] = useState(
-    r.parcelWeightOz != null ? r.parcelWeightOz.toString() : "",
+  // Destination address — pre-populated from the request if intake captured
+  // it, otherwise blank so admin can paste from the chat. Saved alongside
+  // shipping so the label/receipt always have the latest version.
+  const [destRecipientName, setDestRecipientName] = useState(
+    r.shippingAddress?.recipientName ?? r.buyerName ?? "",
   );
+  const [destLine1, setDestLine1] = useState(r.shippingAddress?.line1 ?? "");
+  const [destLine2, setDestLine2] = useState(r.shippingAddress?.line2 ?? "");
+  const [destCity, setDestCity] = useState(r.shippingAddress?.city ?? "");
+  const [destState, setDestState] = useState(r.shippingAddress?.state ?? "");
+  const [destPostalCode, setDestPostalCode] = useState(r.shippingAddress?.postalCode ?? "");
+  const [destCountry, setDestCountry] = useState(r.shippingAddress?.country ?? "US");
+
   const [carrier, setCarrier] = useState("");
   const [trackingNumber, setTrackingNumber] = useState("");
   const [cancelReason, setCancelReason] = useState("");
   const [issueRefund, setIssueRefund] = useState(true);
-  const [followupNote, setFollowupNote] = useState("");
 
   return (
     <section className="rounded-md border border-line bg-white p-6">
@@ -593,249 +503,240 @@ function WorkflowPanel({
         {actions.includes("shipping") ? (
           (() => {
             // Live freight calculation. Mirrors the backend formula:
-            //   cost (cents) = (weight_oz / 16) × rate_cents_per_lb
-            // Re-runs every render as the operator types weight or
-            // changes method, so the displayed preview always tracks
-            // what the server will actually charge.
-            const liveWeightOz = (() => {
-              const n = Number(parcelWeight);
+            //   cost (cents) = pounds × rate_cents_per_lb
+            // We display the result so the operator can sanity-check
+            // before saving. The server recomputes from the same map so
+            // the number on screen is the number the buyer is charged.
+            const liveWeightLb = (() => {
+              const n = Number(parcelWeightLb);
               return Number.isFinite(n) && n >= 0 ? n : 0;
             })();
             const liveRateCentsPerLb = shippingMethod
               ? freightRates[shippingMethod] ?? 0
               : 0;
             const liveCalculatedCents =
-              liveWeightOz > 0
-                ? Math.round((liveWeightOz / 16) * liveRateCentsPerLb)
+              liveWeightLb > 0
+                ? Math.round(liveWeightLb * liveRateCentsPerLb)
                 : 0;
+            // Save is disabled unless every required field is filled —
+            // destination + method + a positive weight. Dimensions stay
+            // optional.
+            const destReady =
+              destRecipientName.trim().length > 0 &&
+              destLine1.trim().length > 0 &&
+              destCity.trim().length > 0 &&
+              /^[A-Za-z]{2}$/.test(destState.trim()) &&
+              destPostalCode.trim().length > 0;
+            const shipReady = !!shippingMethod && liveWeightLb > 0 && destReady;
             return (
               <Action
-                title="Set shipping cost, sales tax &amp; parcel"
-                description={`Pick a method, enter the parcel weight, and the system computes the shipping cost from the per-lb rate. Override below if a real-world surcharge applies — the receipt shows both numbers. Tax estimate at intake: ${dollars(r.estimatedTaxCents)} (${r.effectiveTaxState ?? "unknown state"}, ${(r.estimatedTaxRateBps / 100).toFixed(2)}%).`}
-                disabled={post.isPending}
-                cta="Save shipping, tax &amp; parcel"
+                title="Save shipping"
+                description="Pick a method, enter parcel weight in pounds, and the destination. The system multiplies pounds × per-lb rate to compute shipping; the receipt always shows both numbers so the buyer can audit. Parcel dimensions are optional but recommended for the warehouse."
+                disabled={post.isPending || !shipReady}
+                cta="Yes, save"
                 onClick={() => {
                   clear();
                   const body: Record<string, unknown> = {
                     shippingMethod: shippingMethod || undefined,
-                    useCalculated,
+                    // Phase 2 redesign — admin no longer overrides the
+                    // calculated cost. Always opt into the server's
+                    // weight × rate math.
+                    useCalculated: true,
                   };
-                  if (!useCalculated) {
-                    const cents = Math.round(Number(shippingDollars) * 100);
-                    if (!Number.isFinite(cents) || cents < 0) return;
-                    body.shippingCostCents = cents;
-                  }
-                  const trimmedTax = actualTaxDollars.trim();
-                  if (trimmedTax.length > 0) {
-                    const taxCents = Math.round(Number(trimmedTax) * 100);
-                    if (Number.isFinite(taxCents) && taxCents >= 0) {
-                      body.actualTaxCents = taxCents;
-                    }
-                  }
-                  // Parcel dimensions — each one independently. Empty stays
-                  // unset; a number sets; a typo (NaN) is silently dropped.
+                  // Backend persists ounces — convert pounds at the wire.
+                  body.parcelWeightOz = Math.round(liveWeightLb * 16 * 100) / 100;
                   for (const [key, raw] of [
                     ["parcelLengthIn", parcelLength],
                     ["parcelWidthIn", parcelWidth],
                     ["parcelHeightIn", parcelHeight],
-                    ["parcelWeightOz", parcelWeight],
                   ] as const) {
                     const v = raw.trim();
                     if (v.length === 0) continue;
                     const n = Number(v);
                     if (Number.isFinite(n) && n >= 0) body[key] = n;
                   }
+                  body.shippingAddress = {
+                    recipientName: destRecipientName.trim(),
+                    line1: destLine1.trim(),
+                    line2: destLine2.trim() || undefined,
+                    city: destCity.trim(),
+                    state: destState.trim().toUpperCase(),
+                    postalCode: destPostalCode.trim(),
+                    country: (destCountry.trim() || "US").toUpperCase(),
+                  };
                   post.mutate({ path: "/shipping", body });
                 }}
               >
-            <div className="grid gap-3 md:grid-cols-[1fr_1fr_1fr]">
-              <Field label="Method">
-                <select
-                  value={shippingMethod}
-                  onChange={(e) =>
-                    setShippingMethod(e.target.value as typeof shippingMethod)
-                  }
-                  className="h-11 w-full rounded-sm border border-line-strong bg-cream-soft px-3 text-body text-text outline-none focus:border-ink focus:ring-2 focus:ring-ink/10"
-                >
-                  <option value="">— pick a method —</option>
-                  <option value="PLATFORM_FREIGHT">
-                    Platform freight {liveRateCentsPerLb || freightRates.PLATFORM_FREIGHT
-                      ? `(${dollars(freightRates.PLATFORM_FREIGHT ?? 0)}/lb)`
-                      : ""}
-                  </option>
-                  <option value="BUYER_FORWARDER">
-                    Buyer forwarder {freightRates.BUYER_FORWARDER != null
-                      ? `(${dollars(freightRates.BUYER_FORWARDER)}/lb)`
-                      : ""}
-                  </option>
-                  <option value="PICKUP">
-                    Pickup {freightRates.PICKUP != null ? `(${dollars(freightRates.PICKUP)}/lb)` : ""}
-                  </option>
-                </select>
-              </Field>
-              <Field label="Total weight (oz)">
-                <Input
-                  type="number"
-                  step="0.01"
-                  min={0}
-                  value={parcelWeight}
-                  onChange={(e) => setParcelWeight(e.target.value)}
-                  placeholder={r.parcelWeightOz != null ? r.parcelWeightOz.toString() : "0"}
-                />
-              </Field>
-              <Field label="Calculated cost">
-                <div className="flex h-11 items-center justify-between rounded-sm border border-line bg-cream-soft px-3 font-mono text-body tabular-nums text-ink">
-                  <span>{dollars(liveCalculatedCents)}</span>
-                  <span className="font-mono text-mono-label uppercase text-text-muted">
-                    {liveWeightOz > 0 && liveRateCentsPerLb > 0
-                      ? `${(liveWeightOz / 16).toFixed(2)} lb × ${dollars(liveRateCentsPerLb)}/lb`
-                      : shippingMethod
-                        ? "enter weight"
-                        : "pick a method"}
-                  </span>
+                <div className="grid gap-3 md:grid-cols-[1fr_140px_1fr]">
+                  <Field label="Method">
+                    <select
+                      value={shippingMethod}
+                      onChange={(e) =>
+                        setShippingMethod(e.target.value as typeof shippingMethod)
+                      }
+                      className="h-11 w-full rounded-sm border border-line-strong bg-cream-soft px-3 text-body text-text outline-none focus:border-ink focus:ring-2 focus:ring-ink/10"
+                    >
+                      <option value="">— pick a method —</option>
+                      <option value="PLATFORM_FREIGHT">
+                        Platform freight {freightRates.PLATFORM_FREIGHT != null
+                          ? `(${dollars(freightRates.PLATFORM_FREIGHT)}/lb)`
+                          : ""}
+                      </option>
+                      <option value="BUYER_FORWARDER">
+                        Buyer forwarder {freightRates.BUYER_FORWARDER != null
+                          ? `(${dollars(freightRates.BUYER_FORWARDER)}/lb)`
+                          : ""}
+                      </option>
+                      <option value="PICKUP">
+                        Pickup {freightRates.PICKUP != null
+                          ? `(${dollars(freightRates.PICKUP)}/lb)`
+                          : ""}
+                      </option>
+                    </select>
+                  </Field>
+                  <Field label="Total weight (lb)">
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min={0}
+                      value={parcelWeightLb}
+                      onChange={(e) => setParcelWeightLb(e.target.value)}
+                      placeholder="0.00"
+                    />
+                  </Field>
+                  <Field label="Calculated cost">
+                    <div className="flex h-11 items-center justify-between rounded-sm border border-line bg-cream-soft px-3 font-mono text-body tabular-nums text-ink">
+                      <span>{dollars(liveCalculatedCents)}</span>
+                      <span className="font-mono text-mono-label uppercase text-text-muted">
+                        {liveWeightLb > 0 && liveRateCentsPerLb > 0
+                          ? `${liveWeightLb.toFixed(2)} lb × ${dollars(liveRateCentsPerLb)}/lb`
+                          : shippingMethod
+                            ? "enter weight"
+                            : "pick a method"}
+                      </span>
+                    </div>
+                  </Field>
                 </div>
-              </Field>
-            </div>
 
-            {/* Override toggle. Default is ON — admin trusts the system
-                calc. Flipping it OFF reveals a manual cost input that
-                lands in shippingCostCents instead. */}
-            <div className="mt-4 flex items-start gap-3 rounded-sm border border-line bg-cream-soft p-3">
-              <input
-                type="checkbox"
-                checked={useCalculated}
-                onChange={(e) => setUseCalculated(e.target.checked)}
-                id={`use-calc-${id}`}
-                className="mt-1 h-4 w-4 accent-amber"
-              />
-              <label htmlFor={`use-calc-${id}`} className="flex-1 text-body-sm text-text">
-                <span className="font-medium text-ink">Charge the calculated amount</span>
-                <span className="block text-text-muted">
-                  Uncheck to override with a manual cost (carrier surcharge, partner pricing, etc.).
-                  Receipt always shows both numbers so the buyer sees any adjustment.
-                </span>
-              </label>
-            </div>
+                <div className="mt-4">
+                  <h4 className="mb-2 font-mono text-mono-label uppercase text-text-muted">
+                    Destination address
+                  </h4>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <Field label="Recipient name">
+                      <Input
+                        type="text"
+                        value={destRecipientName}
+                        onChange={(e) => setDestRecipientName(e.target.value)}
+                        placeholder="Jane Doe"
+                      />
+                    </Field>
+                    <Field label="Country (ISO 2)">
+                      <Input
+                        type="text"
+                        maxLength={2}
+                        value={destCountry}
+                        onChange={(e) => setDestCountry(e.target.value.toUpperCase())}
+                        placeholder="US"
+                      />
+                    </Field>
+                    <Field label="Address line 1" className="md:col-span-2">
+                      <Input
+                        type="text"
+                        value={destLine1}
+                        onChange={(e) => setDestLine1(e.target.value)}
+                        placeholder="123 Main St"
+                      />
+                    </Field>
+                    <Field label="Address line 2 (optional)" className="md:col-span-2">
+                      <Input
+                        type="text"
+                        value={destLine2}
+                        onChange={(e) => setDestLine2(e.target.value)}
+                        placeholder="Apt, suite, unit…"
+                      />
+                    </Field>
+                    <Field label="City">
+                      <Input
+                        type="text"
+                        value={destCity}
+                        onChange={(e) => setDestCity(e.target.value)}
+                        placeholder="Brooklyn"
+                      />
+                    </Field>
+                    <Field label="State (2-letter)">
+                      <Input
+                        type="text"
+                        maxLength={2}
+                        value={destState}
+                        onChange={(e) => setDestState(e.target.value.toUpperCase())}
+                        placeholder="NY"
+                      />
+                    </Field>
+                    <Field label="Postal code">
+                      <Input
+                        type="text"
+                        value={destPostalCode}
+                        onChange={(e) => setDestPostalCode(e.target.value)}
+                        placeholder="11201"
+                      />
+                    </Field>
+                  </div>
+                </div>
 
-            <div className="mt-4 grid gap-3 md:grid-cols-2">
-              {!useCalculated ? (
-                <Field label="Override cost ($)">
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min={0}
-                    value={shippingDollars}
-                    onChange={(e) => setShippingDollars(e.target.value)}
-                    placeholder={(liveCalculatedCents / 100).toFixed(2)}
-                  />
-                </Field>
-              ) : null}
-              <Field label="Actual sales tax ($)">
-                <Input
-                  type="number"
-                  step="0.01"
-                  min={0}
-                  value={actualTaxDollars}
-                  onChange={(e) => setActualTaxDollars(e.target.value)}
-                  placeholder={(r.estimatedTaxCents / 100).toFixed(2)}
-                />
-              </Field>
-            </div>
-
-            {/* Packed-parcel dimensions — captured at pack time. Used by
-                the warehouse to sanity-check the carrier rate and by the
-                buyer thread to show the box that's actually shipping.
-                Total weight lives in the top row above so the live calc
-                can reference it. */}
-            <div className="mt-4 grid gap-3 md:grid-cols-3">
-              <Field label="Length (in)">
-                <Input
-                  type="number"
-                  step="0.1"
-                  min={0}
-                  value={parcelLength}
-                  onChange={(e) => setParcelLength(e.target.value)}
-                  placeholder="—"
-                />
-              </Field>
-              <Field label="Width (in)">
-                <Input
-                  type="number"
-                  step="0.1"
-                  min={0}
-                  value={parcelWidth}
-                  onChange={(e) => setParcelWidth(e.target.value)}
-                  placeholder="—"
-                />
-              </Field>
-              <Field label="Height (in)">
-                <Input
-                  type="number"
-                  step="0.1"
-                  min={0}
-                  value={parcelHeight}
-                  onChange={(e) => setParcelHeight(e.target.value)}
-                  placeholder="—"
-                />
-              </Field>
-            </div>
-          </Action>
+                <div className="mt-4">
+                  <h4 className="mb-2 font-mono text-mono-label uppercase text-text-muted">
+                    Parcel dimensions (optional)
+                  </h4>
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <Field label="Length (in)">
+                      <Input
+                        type="number"
+                        step="0.1"
+                        min={0}
+                        value={parcelLength}
+                        onChange={(e) => setParcelLength(e.target.value)}
+                        placeholder="—"
+                      />
+                    </Field>
+                    <Field label="Width (in)">
+                      <Input
+                        type="number"
+                        step="0.1"
+                        min={0}
+                        value={parcelWidth}
+                        onChange={(e) => setParcelWidth(e.target.value)}
+                        placeholder="—"
+                      />
+                    </Field>
+                    <Field label="Height (in)">
+                      <Input
+                        type="number"
+                        step="0.1"
+                        min={0}
+                        value={parcelHeight}
+                        onChange={(e) => setParcelHeight(e.target.value)}
+                        placeholder="—"
+                      />
+                    </Field>
+                  </div>
+                </div>
+              </Action>
             );
           })()
         ) : null}
 
-        {actions.includes("finalize") ? (
+        {actions.includes("delivered_to_warehouse") ? (
           <Action
-            title="Finalize reconciliation"
-            description="Locks line actuals + computes the follow-up amount. Requires every line to have an actual price (or be marked unavailable with $0) and a shipping cost."
-            cta="Finalize"
-            disabled={post.isPending || r.shippingCostCents == null}
+            title="Items delivered to warehouse"
+            description="Use this once every line has physically arrived and is ready to pack. Moves the request to READY_TO_SHIP so you can buy a label."
+            cta="Mark delivered to warehouse"
+            disabled={post.isPending}
             onClick={() => {
               clear();
-              post.mutate({ path: "/finalize" });
+              post.mutate({ path: "/delivered-to-warehouse" });
             }}
           />
-        ) : null}
-
-        {actions.includes("followup") ? (
-          <Action
-            title="Send follow-up"
-            description={
-              r.followupAmountCents == null
-                ? "Run finalize first."
-                : r.followupAmountCents > 0
-                  ? "Issues a Stripe Checkout link for the buyer to pay the difference + shipping."
-                  : r.followupAmountCents < 0
-                    ? "Issues a Stripe refund for the difference. Caps at the original intake amount."
-                    : "No money moves — short-circuits to READY_TO_SHIP."
-            }
-            cta={
-              r.followupAmountCents == null
-                ? "—"
-                : r.followupAmountCents > 0
-                  ? "Send checkout"
-                  : r.followupAmountCents < 0
-                    ? "Issue refund"
-                    : "Skip (zero delta)"
-            }
-            disabled={post.isPending || r.followupAmountCents == null}
-            onClick={() => {
-              clear();
-              post.mutate({
-                path: "/followup/send",
-                body: { message: followupNote.trim() ? followupNote.trim() : undefined },
-              });
-            }}
-          >
-            <Field label="Optional message to buyer (chat)">
-              <Input
-                type="text"
-                value={followupNote}
-                onChange={(e) => setFollowupNote(e.target.value)}
-                placeholder="Anything to add to the chat with the invoice"
-              />
-            </Field>
-          </Action>
         ) : null}
 
         {actions.includes("ship") ? (
@@ -867,44 +768,60 @@ function WorkflowPanel({
           </Action>
         ) : null}
 
-        {actions.includes("cancel") ? (
-          <Action
-            title="Cancel"
-            description="Stops the workflow. Optional refund of intake (positive amount only — partial follow-up refunds are TBD)."
-            cta="Cancel request"
-            danger
-            disabled={post.isPending || cancelReason.trim().length < 2}
-            onClick={() => {
-              clear();
-              post.mutate({
-                path: "/cancel",
-                body: { reason: cancelReason.trim(), issueRefund },
-              });
-            }}
-          >
-            <Field label="Reason (audit log)">
-              <Input
-                value={cancelReason}
-                onChange={(e) => setCancelReason(e.target.value)}
-                placeholder="Why is this being cancelled?"
-              />
-            </Field>
-            <label className="mt-3 flex items-center gap-2 text-body-sm">
-              <input
-                type="checkbox"
-                checked={issueRefund}
-                onChange={(e) => setIssueRefund(e.target.checked)}
-                className="h-4 w-4 accent-amber"
-              />
-              Refund the buyer&apos;s intake payment ({dollars(r.intakeTotalCents)})
-            </label>
-          </Action>
-        ) : null}
-
         {actions.length === 0 ? (
           <p className="text-body-sm text-text-muted">
             No further admin actions for this status.
           </p>
+        ) : null}
+
+        {/* Danger zone footer — cancel is always last and visually
+            separated so it isn't reached for accidentally. */}
+        {actions.includes("cancel") ? (
+          <div className="mt-2 rounded-sm border border-error/30 bg-error/5 p-4">
+            <h3 className="font-mono text-mono-label uppercase text-error">Danger zone</h3>
+            <p className="mt-1 text-body-sm text-text-muted">
+              Cancelling stops the workflow. Optionally refund the buyer&apos;s intake payment
+              ({dollars(r.intakeTotalCents)}).
+            </p>
+            <div className="mt-3 flex flex-col gap-3">
+              <Field label="Reason (audit log)">
+                <Input
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  placeholder="Why is this being cancelled?"
+                />
+              </Field>
+              <div className="flex items-center gap-2 text-body-sm">
+                <input
+                  type="checkbox"
+                  id={`refund-toggle-${id}`}
+                  checked={issueRefund}
+                  onChange={(e) => setIssueRefund(e.target.checked)}
+                  className="h-4 w-4 accent-amber"
+                />
+                <label htmlFor={`refund-toggle-${id}`}>
+                  Refund the buyer&apos;s intake payment ({dollars(r.intakeTotalCents)})
+                </label>
+              </div>
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  variant="danger"
+                  size="sm"
+                  disabled={post.isPending || cancelReason.trim().length < 2}
+                  onClick={() => {
+                    clear();
+                    post.mutate({
+                      path: "/cancel",
+                      body: { reason: cancelReason.trim(), issueRefund },
+                    });
+                  }}
+                >
+                  Cancel request
+                </Button>
+              </div>
+            </div>
+          </div>
         ) : null}
       </div>
     </section>
@@ -951,7 +868,7 @@ function Action({
 }
 
 function statusActions(status: ShopperRequestStatus): Array<
-  "start" | "shipping" | "finalize" | "followup" | "ship" | "cancel"
+  "start" | "shipping" | "delivered_to_warehouse" | "ship" | "cancel"
 > {
   switch (status) {
     case "AWAITING_INTAKE_PAYMENT":
@@ -959,9 +876,17 @@ function statusActions(status: ShopperRequestStatus): Array<
     case "PAID":
       return ["start", "cancel"];
     case "PROCURING":
-      return ["shipping", "finalize", "cancel"];
+      // Phase 2 redesign — shipping form is always visible during
+      // procurement. Auto-transition to AWAITING_DELIVERY happens
+      // server-side when every line is purchased / unavailable.
+      return ["shipping", "cancel"];
+    case "AWAITING_DELIVERY":
+      return ["shipping", "delivered_to_warehouse", "cancel"];
     case "AWAITING_RECONCILIATION":
-      return ["followup", "cancel"];
+      // Legacy bucket from before the redesign — pre-migration rows that
+      // landed here can still be moved forward by editing shipping and
+      // marking shipped.
+      return ["shipping", "ship", "cancel"];
     case "READY_TO_SHIP":
       return ["ship", "cancel"];
     case "SHIPPED":
@@ -969,12 +894,6 @@ function statusActions(status: ShopperRequestStatus): Array<
     default:
       return [];
   }
-}
-
-function isCheckoutBranch(data: unknown): data is { branch: "checkout"; payUrl: string } {
-  if (!data || typeof data !== "object") return false;
-  const d = data as { branch?: string; payUrl?: string };
-  return d.branch === "checkout" && typeof d.payUrl === "string";
 }
 
 // ---------------------------------------------------------------------------
