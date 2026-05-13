@@ -45,6 +45,7 @@ const STATUS_TONE: Record<ShopperRequestStatus, "neutral" | "info" | "success" |
   AWAITING_DELIVERY: "info",
   AWAITING_RECONCILIATION: "warning",
   READY_TO_SHIP: "info",
+  READY_FOR_PICKUP: "info",
   SHIPPED: "info",
   DELIVERED: "success",
   CANCELLED: "neutral",
@@ -70,6 +71,7 @@ const STATUS_LABEL: Record<ShopperRequestStatus, string> = {
   AWAITING_DELIVERY: "Items purchased — awaiting delivery to our warehouse",
   AWAITING_RECONCILIATION: "Final invoice ready",
   READY_TO_SHIP: "Ready to ship",
+  READY_FOR_PICKUP: "Ready for pickup",
   SHIPPED: "In transit",
   DELIVERED: "Delivered",
   CANCELLED: "Cancelled",
@@ -497,6 +499,8 @@ function buyerCallout(status: ShopperRequestStatus): string | null {
       return "Final invoice ready — check your email for the payment / refund details.";
     case "READY_TO_SHIP":
       return "Items secured. Your package is being prepared for dispatch.";
+    case "READY_FOR_PICKUP":
+      return "Ready for pickup at the warehouse. Bring the pickup name shown on your invoice when you collect.";
     case "SHIPPED":
       return "On the way. Tracking is shown above.";
     case "DELIVERED":

@@ -24,6 +24,10 @@ export const SHOPPER_REQUEST_STATUS = [
   "AWAITING_DELIVERY",
   "AWAITING_RECONCILIATION",
   "READY_TO_SHIP",
+  // Migration 0025a — PICKUP-method readiness state. Distinct from
+  // READY_TO_SHIP so the UI can show "ready for buyer pickup" instead
+  // of "ready to ship" when the method is PICKUP.
+  "READY_FOR_PICKUP",
   "SHIPPED",
   "DELIVERED",
   "CANCELLED",
@@ -57,6 +61,8 @@ export type ShopperIdVerificationStatus =
 
 export const SHOPPER_SHIPPING_METHOD = [
   "PLATFORM_FREIGHT",
+  // Migration 0025a — buyer supplies their own carrier label.
+  "BUYER_FREIGHT",
   "BUYER_FORWARDER",
   "PICKUP",
 ] as const;

@@ -66,6 +66,7 @@ const TONE: Record<ShopperRequestStatus, "neutral" | "info" | "success" | "warni
   AWAITING_DELIVERY: "info",
   AWAITING_RECONCILIATION: "warning",
   READY_TO_SHIP: "info",
+  READY_FOR_PICKUP: "info",
   SHIPPED: "info",
   DELIVERED: "success",
   CANCELLED: "neutral",
@@ -277,11 +278,40 @@ function IdReviewCard({
   const [rejectMode, setRejectMode] = useState(false);
   const [reason, setReason] = useState("");
   const { bannerError, handle, clear } = useApiErrorHandler();
+  // Migration 0026 — "approve mode" reveals the bank-instructions form
+  // so the admin can pick a specific account number for THIS buyer
+  // before approving. The fields submit alongside the approve call.
+  const [approveMode, setApproveMode] = useState(false);
+  const [beneficiaryName, setBeneficiaryName] = useState("");
+  const [bankName, setBankName] = useState("");
+  const [accountNumber, setAccountNumber] = useState("");
+  const [routingNumber, setRoutingNumber] = useState("");
+  const [swift, setSwift] = useState("");
+  const [iban, setIban] = useState("");
+  const [memo, setMemo] = useState(`Order ${request.reference}`);
 
   const approve = useMutation({
-    mutationFn: () =>
-      api.post(`/admin/shopper/${request.id}/id/approve`, { note: "" }),
-    onSuccess: () => onChange(),
+    mutationFn: () => {
+      // Build the optional bankInstructions payload — omit entirely if
+      // the admin didn't type an account number, in which case the
+      // backend falls back to the global config row.
+      const body: Record<string, unknown> = { note: "" };
+      if (accountNumber.trim().length > 0) {
+        const bi: Record<string, string> = { accountNumber: accountNumber.trim() };
+        if (beneficiaryName.trim()) bi.beneficiaryName = beneficiaryName.trim();
+        if (bankName.trim()) bi.bankName = bankName.trim();
+        if (routingNumber.trim()) bi.routingNumber = routingNumber.trim();
+        if (swift.trim()) bi.swift = swift.trim();
+        if (iban.trim()) bi.iban = iban.trim();
+        if (memo.trim()) bi.memo = memo.trim();
+        body.bankInstructions = bi;
+      }
+      return api.post(`/admin/shopper/${request.id}/id/approve`, body);
+    },
+    onSuccess: () => {
+      setApproveMode(false);
+      onChange();
+    },
     onError: (err) => handle(err),
   });
 
@@ -406,6 +436,109 @@ function IdReviewCard({
               </Button>
             </div>
           </div>
+        ) : approveMode ? (
+          // Migration 0026 — bank-account form. Required: account
+          // number. Everything else optional so a domestic-only USD
+          // account fits as easily as an IBAN-only international one.
+          // The form posts the data alongside the approval — buyer
+          // gets the account in the chat thread + on their thread
+          // page immediately after admin clicks the confirm button.
+          <div className="flex flex-col gap-3 rounded-sm border border-line-strong bg-white p-4">
+            <div>
+              <div className="font-mono text-mono-label uppercase tracking-[1.2px] text-amber">
+                Approve + send account to buyer
+              </div>
+              <p className="mt-1 text-body-sm text-text-muted">
+                Type the account number you want the buyer to wire to. They&apos;ll
+                see it in their thread and receive it in chat the moment you
+                confirm. Leave the field blank to fall back to the platform&apos;s
+                default account.
+              </p>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <Field label="Account number (required to set per-request)">
+                <Input
+                  value={accountNumber}
+                  onChange={(e) => setAccountNumber(e.target.value)}
+                  placeholder="1234567890"
+                  autoComplete="off"
+                />
+              </Field>
+              <Field label="Beneficiary name (optional)">
+                <Input
+                  value={beneficiaryName}
+                  onChange={(e) => setBeneficiaryName(e.target.value)}
+                  placeholder="USA Errands LLC"
+                  autoComplete="off"
+                />
+              </Field>
+              <Field label="Bank name (optional)">
+                <Input
+                  value={bankName}
+                  onChange={(e) => setBankName(e.target.value)}
+                  placeholder="Bank of America"
+                  autoComplete="off"
+                />
+              </Field>
+              <Field label="Routing / ABA (optional)">
+                <Input
+                  value={routingNumber}
+                  onChange={(e) => setRoutingNumber(e.target.value)}
+                  placeholder="026009593"
+                  autoComplete="off"
+                />
+              </Field>
+              <Field label="SWIFT / BIC (optional)">
+                <Input
+                  value={swift}
+                  onChange={(e) => setSwift(e.target.value)}
+                  placeholder="BOFAUS3N"
+                  autoComplete="off"
+                />
+              </Field>
+              <Field label="IBAN (optional)">
+                <Input
+                  value={iban}
+                  onChange={(e) => setIban(e.target.value)}
+                  placeholder="DE89 3704…"
+                  autoComplete="off"
+                />
+              </Field>
+              <Field label="Memo / reference (optional, recommended)" className="md:col-span-2">
+                <Input
+                  value={memo}
+                  onChange={(e) => setMemo(e.target.value)}
+                  placeholder={`Order ${request.reference}`}
+                  autoComplete="off"
+                />
+              </Field>
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setApproveMode(false)}
+                disabled={approve.isPending}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="amber"
+                size="sm"
+                disabled={approve.isPending}
+                loading={approve.isPending}
+                onClick={() => approve.mutate()}
+              >
+                {approve.isPending
+                  ? "Approving…"
+                  : accountNumber.trim().length > 0
+                    ? "Approve + send account"
+                    : "Approve (use default account)"}
+              </Button>
+            </div>
+          </div>
         ) : (
           <div className="flex gap-2">
             <Button
@@ -414,9 +547,9 @@ function IdReviewCard({
               size="sm"
               disabled={approve.isPending}
               loading={approve.isPending}
-              onClick={() => approve.mutate()}
+              onClick={() => setApproveMode(true)}
             >
-              {approve.isPending ? "Approving…" : "Approve ID"}
+              Approve ID…
             </Button>
             <Button
               type="button"
@@ -853,9 +986,36 @@ function WorkflowPanel({
   // The setShipping action accepts: method, parcel weight (pounds), optional
   // parcel dimensions, and the destination address. The receipt always
   // shows weight × rate so the buyer can see exactly what was charged.
-  const [shippingMethod, setShippingMethod] = useState<"" | "PLATFORM_FREIGHT" | "BUYER_FORWARDER" | "PICKUP">(
-    (r.shippingMethod as "" | "PLATFORM_FREIGHT" | "BUYER_FORWARDER" | "PICKUP") ?? "",
+  // Migration 0025 — four shipping methods. Each one drives a different
+  // form below (rate/weight/dest only for the two freight modes; label
+  // upload only for BUYER_FREIGHT; pickup name + date only for PICKUP).
+  type ShippingMethodOption =
+    | ""
+    | "PLATFORM_FREIGHT"
+    | "BUYER_FREIGHT"
+    | "BUYER_FORWARDER"
+    | "PICKUP";
+  const [shippingMethod, setShippingMethod] = useState<ShippingMethodOption>(
+    (r.shippingMethod as ShippingMethodOption) ?? "",
   );
+  // Method-specific state. All optional at render time; the validity
+  // check below enforces what's needed per method before save unlocks.
+  const [buyerLabelUrl, setBuyerLabelUrl] = useState<string>(
+    (r as unknown as { buyerLabelUrl?: string | null }).buyerLabelUrl ?? "",
+  );
+  const [pickupName, setPickupName] = useState<string>(
+    (r as unknown as { pickupName?: string | null }).pickupName ?? r.buyerName ?? "",
+  );
+  const [pickupScheduledAt, setPickupScheduledAt] = useState<string>(() => {
+    const v = (r as unknown as { pickupScheduledAt?: string | Date | null }).pickupScheduledAt;
+    if (!v) return "";
+    const d = v instanceof Date ? v : new Date(v);
+    if (Number.isNaN(d.getTime())) return "";
+    // <input type="datetime-local"> requires `YYYY-MM-DDTHH:mm` in local
+    // time. Slice the ISO string to drop seconds + timezone marker.
+    const pad = (n: number) => n.toString().padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  });
   // Phase 2 redesign — admin types the per-lb rate for this specific
   // request right here in the workflow. Dollars on the wire, converted
   // to whole cents at save time. Pre-filled from whatever the row
@@ -949,19 +1109,29 @@ function WorkflowPanel({
               liveWeightLb > 0 && liveRateCentsPerLb > 0
                 ? Math.round(liveWeightLb * liveRateCentsPerLb)
                 : 0;
-            // Save is disabled unless every required field is filled —
-            // method + rate + weight + dest. Dimensions stay optional.
+            // Migration 0025 — readiness is now method-aware.
+            //   PLATFORM_FREIGHT / BUYER_FORWARDER → rate + weight + dest
+            //   BUYER_FREIGHT                       → label URL only
+            //   PICKUP                              → pickup name + date
             const destReady =
               destRecipientName.trim().length > 0 &&
               destLine1.trim().length > 0 &&
               destCity.trim().length > 0 &&
               /^[A-Za-z]{2}$/.test(destState.trim()) &&
               destPostalCode.trim().length > 0;
+            const isFreightMode =
+              shippingMethod === "PLATFORM_FREIGHT" ||
+              shippingMethod === "BUYER_FORWARDER";
+            const isBuyerFreight = shippingMethod === "BUYER_FREIGHT";
+            const isPickup = shippingMethod === "PICKUP";
             const shipReady =
-              !!shippingMethod &&
-              liveRateCentsPerLb > 0 &&
-              liveWeightLb > 0 &&
-              destReady;
+              isFreightMode
+                ? liveRateCentsPerLb > 0 && liveWeightLb > 0 && destReady
+                : isBuyerFreight
+                  ? buyerLabelUrl.trim().length > 0
+                  : isPickup
+                    ? pickupName.trim().length >= 2 && pickupScheduledAt.trim().length > 0
+                    : false;
 
             // ----- Save-button state machine -----
             // The mutation hook gives us pending/success/error directly.
@@ -989,52 +1159,61 @@ function WorkflowPanel({
                   clear();
                   const body: Record<string, unknown> = {
                     shippingMethod: shippingMethod || undefined,
-                    // Phase 2 redesign — admin no longer overrides the
-                    // calculated cost. Always opt into the server's
-                    // weight × rate math.
-                    useCalculated: true,
-                    // Per-request rate, typed inline above. Sent as
-                    // whole cents to match the API contract.
-                    shippingRateCentsPerLb: liveRateCentsPerLb,
                   };
-                  // Backend persists ounces — convert pounds at the wire.
-                  body.parcelWeightOz = Math.round(liveWeightLb * 16 * 100) / 100;
-                  for (const [key, raw] of [
-                    ["parcelLengthIn", parcelLength],
-                    ["parcelWidthIn", parcelWidth],
-                    ["parcelHeightIn", parcelHeight],
-                  ] as const) {
-                    const v = raw.trim();
-                    if (v.length === 0) continue;
-                    const n = Number(v);
-                    if (Number.isFinite(n) && n >= 0) body[key] = n;
+                  if (isFreightMode) {
+                    // Per-pound math: always opt into the server's
+                    // weight × rate calc. Address required.
+                    body.useCalculated = true;
+                    body.shippingRateCentsPerLb = liveRateCentsPerLb;
+                    body.parcelWeightOz =
+                      Math.round(liveWeightLb * 16 * 100) / 100;
+                    for (const [key, raw] of [
+                      ["parcelLengthIn", parcelLength],
+                      ["parcelWidthIn", parcelWidth],
+                      ["parcelHeightIn", parcelHeight],
+                    ] as const) {
+                      const v = raw.trim();
+                      if (v.length === 0) continue;
+                      const n = Number(v);
+                      if (Number.isFinite(n) && n >= 0) body[key] = n;
+                    }
+                    body.shippingAddress = {
+                      recipientName: destRecipientName.trim(),
+                      line1: destLine1.trim(),
+                      line2: destLine2.trim() || undefined,
+                      city: destCity.trim(),
+                      state: destState.trim().toUpperCase(),
+                      postalCode: destPostalCode.trim(),
+                      country: (destCountry.trim() || "US").toUpperCase(),
+                    };
+                  } else if (isBuyerFreight) {
+                    // BUYER_FREIGHT — only the buyer's label URL is
+                    // captured here; no freight rate, no address from
+                    // us. The label drives carrier + tracking later.
+                    body.buyerLabelUrl = buyerLabelUrl.trim();
+                  } else if (isPickup) {
+                    // PICKUP — name + scheduled window. Backend zeros
+                    // shipping cost automatically.
+                    body.pickupName = pickupName.trim();
+                    // `datetime-local` produces a string in local time
+                    // without a TZ. Convert to ISO via the Date ctor so
+                    // the backend persists it as a UTC timestamp.
+                    body.pickupScheduledAt = new Date(pickupScheduledAt).toISOString();
                   }
-                  body.shippingAddress = {
-                    recipientName: destRecipientName.trim(),
-                    line1: destLine1.trim(),
-                    line2: destLine2.trim() || undefined,
-                    city: destCity.trim(),
-                    state: destState.trim().toUpperCase(),
-                    postalCode: destPostalCode.trim(),
-                    country: (destCountry.trim() || "US").toUpperCase(),
-                  };
                   post.mutate({ path: "/shipping", body });
                 }}
               >
-                {/* Method · Rate · Weight · Calc — four columns so the
-                    operator can scan the whole pricing decision in one
-                    row. Rate is typed inline (per-request); calc auto-
-                    updates as method/rate/weight change. */}
-                <div className="grid gap-3 md:grid-cols-[1fr_140px_140px_1fr]">
+                {/* Method picker always visible — the inputs below
+                    change based on which method is selected. */}
+                <div className="grid gap-3 md:grid-cols-2">
                   <Field label="Method">
                     <select
                       value={shippingMethod}
                       onChange={(e) => {
                         setShippingMethod(e.target.value as typeof shippingMethod);
-                        // First time the operator picks a method we
-                        // pre-fill the rate from the last-known default
-                        // for convenience. If they already typed a rate,
-                        // we leave it alone.
+                        // First time the operator picks a freight
+                        // method we pre-fill the rate from the
+                        // last-known default for convenience.
                         if (rateDollarsPerLb.trim() === "") {
                           const seed = freightRates[e.target.value];
                           if (typeof seed === "number" && seed >= 0) {
@@ -1046,10 +1225,85 @@ function WorkflowPanel({
                     >
                       <option value="">— pick a method —</option>
                       <option value="PLATFORM_FREIGHT">Platform freight</option>
+                      <option value="BUYER_FREIGHT">
+                        Buyer freight (their carrier label)
+                      </option>
                       <option value="BUYER_FORWARDER">Buyer forwarder</option>
                       <option value="PICKUP">Pickup</option>
                     </select>
                   </Field>
+                  <div className="flex items-end">
+                    <p className="text-body-sm text-text-muted">
+                      {shippingMethod === "PLATFORM_FREIGHT"
+                        ? "We ship on our carrier — set rate + weight + destination."
+                        : shippingMethod === "BUYER_FORWARDER"
+                          ? "We ship to the buyer's US forwarder — set rate + weight + forwarder address."
+                          : shippingMethod === "BUYER_FREIGHT"
+                            ? "Buyer provides their own carrier label — upload it; we don't charge freight."
+                            : shippingMethod === "PICKUP"
+                              ? "Buyer collects at the warehouse — set pickup name + scheduled window."
+                              : "Pick a method to see the form fields needed for it."}
+                    </p>
+                  </div>
+                </div>
+
+                {/* BUYER_FREIGHT — single field: the prepaid label URL. */}
+                {isBuyerFreight ? (
+                  <div className="mt-4 rounded-sm border border-line bg-cream-soft p-4">
+                    <Field
+                      label="Buyer's shipping label"
+                      hint="Paste a public URL to the prepaid label (PDF or image). The buyer should send it in chat."
+                    >
+                      <Input
+                        type="url"
+                        value={buyerLabelUrl}
+                        onChange={(e) => setBuyerLabelUrl(e.target.value)}
+                        placeholder="https://…/label.pdf"
+                      />
+                    </Field>
+                    {buyerLabelUrl.trim().length > 0 ? (
+                      <a
+                        href={buyerLabelUrl.trim()}
+                        target="_blank"
+                        rel="noreferrer noopener"
+                        className="mt-2 inline-block font-mono text-[11px] uppercase tracking-[1.2px] text-amber hover:text-amber-hi"
+                      >
+                        Open label in new tab →
+                      </a>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                {/* PICKUP — name + scheduled window only. */}
+                {isPickup ? (
+                  <div className="mt-4 grid gap-3 rounded-sm border border-line bg-cream-soft p-4 md:grid-cols-2">
+                    <Field
+                      label="Pickup person's name"
+                      hint="Buyer or authorized rep. We don't collect ID."
+                    >
+                      <Input
+                        type="text"
+                        value={pickupName}
+                        onChange={(e) => setPickupName(e.target.value)}
+                        placeholder="Jane Doe"
+                      />
+                    </Field>
+                    <Field
+                      label="Scheduled pickup"
+                      hint="Local date + time. Visible to warehouse on the receive sheet."
+                    >
+                      <Input
+                        type="datetime-local"
+                        value={pickupScheduledAt}
+                        onChange={(e) => setPickupScheduledAt(e.target.value)}
+                      />
+                    </Field>
+                  </div>
+                ) : null}
+
+                {/* Freight modes — rate, weight, calc display. */}
+                {isFreightMode ? (
+                <div className="mt-4 grid gap-3 md:grid-cols-[140px_140px_1fr]">
                   <Field label="Rate ($/lb)">
                     <Input
                       type="number"
@@ -1085,10 +1339,14 @@ function WorkflowPanel({
                     </div>
                   </Field>
                 </div>
+                ) : null}
 
+                {isFreightMode ? (
                 <div className="mt-4">
                   <h4 className="mb-2 font-mono text-mono-label uppercase text-text-muted">
-                    Destination address
+                    {shippingMethod === "BUYER_FORWARDER"
+                      ? "Forwarder address"
+                      : "Destination address"}
                   </h4>
                   <div className="grid gap-3 md:grid-cols-2">
                     <Field label="Recipient name">
@@ -1151,7 +1409,9 @@ function WorkflowPanel({
                     </Field>
                   </div>
                 </div>
+                ) : null}
 
+                {isFreightMode ? (
                 <div className="mt-4">
                   <h4 className="mb-2 font-mono text-mono-label uppercase text-text-muted">
                     Parcel dimensions (optional)
@@ -1189,6 +1449,7 @@ function WorkflowPanel({
                     </Field>
                   </div>
                 </div>
+                ) : null}
               </Action>
             );
           })()
@@ -1207,10 +1468,12 @@ function WorkflowPanel({
           />
         ) : null}
 
-        {actions.includes("ship") ? (
+        {actions.includes("ship") &&
+        r.shippingMethod !== "BUYER_FREIGHT" &&
+        r.shippingMethod !== "PICKUP" ? (
           <Action
-            title="Ship"
-            description="Mark shipped and email the buyer with tracking."
+            title="Ship (platform / forwarder)"
+            description="Mark shipped on our carrier and email the buyer with tracking. Use this for PLATFORM_FREIGHT and BUYER_FORWARDER methods."
             cta="Mark shipped"
             disabled={post.isPending || !carrier.trim() || !trackingNumber.trim()}
             onClick={() => {
@@ -1234,6 +1497,75 @@ function WorkflowPanel({
               </Field>
             </div>
           </Action>
+        ) : null}
+
+        {/* Migration 0025 — release on the buyer's prepaid label. Same
+            carrier + tracking inputs (admin reads them off the buyer's
+            label) but hits a separate endpoint so the audit log clearly
+            distinguishes "shipped on our carrier" from "released with
+            buyer label". Only renders when the request is on
+            BUYER_FREIGHT and READY_TO_SHIP. */}
+        {actions.includes("release_with_buyer_label") &&
+        r.shippingMethod === "BUYER_FREIGHT" ? (
+          <Action
+            title="Release with buyer label"
+            description="Apply the buyer's prepaid label and hand the package off. Carrier + tracking come from their label."
+            cta="Release with buyer label"
+            disabled={post.isPending || !carrier.trim() || !trackingNumber.trim()}
+            onClick={() => {
+              clear();
+              post.mutate({
+                path: "/release-with-buyer-label",
+                body: { carrier: carrier.trim(), trackingNumber: trackingNumber.trim() },
+              });
+            }}
+          >
+            <div className="grid gap-3 md:grid-cols-2">
+              <Field label="Carrier (from buyer's label)">
+                <Input value={carrier} onChange={(e) => setCarrier(e.target.value)} placeholder="USPS" />
+              </Field>
+              <Field label="Tracking number (from buyer's label)">
+                <Input
+                  value={trackingNumber}
+                  onChange={(e) => setTrackingNumber(e.target.value)}
+                  placeholder="9400…"
+                />
+              </Field>
+            </div>
+            {(r as unknown as { buyerLabelUrl?: string | null }).buyerLabelUrl ? (
+              <p className="mt-2 font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
+                Label on file:{" "}
+                <a
+                  href={(r as unknown as { buyerLabelUrl: string }).buyerLabelUrl}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="text-amber hover:text-amber-hi"
+                >
+                  Open ↗
+                </a>
+              </p>
+            ) : (
+              <p className="mt-2 text-caption text-error">
+                No buyer label saved yet — go back and add the label URL on
+                the shipping form above before releasing.
+              </p>
+            )}
+          </Action>
+        ) : null}
+
+        {/* Migration 0025 — record an in-person pickup. Only renders
+            when the request is on PICKUP and in READY_FOR_PICKUP. */}
+        {actions.includes("mark_picked_up") ? (
+          <Action
+            title="Mark picked up"
+            description="Record the in-person handoff. Status moves to DELIVERED, and the buyer gets a confirmation in the chat + email."
+            cta="Mark picked up"
+            disabled={post.isPending}
+            onClick={() => {
+              clear();
+              post.mutate({ path: "/mark-picked-up", body: {} });
+            }}
+          />
         ) : null}
 
         {actions.length === 0 ? (
@@ -1353,7 +1685,13 @@ function Action({
 }
 
 function statusActions(status: ShopperRequestStatus): Array<
-  "start" | "shipping" | "delivered_to_warehouse" | "ship" | "cancel"
+  | "start"
+  | "shipping"
+  | "delivered_to_warehouse"
+  | "ship"
+  | "release_with_buyer_label"
+  | "mark_picked_up"
+  | "cancel"
 > {
   switch (status) {
     case "AWAITING_INTAKE_PAYMENT":
@@ -1371,9 +1709,15 @@ function statusActions(status: ShopperRequestStatus): Array<
       // Legacy bucket from before the redesign — pre-migration rows that
       // landed here can still be moved forward by editing shipping and
       // marking shipped.
-      return ["shipping", "ship", "cancel"];
+      return ["shipping", "ship", "release_with_buyer_label", "cancel"];
     case "READY_TO_SHIP":
-      return ["ship", "cancel"];
+      // Three release paths from READY_TO_SHIP — the form renders all
+      // three, but each is gated by the request's actual shipping
+      // method on the server. Vendors only see the button that applies
+      // to their flow.
+      return ["ship", "release_with_buyer_label", "cancel"];
+    case "READY_FOR_PICKUP":
+      return ["mark_picked_up", "cancel"];
     case "SHIPPED":
       return ["cancel"];
     default:

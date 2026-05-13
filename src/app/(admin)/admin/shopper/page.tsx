@@ -57,6 +57,7 @@ const TONE: Record<ShopperRequestStatus, "neutral" | "info" | "success" | "warni
   AWAITING_DELIVERY: "info",
   AWAITING_RECONCILIATION: "warning",
   READY_TO_SHIP: "info",
+  READY_FOR_PICKUP: "info",
   SHIPPED: "info",
   DELIVERED: "success",
   CANCELLED: "neutral",
