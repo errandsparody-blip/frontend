@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { BoxDimensionsHero } from "@/components/marketing/box-dimensions-hero";
 import { Button } from "@/components/ui/button";
 import {
   cubicFeetFrom,
@@ -158,6 +159,13 @@ export default function PricingPage() {
           month&apos;s storage). Monthly storage rolls on the 1st of every month for each active SKU
           bucket. Pallet pricing is a separate line further down.
         </p>
+
+        {/* Visual scale reference — four box tiers + pallet drawn to
+            scale next to a 5'9" person silhouette so vendors can
+            picture how big each tier is before they commit. */}
+        <div className="mt-10">
+          <BoxDimensionsHero />
+        </div>
 
         <div className="mt-10 overflow-x-auto rounded-md border border-line bg-white">
           <table className="min-w-full">

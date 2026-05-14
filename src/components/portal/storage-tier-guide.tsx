@@ -20,6 +20,7 @@ import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, Info, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import { BoxDimensionsHero } from "@/components/marketing/box-dimensions-hero";
 import { api } from "@/lib/api-client";
 import {
   cubicFeetFrom,
@@ -202,6 +203,13 @@ export function StorageTierGuide({
               </p>
               {isFallback ? <FallbackNotice /> : null}
             </header>
+
+            {/* Visual scale reference — same component as the marketing
+                pricing page so the vendor sees the boxes drawn to
+                scale before reading the table. */}
+            <div className="mb-6">
+              <BoxDimensionsHero />
+            </div>
 
             <MatchInstruction />
 

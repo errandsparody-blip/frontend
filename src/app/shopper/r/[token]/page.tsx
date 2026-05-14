@@ -326,6 +326,14 @@ function ThreadView({
         </>
       ) : null}
 
+      {/* Migration 0027 follow-up — BUYER_FREIGHT "Ship From" panel.
+          When admin sets the shipping method to BUYER_FREIGHT, the
+          buyer needs the warehouse address to generate their own
+          prepaid label on their carrier of choice (UPS, FedEx, DHL,
+          their forwarder). Sourced from API env so a config change
+          updates this for every active request automatically. */}
+      <BuyerFreightShipFromCard request={r} />
+
       {/* Lines */}
       <section className="rounded-md border border-line bg-white p-8">
         <h2 className="mb-4 font-mono text-mono-label uppercase text-text-muted">Items</h2>
@@ -931,5 +939,146 @@ function BankRow({
       <div className="font-mono text-mono-label uppercase text-text-muted">{label}</div>
       <div className={`mt-1 ${mono ? "font-mono" : ""} text-body text-ink`}>{value}</div>
     </div>
+  );
+}
+
+/**
+ * Migration 0027 follow-up — "Ship From" panel for the BUYER_FREIGHT
+ * shipping method.
+ *
+ * When admin has chosen BUYER_FREIGHT, the buyer is responsible for
+ * generating a prepaid label on their own carrier account. To do that
+ * they need the warehouse's address as the "Ship From" origin. We
+ * surface it here, formatted for easy copy-paste into a carrier
+ * portal (UPS, FedEx, DHL, forwarder, etc.). The address is sourced
+ * from the API's WAREHOUSE_FROM_* env vars so a config change updates
+ * every active request automatically; no hard-coded value lives in
+ * this component.
+ *
+ * Rendering rules:
+ *   - shippingMethod must be BUYER_FREIGHT (the only method that
+ *     requires the buyer to know our warehouse address)
+ *   - status must be a step where the buyer can still act on it
+ *     (intake paid through awaiting delivery — once SHIPPED, there's
+ *     nothing more to generate)
+ *   - warehouseShipFrom must be present on the response (defensive
+ *     check; in practice the API always emits it)
+ *
+ * Phone + email are included because some carrier portals require
+ * them for international shipments (DHL Express in particular).
+ */
+function BuyerFreightShipFromCard({
+  request,
+}: {
+  request: ShopperRequestSnapshot;
+}): JSX.Element | null {
+  if (request.shippingMethod !== "BUYER_FREIGHT") return null;
+  // Hide after the package has shipped — nothing to generate at that point.
+  const TERMINAL = new Set([
+    "SHIPPED",
+    "DELIVERED",
+    "CANCELLED",
+    "REFUNDED",
+  ] as const);
+  if (TERMINAL.has(request.status as never)) return null;
+  const w = request.warehouseShipFrom;
+  if (!w) return null;
+  const oneLine = [
+    w.name,
+    w.line2 ? `${w.line1}, ${w.line2}` : w.line1,
+    `${w.city}, ${w.state} ${w.postalCode}`,
+    w.country,
+  ].join(" · ");
+  const copyAll = async (): Promise<void> => {
+    try {
+      const lines = [
+        w.name,
+        w.line1,
+        w.line2,
+        `${w.city}, ${w.state} ${w.postalCode}`,
+        w.country,
+        `Phone: ${w.phone}`,
+        `Email: ${w.email}`,
+      ].filter((s): s is string => !!s && s.length > 0);
+      await navigator.clipboard.writeText(lines.join("\n"));
+    } catch {
+      // Clipboard API can fail in insecure contexts or older Safari.
+      // The address is right there on screen — copy-paste manually.
+    }
+  };
+  return (
+    <section className="rounded-md border border-line bg-white p-8">
+      <div className="mb-4">
+        <h2 className="font-mono text-mono-label uppercase text-text-muted">
+          Shipping on your own carrier
+        </h2>
+        <p className="mt-2 text-body-sm text-text-muted">
+          You&apos;ve been set up for buyer-freight. Generate a prepaid
+          label on your carrier of choice (UPS, FedEx, DHL, your
+          forwarder, etc.) using the address below as the{" "}
+          <strong>Ship From / Origin</strong>. Once you have the PDF,
+          send it as an attachment in this thread so we can release
+          your package.
+        </p>
+      </div>
+      <div className="rounded-sm border border-line bg-cream-soft p-5">
+        <div className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
+          Use this as your Ship From
+        </div>
+        <address className="mt-3 not-italic text-body leading-relaxed text-ink">
+          <strong>{w.name}</strong>
+          <br />
+          {w.line1}
+          {w.line2 ? (
+            <>
+              <br />
+              {w.line2}
+            </>
+          ) : null}
+          <br />
+          {w.city}, {w.state} {w.postalCode}
+          <br />
+          {w.country}
+        </address>
+        <div className="mt-4 grid gap-3 border-t border-line pt-3 text-body-sm md:grid-cols-2">
+          <div>
+            <div className="font-mono text-mono-label uppercase text-text-muted">
+              Phone
+            </div>
+            <div className="mt-1 font-mono text-ink">{w.phone}</div>
+          </div>
+          <div>
+            <div className="font-mono text-mono-label uppercase text-text-muted">
+              Email
+            </div>
+            <div className="mt-1 font-mono text-ink break-all">{w.email}</div>
+          </div>
+        </div>
+        <div className="mt-4 flex flex-col gap-2 border-t border-line pt-3 md:flex-row md:items-center md:justify-between">
+          <p className="text-caption text-text-muted">
+            Single line: <span className="font-mono">{oneLine}</span>
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              void copyAll();
+            }}
+            className="self-start rounded-sm border border-line-strong bg-white px-3 py-1.5 font-mono text-mono-label uppercase tracking-[1.2px] text-ink hover:bg-cream-soft md:self-auto"
+          >
+            Copy address
+          </button>
+        </div>
+      </div>
+      <div className="mt-4 rounded-sm border-l-4 border-amber bg-amber/10 px-4 py-3 text-body-sm">
+        <strong className="font-mono text-mono-label uppercase tracking-[1.2px] text-amber">
+          Reference {request.reference}
+        </strong>
+        <p className="mt-1 text-text">
+          Add this reference to the label&apos;s memo or reference field
+          if your carrier supports it. Makes it easy for the warehouse
+          to match the box to your order.
+        </p>
+      </div>
+    </section>
   );
 }

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 export const metadata = {
   title: "About — USA Errands",
   description:
-    "USA Errands is a U.S.-based logistics + personal-shopping platform for the world. Sellers ship into one warehouse; buyers anywhere can shop any U.S. store.",
+    "USA Errands is a Texas-based logistics and personal-shopping partner for international sellers and buyers — inventory storage, fulfillment, shipping, and personal shopping without needing a U.S. presence.",
 };
 
 export default function AboutPage() {
@@ -20,19 +20,19 @@ export default function AboutPage() {
               [01] About
             </div>
             <h1 className="mt-4 max-w-3xl text-display font-medium leading-[1.04] tracking-[-1.2px] text-ink">
-              We bring American retail to anyone, anywhere.
+              A U.S. operations team for businesses and buyers who don&apos;t
+              live here.
             </h1>
             <p className="mt-6 max-w-2xl text-body-lg text-text-muted">
-              USA Errands is the missing infrastructure for cross-border
-              commerce — a U.S. warehouse, a personal shopping desk, and a
-              checkout that just works for buyers and sellers outside the
-              country.
+              USA Errands helps international sellers and buyers access the
+              U.S. market without needing a physical presence in the United
+              States.
             </p>
           </FadeUp>
         </div>
       </section>
 
-      {/* STORY */}
+      {/* WHY WE EXIST */}
       <section className="border-b border-line">
         <div className="mx-auto grid max-w-[84rem] gap-16 px-8 py-24 lg:grid-cols-[1fr_1fr]">
           <FadeUp>
@@ -40,44 +40,111 @@ export default function AboutPage() {
               [02] Why we exist
             </div>
             <h2 className="mt-3 text-h2 font-medium leading-tight tracking-[-0.5px] text-ink">
-              The supply chain wasn&apos;t built for the rest of the world.
+              Finding customers isn&apos;t the problem. Running the
+              warehouse from another country is.
             </h2>
           </FadeUp>
           <FadeUp delay={80}>
             <div className="flex flex-col gap-5 text-body text-text">
               <p>
-                For most of the planet, buying from a U.S. store means
-                fragile address forwarders, screenshots traded on WhatsApp,
-                and a 30% chance the parcel never arrives. For sellers
-                outside the U.S., access to the largest consumer market in
-                the world is gated by a bank account they can&apos;t open.
+                For many overseas businesses, finding U.S. customers is the
+                easy part. The hard part is managing inventory, fulfillment,
+                shipping, returns, and day-to-day logistics from another
+                country. High international shipping costs, slow delivery
+                times, and limited operational support make it difficult to
+                compete — and often lead to lost returning customers.
               </p>
               <p>
-                We built USA Errands to make both sides invisible to each
-                other. A buyer in Lagos types a Nordstrom URL; we buy it,
-                we ship it. A seller in Manchester sends us a pallet; we
-                stock it, we pack it, we ship it next-day. No U.S.
-                entity required.
+                USA Errands was built to solve those problems.
               </p>
               <p className="text-text-muted">
-                One warehouse, two products, one checkout — built so the
-                country you&apos;re in stops mattering.
+                From our Texas-based operation, we receive, organize, store,
+                pack, and ship products across the country — and we keep
+                clear, dependable communication going throughout. No U.S.
+                entity, no U.S. warehouse, no U.S. team required on your
+                end.
               </p>
             </div>
           </FadeUp>
         </div>
       </section>
 
-      {/* VALUES */}
+      {/* WHAT WE DO */}
       <section className="border-b border-line bg-cream-soft">
         <div className="mx-auto max-w-[84rem] px-8 py-24">
           <FadeUp>
             <div className="font-mono text-mono-eyebrow uppercase text-amber">
-              [03] What we hold ourselves to
+              [03] What we do
             </div>
             <h2 className="mt-3 max-w-3xl text-h2 font-medium leading-tight tracking-[-0.5px] text-ink">
-              Three things, not nine.
+              Two services. One reliable U.S. partner.
             </h2>
+            <p className="mt-4 max-w-2xl text-body text-text-muted">
+              We run two complementary operations under one roof — fulfillment
+              for international sellers, and personal shopping for
+              international buyers. Both use the same warehouse, the same
+              team, and the same standards.
+            </p>
+          </FadeUp>
+
+          <div className="mt-12 grid gap-6 md:grid-cols-2">
+            <FadeUp delay={80}>
+              <article className="flex h-full flex-col gap-3 rounded-md border border-line bg-white p-8">
+                <div className="font-mono text-mono-label uppercase tracking-[1.2px] text-amber">
+                  For sellers
+                </div>
+                <h3 className="text-h3 font-medium leading-tight text-ink">
+                  Inventory, fulfillment, and shipping coordination.
+                </h3>
+                <p className="text-body-sm text-text-muted">
+                  We provide inventory storage, order fulfillment, shipping
+                  coordination, package handling, and operational support
+                  for international vendors who need a reliable U.S.-based
+                  partner. Products land at our warehouse, get organized
+                  and stocked, and go out across the country as orders
+                  come in.
+                </p>
+              </article>
+            </FadeUp>
+            <FadeUp delay={160}>
+              <article className="flex h-full flex-col gap-3 rounded-md border border-line bg-white p-8">
+                <div className="font-mono text-mono-label uppercase tracking-[1.2px] text-amber">
+                  For buyers
+                </div>
+                <h3 className="text-h3 font-medium leading-tight text-ink">
+                  Personal shopping and consolidated delivery.
+                </h3>
+                <p className="text-body-sm text-text-muted">
+                  We help international buyers purchase items from multiple
+                  American stores, then consolidate those purchases into a
+                  single shipment and coordinate international delivery. One
+                  shipment instead of many — lower overall shipping cost and
+                  a simpler process from order to doorstep.
+                </p>
+              </article>
+            </FadeUp>
+          </div>
+        </div>
+      </section>
+
+      {/* HOW WE'RE DIFFERENT */}
+      <section className="border-b border-line">
+        <div className="mx-auto max-w-[84rem] px-8 py-24">
+          <FadeUp>
+            <div className="font-mono text-mono-eyebrow uppercase text-amber">
+              [04] How we work
+            </div>
+            <h2 className="mt-3 max-w-3xl text-h2 font-medium leading-tight tracking-[-0.5px] text-ink">
+              A small operation by choice.
+            </h2>
+            <p className="mt-4 max-w-2xl text-body text-text-muted">
+              Unlike large fulfillment companies built around massive brands
+              and automated systems, we operate with a more focused,
+              hands-on approach. We intentionally work with a limited number
+              of clients so we can provide better organization, faster
+              communication, greater flexibility, and more personalized
+              operational support.
+            </p>
           </FadeUp>
 
           <div className="mt-12 grid gap-6 md:grid-cols-3">
@@ -98,6 +165,26 @@ export default function AboutPage() {
         </div>
       </section>
 
+      {/* CLOSING STATEMENT */}
+      <section className="border-b border-line bg-cream-soft">
+        <div className="mx-auto max-w-[84rem] px-8 py-24">
+          <FadeUp>
+            <div className="font-mono text-mono-eyebrow uppercase text-amber">
+              [05] Our goal
+            </div>
+            <h2 className="mt-3 max-w-3xl text-h2 font-medium leading-tight tracking-[-0.5px] text-ink">
+              The point of all this.
+            </h2>
+            <p className="mt-6 max-w-2xl text-body-lg text-text">
+              To give international sellers and buyers a reliable
+              U.S.-based partner for fulfillment, logistics, shopping, and
+              shipping — without the complexity of building and managing
+              their own operation in the United States.
+            </p>
+          </FadeUp>
+        </div>
+      </section>
+
       {/* CTA */}
       <section>
         <div className="mx-auto max-w-[84rem] px-8 py-24">
@@ -108,7 +195,7 @@ export default function AboutPage() {
                   Want to see what we actually do day-to-day?
                 </h2>
                 <p className="mt-3 max-w-lg text-body text-text-inv/80">
-                  Two products, each with their own page. Pick the one that
+                  Two services, each with their own page. Pick the one that
                   matches what you came here for.
                 </p>
               </div>
@@ -135,17 +222,17 @@ export default function AboutPage() {
 const VALUES: ReadonlyArray<{ tag: string; title: string; body: string }> = [
   {
     tag: "Trust",
-    title: "If we touched it, you can audit it.",
-    body: "Every cent that moves on the platform shows up on an append-only ledger. Vendors see their own. Admins see everyone's. Nothing happens off the books.",
+    title: "Accurate handling, every box.",
+    body: "Managing products and shipments from another country requires trust. We prioritize accurate handling and organized workflows so what arrives at our warehouse is exactly what leaves it.",
   },
   {
-    tag: "Speed",
-    title: "Inbound to outbound in four days.",
-    body: "Pallets land. We unpack, label, weigh, and stock the same day they arrive. Your first order out the door is rarely more than a week from your first crate.",
+    tag: "Communication",
+    title: "Responsive and clear, start to finish.",
+    body: "Clients hear from us when something needs a decision, when an order moves, and when anything doesn't go as expected. No silence, no chasing for status updates.",
   },
   {
-    tag: "Honesty",
-    title: "Pricing fits on one page.",
-    body: "No per-touch surcharges, no carrier kickbacks, no surprise reweigh fees. The price card is the price. If it changes, you hear about it in advance.",
+    tag: "Consistency",
+    title: "Dependable fulfillment day after day.",
+    body: "The same standards apply to the first order and the thousandth — receive, organize, pack, ship, communicate. Predictable operations are the whole point.",
   },
 ];

@@ -278,6 +278,25 @@ export interface ShopperRequestSnapshot {
   /** Server only sends this when the buyer is in the wire-payment leg. */
   bankInstructions: ShopperBankInstructions | null;
   /**
+   * Migration 0027 follow-up — warehouse "Ship From" address sourced
+   * from the API's WAREHOUSE_FROM_* env vars. Always present on
+   * thread responses (the address isn't sensitive — it's printed on
+   * every outbound parcel). The thread page only surfaces it when
+   * the buyer is on the BUYER_FREIGHT method so they can generate a
+   * prepaid label using these as the origin.
+   */
+  warehouseShipFrom: {
+    name: string;
+    line1: string;
+    line2: string | null;
+    city: string;
+    state: string;
+    postalCode: string;
+    country: "US";
+    phone: string;
+    email: string;
+  };
+  /**
    * Admin endpoint includes the raw R2 URLs so operators can preview the
    * documents. Buyer-side these are always undefined — the buyer
    * controller strips them in `serializeBuyerRequest`.

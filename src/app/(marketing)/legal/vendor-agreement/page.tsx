@@ -394,7 +394,7 @@ function VendorAcceptanceForm({ isReaccept }: { isReaccept: boolean }): JSX.Elem
 // vendor signs the new version.
 // ---------------------------------------------------------------------------
 
-const AGREEMENT_EFFECTIVE_DATE = "May 12, 2026";
+const AGREEMENT_EFFECTIVE_DATE = "May 14, 2026";
 
 function AgreementText(): JSX.Element {
   return (
@@ -403,322 +403,418 @@ function AgreementText(): JSX.Element {
         <strong>Effective Date:</strong> {AGREEMENT_EFFECTIVE_DATE}
       </p>
       <p>
-        This Vendor Agreement (&quot;Agreement&quot;) is entered into between{" "}
+        This Vendor Services Agreement (&quot;Agreement&quot;) is entered into between{" "}
         <strong>USA Errands</strong>, operating through{" "}
-        <strong>MyUSAErrands.com</strong> (&quot;Company,&quot; &quot;USA Errands,&quot;
-        &quot;We,&quot; &quot;Us&quot;) and the <strong>Vendor</strong> (&quot;Vendor,&quot;
-        &quot;You,&quot; &quot;Your&quot;).
+        <strong>MyUSAErrands.com</strong> (&quot;USA Errands,&quot; &quot;Company,&quot;
+        &quot;We,&quot; &quot;Us,&quot; &quot;Our&quot;) and the{" "}
+        <strong>Vendor</strong> (&quot;Vendor,&quot; &quot;You,&quot; &quot;Your&quot;).
       </p>
       <p>
-        By creating an account, using the platform, shipping inventory, or requesting
-        fulfillment services, Vendor agrees to all terms below.
+        By registering an account, submitting inventory, funding a wallet, requesting
+        services, or using the USA Errands platform in any manner, Vendor agrees to all
+        terms contained herein.
       </p>
 
       <h2>1. Services Provided</h2>
-      <p>USA Errands provides:</p>
+      <p>
+        USA Errands provides third-party logistics and fulfillment services, including
+        but not limited to:
+      </p>
       <ul>
-        <li>Inventory receiving</li>
-        <li>Inventory storage</li>
-        <li>SKU inventory tracking</li>
-        <li>Order fulfillment</li>
-        <li>Shipping label generation</li>
-        <li>Shipping coordination</li>
-        <li>Optional returns handling (if enabled)</li>
+        <li>inventory receiving</li>
+        <li>inventory storage</li>
+        <li>SKU assignment and inventory tracking</li>
+        <li>order fulfillment</li>
+        <li>shipping coordination</li>
+        <li>shipping label generation</li>
+        <li>optional returns handling</li>
+        <li>optional personal shopper and package forwarding services</li>
       </ul>
       <p>
-        USA Errands acts solely as a logistics and fulfillment provider and does not own
-        Vendor inventory.
+        USA Errands does not manufacture, own, market, distribute, or sell Vendor
+        products. USA Errands acts solely as a logistics and operational service
+        provider.
       </p>
 
       <h2>2. Vendor Responsibilities</h2>
-      <p>Vendor agrees to:</p>
-      <ul>
-        <li>Provide accurate product information</li>
-        <li>Ensure all products are legal for sale and shipment in the United States</li>
-        <li>Maintain sufficient wallet balance at all times</li>
-        <li>Ensure product quality and compliance</li>
-        <li>Provide accurate shipping information for all fulfillment requests</li>
-      </ul>
-      <p>Vendor remains fully responsible for:</p>
+      <p>Vendor is solely responsible for:</p>
       <ul>
         <li>product legality</li>
         <li>product safety</li>
-        <li>taxes</li>
+        <li>product authenticity</li>
+        <li>taxes and duties</li>
         <li>customs compliance</li>
-        <li>intellectual property claims</li>
-        <li>customer disputes regarding products</li>
+        <li>intellectual property compliance</li>
+        <li>customer service</li>
+        <li>product warranties</li>
+        <li>product labeling requirements</li>
+        <li>product recalls</li>
+        <li>customer disputes</li>
       </ul>
+      <p>
+        Vendor agrees all products stored or shipped through USA Errands comply with:
+      </p>
+      <ul>
+        <li>U.S. federal laws</li>
+        <li>state laws</li>
+        <li>carrier regulations</li>
+        <li>import/export regulations</li>
+      </ul>
+      <p>Vendor shall not use USA Errands for unlawful activity.</p>
 
       <h2>3. Prohibited Products</h2>
-      <p>Vendor may NOT ship or store:</p>
+      <p>Vendor may not store, ship, or process:</p>
       <ul>
-        <li>Illegal products</li>
-        <li>Hazardous materials</li>
-        <li>Weapons or firearm-related items</li>
-        <li>Explosives</li>
-        <li>Counterfeit products</li>
-        <li>Perishable goods (unless approved)</li>
-        <li>Restricted medical products</li>
-        <li>Any product prohibited by U.S. law or carrier policies</li>
+        <li>illegal products</li>
+        <li>counterfeit goods</li>
+        <li>hazardous materials</li>
+        <li>explosives</li>
+        <li>firearms or weapon-related items</li>
+        <li>restricted chemicals</li>
+        <li>prohibited pharmaceuticals</li>
+        <li>perishable goods without written approval</li>
+        <li>products prohibited by carriers or applicable law</li>
+      </ul>
+      <p>USA Errands reserves the right to:</p>
+      <ul>
+        <li>reject</li>
+        <li>quarantine</li>
+        <li>return</li>
+        <li>destroy</li>
+        <li>report</li>
+      </ul>
+      <p>prohibited inventory without liability. Any associated costs shall be charged to Vendor.</p>
+
+      <h2>4. Account Registration &amp; KYC</h2>
+      <p>Vendor must provide accurate onboarding information including:</p>
+      <ul>
+        <li>legal identity</li>
+        <li>business details</li>
+        <li>government-issued identification</li>
+        <li>contact information</li>
+      </ul>
+      <p>USA Errands reserves the right to:</p>
+      <ul>
+        <li>approve or reject applications</li>
+        <li>request additional verification</li>
+        <li>suspend accounts for inaccurate information</li>
       </ul>
       <p>
-        USA Errands reserves the right to reject, quarantine, or dispose of prohibited
-        inventory at Vendor&apos;s expense.
+        Vendor authorizes USA Errands to verify submitted information through third-party
+        verification providers.
       </p>
 
-      <h2>4. Inventory Receiving &amp; Onboarding</h2>
-      <p>Vendor inventory must:</p>
+      <h2>5. Inventory Receiving &amp; Storage</h2>
+      <h3>5.1 Receiving</h3>
+      <p>All inbound inventory must:</p>
       <ul>
-        <li>
-          Be properly packaged using our declared storage-tier box dimensions to ensure
-          proper storage-fee generation during PSN creation
-        </li>
-        <li>Include accurate shipment details</li>
-        <li>Match submitted inventory records</li>
+        <li>match submitted shipment information in PSN</li>
+        <li>use accurate declared value and product weight when submitting PSN</li>
+        <li>be packaged appropriately</li>
+        <li>comply with USA Errands receiving standards</li>
       </ul>
-      <p>Upon receiving inventory:</p>
+      <p>USA Errands will inspect inbound inventory upon receipt. Inventory discrepancies may result in:</p>
       <ul>
-        <li>USA Errands will inspect packages</li>
-        <li>SKUs may be assigned or generated</li>
-        <li>
-          Inventory quantities will be acknowledged to match the manifest before being
-          reflected in the system and the vendor inventory dashboard
-        </li>
+        <li>delays</li>
+        <li>additional fees</li>
+        <li>rejection</li>
+        <li>inventory hold</li>
       </ul>
-      <p>
-        An onboarding fee, consisting of a stocking fee plus the first month&apos;s
-        storage, applies to every new PSN. Beginning the second month, only storage fees
-        apply to the referenced PSN.
-      </p>
 
-      <h2>5. Storage Fees</h2>
-      <p>
-        Storage fees are billed monthly based on the assigned storage-box tier declared
-        during PSN creation.
-      </p>
+      <h3>5.2 Storage Fees</h3>
+      <p>Storage fees are based on:</p>
+      <ul>
+        <li>inventory dimensions</li>
+        <li>storage tier</li>
+        <li>occupied warehouse space</li>
+      </ul>
       <h3>Important Billing Policy</h3>
       <p>Storage fees are automatically billed on the first day of every month.</p>
       <p>
-        Vendor is solely responsible for ensuring sufficient wallet balance is available
-        before monthly billing occurs.
+        Vendor is solely responsible for maintaining sufficient wallet balance prior to
+        monthly billing.
       </p>
-      <p>Storage fees apply regardless of whether inventory sells or ships.</p>
       <p>Failure to maintain sufficient balance may result in:</p>
       <ul>
+        <li>account restrictions</li>
         <li>fulfillment suspension</li>
-        <li>order processing delays</li>
+        <li>overdue penalties</li>
         <li>inventory hold</li>
-        <li>restricted account access</li>
-        <li>eventual inventory disposal after notice period</li>
       </ul>
-      <p>
-        USA Errands reserves the right to continue charging storage fees while inventory
-        remains in storage.
-      </p>
+      <p>Storage fees continue accruing while inventory remains stored.</p>
 
-      <h2>5A. Storage Tier Review &amp; Inventory Optimization</h2>
+      <h3>5.3 Storage Tier Audits &amp; Optimization</h3>
       <p>
-        USA Errands may conduct periodic inventory storage reviews and audits, including
-        quarterly storage-tier assessments, to ensure efficient warehouse space
-        utilization.
+        USA Errands may conduct periodic inventory audits and storage assessments to:
       </p>
-      <p>During these reviews, USA Errands may:</p>
       <ul>
-        <li>evaluate inventory dimensions and storage usage</li>
-        <li>recommend inventory consolidation</li>
-        <li>recommend repackaging or space optimization</li>
-        <li>recommend movement to more suitable storage tiers</li>
+        <li>optimize warehouse space</li>
+        <li>recommend consolidation</li>
+        <li>reduce unnecessary storage costs</li>
       </ul>
-      <p>The purpose of these reviews is to:</p>
+      <p>USA Errands reserves the right to:</p>
       <ul>
-        <li>improve storage efficiency</li>
-        <li>reduce unnecessary storage costs for Vendors</li>
-        <li>maintain organized warehouse operations</li>
+        <li>reclassify improperly categorized inventory</li>
+        <li>adjust storage tiers based on actual dimensions or usage</li>
       </ul>
-      <p>Vendor acknowledges that:</p>
-      <ul>
-        <li>
-          New storage fees will be based on the assigned storage-box tier reclassified
-          following the periodic or quarterly storage audit
-        </li>
-        <li>inventory configuration may impact monthly storage costs</li>
-        <li>USA Errands may provide recommendations to optimize storage expenses</li>
-      </ul>
-      <p>
-        Any changes affecting billing or storage-tier classification will be communicated
-        to Vendor before implementation where applicable.
-      </p>
-      <p>
-        USA Errands reserves the right to reclassify improperly categorized inventory if
-        actual storage usage materially differs from declared storage requirements.
-      </p>
+      <p>Vendor will be notified of material billing changes where applicable.</p>
 
-      <h2>6. Wallet &amp; Payments</h2>
-      <p>USA Errands operates on a prepaid wallet system. Vendor agrees that:</p>
+      <h2>6. Wallet System &amp; Payments</h2>
+      <p>USA Errands operates on a prepaid wallet-based billing system. Vendor agrees:</p>
       <ul>
         <li>all services are prepaid</li>
-        <li>orders will not process without sufficient balance</li>
-        <li>fees may be automatically deducted from the wallet balance</li>
+        <li>no negative balances are permitted</li>
+        <li>fees and recurring storage fees may be automatically deducted from wallet balance</li>
       </ul>
       <p>Fees may include:</p>
       <ul>
         <li>onboarding fees</li>
+        <li>receiving fees</li>
         <li>storage fees</li>
         <li>fulfillment fees</li>
-        <li>shipping costs</li>
-        <li>returns handling fees</li>
+        <li>shipping fees</li>
+        <li>returns fees</li>
         <li>payment processing fees</li>
+        <li>handling charges</li>
       </ul>
-      <p>Vendor is responsible for maintaining sufficient wallet balance at all times.</p>
-      <p>USA Errands shall not be liable for delays caused by insufficient wallet funds.</p>
+      <p>Vendor is solely responsible for:</p>
+      <ul>
+        <li>maintaining sufficient wallet balance</li>
+        <li>monitoring account activity</li>
+      </ul>
+      <p>USA Errands shall not be liable for operational delays caused by insufficient wallet funds.</p>
 
-      <h2>7. Order Fulfillment</h2>
-      <p>Vendor submits fulfillment requests through the platform. USA Errands will:</p>
+      <h2>7. Payment Processing</h2>
+      <p>Payments may be processed through:</p>
+      <ul>
+        <li>Stripe</li>
+        <li>other approved providers</li>
+      </ul>
+      <p>Vendor authorizes automatic fee deductions where applicable.</p>
+      <p>Payment processor fees may be passed through to Vendor.</p>
+      <p>USA Errands reserves the right to:</p>
+      <ul>
+        <li>suspend orders pending payment verification</li>
+        <li>delay fulfillment for fraud review</li>
+        <li>reject high-risk transactions</li>
+      </ul>
+
+      <h2>8. Order Fulfillment &amp; Shipping</h2>
+      <p>Vendor submits fulfillment requests through the platform. USA Errands shall:</p>
       <ul>
         <li>pick inventory</li>
         <li>pack orders</li>
-        <li>print generated shipping labels</li>
-        <li>dispatch shipments</li>
+        <li>generate labels</li>
+        <li>coordinate shipment dispatch</li>
       </ul>
-      <p>Estimated processing timelines are not guaranteed.</p>
-      <p>USA Errands is not liable for:</p>
+      <p>Estimated timelines are not guaranteed. USA Errands is not liable for:</p>
       <ul>
         <li>shipping carrier delays</li>
-        <li>public holiday or festive-celebration carrier delays</li>
-        <li>weather disruptions</li>
         <li>customs delays</li>
-        <li>incorrect addresses provided by Vendor</li>
+        <li>weather events</li>
+        <li>delivery failures</li>
+        <li>incorrect addresses supplied by Vendor</li>
+        <li>package theft after carrier-confirmed delivery</li>
       </ul>
-
-      <h2>8. Shipping &amp; Labels</h2>
-      <p>
-        Shipping costs are calculated using carrier rates through integrated shipping
-        APIs. Vendor agrees that:
-      </p>
+      <p>Shipping fees are separate from fulfillment fees. Shipping costs may vary based on:</p>
       <ul>
-        <li>shipping fees must be prepaid</li>
-        <li>
-          shipping charges may vary by weight, dimensions, destination, and carrier
-          selected
-        </li>
+        <li>dimensions</li>
+        <li>weight</li>
+        <li>carrier</li>
+        <li>destination</li>
+        <li>delivery speed</li>
       </ul>
-      <p>Tracking information will be provided once labels are generated.</p>
-      <p>
-        USA Errands reserves the right to adjust shipping charges if package measurements
-        differ from vendor-provided information.
-      </p>
 
       <h2>9. Returns Management</h2>
-      <p>Returns handling is optional and must be enabled by Vendor. If enabled:</p>
+      <p>Returns handling is optional and subject to approval. Returned inventory may:</p>
       <ul>
-        <li>returned inventory may be inspected</li>
-        <li>additional handling or storage fees may apply</li>
-        <li>USA Errands is not responsible for damaged returned products</li>
+        <li>be restocked</li>
+        <li>quarantined</li>
+        <li>discarded</li>
+        <li>returned to Vendor</li>
       </ul>
-      <p>Vendor may be charged:</p>
+      <p>Additional fees may apply. USA Errands is not liable for:</p>
       <ul>
-        <li>return processing fees</li>
-        <li>restocking fees</li>
-        <li>additional storage fees</li>
+        <li>return fraud</li>
+        <li>damaged returned goods</li>
+        <li>customer misuse</li>
       </ul>
 
-      <h2>10. Inventory Liability</h2>
-      <p>USA Errands will exercise utmost care in handling inventory. However, USA Errands is NOT responsible for:</p>
+      <h2>10. Inventory Liability Limitations</h2>
+      <p>USA Errands shall exercise commercially reasonable care in handling inventory.</p>
+      <p>However, USA Errands shall not be liable for:</p>
       <ul>
-        <li>manufacturer defects</li>
-        <li>hidden product damage</li>
-        <li>loss caused by carriers</li>
         <li>force majeure events</li>
-        <li>unavoidable operational errors</li>
-        <li>customer misuse of products</li>
+        <li>theft outside reasonable control</li>
+        <li>hidden product defects</li>
+        <li>manufacturer defects</li>
+        <li>carrier damage</li>
+        <li>customs seizure</li>
+        <li>natural disasters</li>
+        <li>acts of government</li>
+        <li>cyber incidents beyond reasonable control</li>
       </ul>
-      <p>Vendor is encouraged to maintain inventory insurance where necessary.</p>
+      <h3>Liability Cap</h3>
+      <p>USA Errands&apos; total liability for any claim shall not exceed the lesser of:</p>
+      <ul>
+        <li>declared inventory value</li>
+        <li>actual replacement cost</li>
+        <li>$100 per affected storage unit</li>
+      </ul>
+      <p>unless otherwise agreed in writing.</p>
+      <p>Vendor is strongly encouraged to maintain independent inventory insurance.</p>
 
       <h2>11. Abandoned Inventory</h2>
-      <p>Inventory may be considered abandoned if:</p>
+      <p>Inventory may be deemed abandoned if:</p>
       <ul>
-        <li>Vendor account remains unpaid up to 30 days after due date</li>
+        <li>storage fees remain unpaid</li>
         <li>Vendor becomes unreachable</li>
-        <li>Inventory remains inactive for extended periods</li>
-        <li>Wallet balance remains overdue beyond stated notice periods</li>
+        <li>account remains inactive</li>
+        <li>balances remain overdue</li>
       </ul>
-      <p>
-        USA Errands may dispose of, liquidate, recycle, or donate abandoned inventory
-        after reasonable notice.
-      </p>
-      <p>Any disposal or removal costs may be charged to Vendor.</p>
+      <p>USA Errands may:</p>
+      <ul>
+        <li>dispose</li>
+        <li>liquidate</li>
+        <li>recycle</li>
+        <li>donate</li>
+        <li>destroy</li>
+      </ul>
+      <p>abandoned inventory after reasonable notice. Vendor remains responsible for all associated costs.</p>
 
-      <h2>12. Platform Access</h2>
-      <p>Vendor receives limited access to:</p>
+      <h2>12. Platform Access &amp; Acceptable Use</h2>
+      <p>Vendor receives limited, revocable access to the USA Errands platform. Vendor may not:</p>
       <ul>
-        <li>inventory dashboard</li>
-        <li>wallet system</li>
-        <li>order system</li>
-        <li>shipment tracking</li>
-      </ul>
-      <p>Vendor may not:</p>
-      <ul>
-        <li>attempt unauthorized system access</li>
-        <li>misuse platform tools</li>
+        <li>attempt unauthorized access</li>
         <li>interfere with platform operations</li>
-        <li>manipulate wallet or payment systems</li>
+        <li>exploit vulnerabilities</li>
+        <li>misuse payment systems</li>
+        <li>engage in fraudulent activity</li>
       </ul>
-      <p>
-        USA Errands may suspend accounts for abuse, fraud, suspicious activity, or
-        policy violations.
-      </p>
+      <p>USA Errands may suspend or terminate access at its sole discretion.</p>
 
-      <h2>13. Limitation of Liability</h2>
-      <p>USA Errands&apos; total liability shall not exceed:</p>
+      <h2>13. Intellectual Property</h2>
+      <p>Vendor retains ownership of:</p>
       <ul>
-        <li>
-          the amount paid by Vendor for the affected services within the previous 30 days
-        </li>
+        <li>trademarks</li>
+        <li>product content</li>
+        <li>branding</li>
       </ul>
-      <p>USA Errands shall not be liable for:</p>
+      <p>Vendor grants USA Errands limited rights necessary to:</p>
+      <ul>
+        <li>process fulfillment</li>
+        <li>generate labels</li>
+        <li>display inventory information operationally</li>
+      </ul>
+
+      <h2>14. Confidentiality</h2>
+      <p>Both parties agree to maintain confidentiality regarding:</p>
+      <ul>
+        <li>operational information</li>
+        <li>pricing</li>
+        <li>customer data</li>
+        <li>business information</li>
+      </ul>
+      <p>except where disclosure is legally required.</p>
+
+      <h2>15. Disclaimer of Warranties</h2>
+      <p>
+        USA Errands services are provided <strong>&quot;AS IS&quot;</strong> and{" "}
+        <strong>&quot;AS AVAILABLE&quot;</strong>. USA Errands makes no guarantees
+        regarding:
+      </p>
+      <ul>
+        <li>uninterrupted availability</li>
+        <li>error-free operation</li>
+        <li>guaranteed delivery times</li>
+        <li>profitability</li>
+      </ul>
+
+      <h2>16. Limitation of Liability</h2>
+      <p>To the maximum extent permitted by law, USA Errands shall not be liable for:</p>
       <ul>
         <li>indirect damages</li>
+        <li>consequential damages</li>
         <li>lost profits</li>
+        <li>reputational harm</li>
         <li>business interruption</li>
-        <li>reputational loss</li>
-        <li>carrier-related delivery failures</li>
+        <li>loss of goodwill</li>
       </ul>
-
-      <h2>14. Termination</h2>
       <p>
-        Either party may terminate this Agreement at any time, provided there are no
-        overdue or pending payments.
+        Total liability shall not exceed amounts paid by Vendor within the preceding 30
+        days for affected services.
       </p>
-      <p>Vendor remains responsible for:</p>
+
+      <h2>17. Indemnification</h2>
+      <p>
+        Vendor agrees to indemnify and hold harmless USA Errands, its owners, employees,
+        affiliates, and contractors from claims arising from:
+      </p>
       <ul>
-        <li>outstanding fees</li>
-        <li>inventory removal costs</li>
-        <li>unpaid storage fees</li>
+        <li>Vendor products</li>
+        <li>legal violations</li>
+        <li>intellectual property claims</li>
+        <li>customs violations</li>
+        <li>customer claims</li>
+        <li>prohibited products</li>
+        <li>tax obligations</li>
       </ul>
-      <p>Inventory must be removed within the stated notice period after termination.</p>
-      <p>
-        Storage fees continue accruing until inventory is removed from USA Errands
-        facilities.
-      </p>
 
-      <h2>15. Modifications</h2>
-      <p>
-        USA Errands may update pricing, policies, platform features, or operational
-        procedures periodically. Continued use of services constitutes acceptance of
-        updated terms.
-      </p>
+      <h2>18. Termination</h2>
+      <p>Either party may terminate this Agreement at any time. Vendor remains responsible for:</p>
+      <ul>
+        <li>outstanding balances</li>
+        <li>storage fees</li>
+        <li>removal costs</li>
+        <li>unpaid invoices</li>
+      </ul>
+      <p>Storage charges continue until inventory is removed.</p>
 
-      <h2>16. Governing Law</h2>
+      <h2>19. Modifications</h2>
+      <p>USA Errands reserves the right to modify:</p>
+      <ul>
+        <li>pricing</li>
+        <li>policies</li>
+        <li>platform features</li>
+        <li>operational procedures</li>
+      </ul>
+      <p>Continued use constitutes acceptance of revised terms.</p>
+
+      <h2>20. Governing Law &amp; Disputes</h2>
       <p>
         This Agreement shall be governed under the laws of the State of Texas, United
         States.
       </p>
+      <p>Any disputes shall be resolved through:</p>
+      <ul>
+        <li>binding arbitration, or</li>
+        <li>courts located within the governing jurisdiction</li>
+      </ul>
+      <p>at USA Errands&apos; discretion. Vendor waives participation in class-action proceedings.</p>
 
-      <h2>17. Acceptance</h2>
+      <h2>21. Force Majeure</h2>
+      <p>USA Errands shall not be liable for delays or failures caused by:</p>
+      <ul>
+        <li>natural disasters</li>
+        <li>war</li>
+        <li>labor disputes</li>
+        <li>internet outages</li>
+        <li>government actions</li>
+        <li>pandemics</li>
+        <li>carrier disruptions</li>
+      </ul>
+
+      <h2>22. Entire Agreement</h2>
       <p>
-        By signing up, checking the acceptance box, shipping inventory, funding a wallet,
-        or using USA Errands services, Vendor confirms agreement to all terms stated
-        herein.
+        This Agreement constitutes the full agreement between parties and supersedes
+        prior understandings.
+      </p>
+
+      <h2>23. Acceptance</h2>
+      <p>
+        By checking the agreement box, creating an account, shipping inventory, funding a
+        wallet, or using USA Errands services, Vendor acknowledges and agrees to all
+        terms herein.
       </p>
 
       <p className="mt-10 text-body-sm text-text-muted">
