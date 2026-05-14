@@ -167,7 +167,7 @@ export default function PricingPage() {
           <BoxDimensionsHero />
         </div>
 
-        <div className="mt-10 overflow-x-auto rounded-md border border-line bg-white">
+        {/* <div className="mt-10 overflow-x-auto rounded-md border border-line bg-white">
           <table className="min-w-full">
             <thead className="bg-ink">
               <tr>
@@ -204,7 +204,7 @@ export default function PricingPage() {
               ))}
             </tbody>
           </table>
-        </div>
+        </div> */}
 
         {/* Re-tier callout — top-of-mind warning that mirrors the
             storage tier guide modal's "Important" block. */}

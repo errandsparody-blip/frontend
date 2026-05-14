@@ -63,7 +63,11 @@ export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 
 export const verifyEmailCodeSchema = z
   .string()
-  .regex(/^\d{6}$/, "Enter the 6-digit code from your email.");
+  // Accept the historical 6-digit codes still in flight at the time
+  // of the M-4 hardening rollout, plus the new 8-digit codes going
+  // forward. Once every 6-digit code in storage has expired (~15min
+  // after deploy), the regex can be tightened to `^\d{8}$`.
+  .regex(/^\d{6,8}$/, "Enter the code from your email.");
 
 export const verifyEmailSchema = z.object({
   email: emailSchema,
