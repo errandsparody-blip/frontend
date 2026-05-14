@@ -52,8 +52,7 @@ export default function ServicesPage() {
             <p className="mt-4 text-body text-text-muted">
               Send us inventory once. We stock it, label it, and ship every
               order from a U.S. warehouse — locally, in days, with full
-              tracking. Connect Shopify or WooCommerce and orders flow
-              straight in; or push to the API yourself.
+              tracking.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link href="/signup">
