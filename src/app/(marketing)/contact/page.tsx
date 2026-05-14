@@ -24,8 +24,7 @@ export default function ContactPage() {
             </h1>
             <p className="mt-6 max-w-2xl text-body-lg text-text-muted">
               Whether you&apos;re a seller sizing the warehouse, a buyer
-              with a question about a shopper request, or a partner with
-              an integration to ship — write to the right inbox and the
+              with a question about a shopper request — write to the right inbox and the
               right person picks up.
             </p>
           </FadeUp>
@@ -42,14 +41,7 @@ export default function ContactPage() {
             <div className="font-mono text-mono-eyebrow uppercase text-amber">
               [03] The address
             </div>
-            <h2 className="mt-3 text-h2 font-medium leading-tight tracking-[-0.5px] text-ink">
-              One warehouse. One inbox. One ledger.
-            </h2>
-            <p className="mt-4 text-body text-text-muted">
-              The whole platform is run from a single U.S. facility. Pop in
-              by appointment if you&apos;re local — we&apos;ll show you the
-              floor and the dashboard side by side.
-            </p>
+            
           </FadeUp>
 
           <FadeUp delay={80}>
