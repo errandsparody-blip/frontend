@@ -6,7 +6,9 @@
  * Renders the "Get Our Full Price Guide" dark-themed panel on the
  * /pricing page. POSTs to `/v1/marketing/pricing-guide` which:
  *   1. Stores the lead in the pricing_guide_leads table
- *   2. Emails the visitor the PDF (attached) within a couple of seconds
+ *   2. Emails the visitor a one-click download link to the PDF (which
+ *      is hosted in this app's `public/` folder and served via Vercel's
+ *      CDN) within a couple of seconds
  *
  * Endpoint always returns 200 OK to avoid user-enumeration. The form
  * shows a success state on response and never reveals whether the
@@ -112,9 +114,9 @@ export function PricingGuideForm(): JSX.Element {
             Check your inbox
           </h3>
           <p className="mt-3 text-body text-text-inv/75">
-            We&apos;ve sent the full pricing guide as a PDF attachment.
-            It should land within a minute or two — give your spam
-            folder a glance if you don&apos;t see it.
+            We&apos;ve emailed you a one-click link to the full pricing
+            guide PDF. It should land within a minute or two — give
+            your spam folder a glance if you don&apos;t see it.
           </p>
           <p className="mt-4 text-body-sm text-text-inv/60">
             Questions? Reply to the email or write to{" "}

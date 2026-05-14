@@ -91,7 +91,7 @@ export default function FundWalletPage() {
 
       {/* Method tabs */}
       <div className="inline-flex rounded-sm border border-line-strong bg-white p-1">
-        {(["stripe", "wise", "payoneer"] as Method[]).map((m) => (
+        {(["stripe"] as Method[]).map((m) => (
           <button
             key={m}
             type="button"
@@ -105,7 +105,7 @@ export default function FundWalletPage() {
               (method === m ? "bg-ink text-text-inv" : "text-text-muted hover:text-ink")
             }
           >
-            {m === "stripe" ? "Card (Stripe)" : m === "wise" ? "Wise" : "Payoneer"}
+            {m === "stripe" ? "Card (Stripe)" : ""}
           </button>
         ))}
       </div>

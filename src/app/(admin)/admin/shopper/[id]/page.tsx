@@ -887,16 +887,7 @@ function LineRow({
             ))}
           </select>
         </Field>
-        {editable ? (
-          <Field label="Note for this update (optional)">
-            <Input
-              type="text"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Substitution, etc."
-            />
-          </Field>
-        ) : null}
+        
         {editable ? (
           <Button
             type="button"
