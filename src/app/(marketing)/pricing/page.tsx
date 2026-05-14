@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { BoxDimensionsHero } from "@/components/marketing/box-dimensions-hero";
+import { PricingGuideForm } from "@/components/marketing/pricing-guide-form";
 import { Button } from "@/components/ui/button";
 import {
   cubicFeetFrom,
@@ -471,6 +472,14 @@ export default function PricingPage() {
             </Faq>
           </div>
         </div>
+      </section>
+
+      {/* Lead capture — "Get our full price guide" form. Sits above
+          the final CTA so visitors who want a deeper read first
+          (e.g., to circulate internally) have an obvious path; those
+          who are ready to sign up scroll past it to the CTA. */}
+      <section className="mx-auto max-w-[84rem] px-8 py-16">
+        <PricingGuideForm />
       </section>
 
       {/* CTA */}
