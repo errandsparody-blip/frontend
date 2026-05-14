@@ -379,7 +379,7 @@ export default function PricingPage() {
       </section>
 
       {/* WORKED EXAMPLE */}
-      <section className="mx-auto max-w-[84rem] px-8 py-20">
+      {/* <section className="mx-auto max-w-[84rem] px-8 py-20">
         <div className="font-mono text-mono-eyebrow uppercase text-amber">[ 07 ] Worked example</div>
         <h2 className="mt-3 max-w-3xl text-display font-medium leading-[1.05] tracking-[-0.8px] text-ink">
           A small apparel vendor&apos;s first month.
@@ -435,7 +435,7 @@ export default function PricingPage() {
             wallet page.
           </p>
         </div>
-      </section>
+      </section> */}
 
       {/* FAQ */}
       <section className="border-y border-line bg-cream-soft">
