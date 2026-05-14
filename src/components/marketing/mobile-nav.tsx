@@ -40,7 +40,7 @@ import { homeForRole, useAuth } from "@/lib/auth-context";
 const NAV_LINKS: ReadonlyArray<{ href: string; label: string; accent?: boolean }> = [
   { href: "/about", label: "About" },
   { href: "/services", label: "Services" },
-  { href: "/how-it-works", label: "How it works" },
+  // { href: "/how-it-works", label: "How it works" },
   { href: "/pricing", label: "Pricing" },
   { href: "/faq", label: "FAQ" },
   { href: "/contact", label: "Contact" },
