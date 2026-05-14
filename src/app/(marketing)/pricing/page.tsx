@@ -126,14 +126,14 @@ export default function PricingPage() {
       {/* HERO */}
       <section className="border-b border-line bg-cream">
         <div className="mx-auto max-w-[84rem] px-8 py-24 lg:py-32">
-          <div className="font-mono text-mono-eyebrow uppercase text-amber">[ 03 ] Pricing</div>
+          <div className="font-mono text-mono-eyebrow uppercase text-amber">Pricing</div>
           <h1 className="mt-3 max-w-3xl text-display-lg font-medium leading-[1.05] tracking-[-1.2px] text-ink">
             One wallet.
             <br />
             <span className="text-amber">Every cost on the same line.</span>
           </h1>
           <p className="mt-8 max-w-2xl text-body-lg text-text-muted">
-            We don&apos;t sell plans. You pay only when you onboard a box, store it, fulfil an order, or take
+            We don&apos;t sell plans. You pay only when you onboard a box, store it, fulfill an order, or take
             a return. Every charge writes a ledger row tied to the originating object.
           </p>
         </div>
@@ -151,7 +151,7 @@ export default function PricingPage() {
 
       {/* PER-BOX TIERS — published storage-tier table */}
       <section className="mx-auto max-w-[84rem] px-8 py-20">
-        <div className="font-mono text-mono-eyebrow uppercase text-amber">[ 04 ] Storage tiers</div>
+        <div className="font-mono text-mono-eyebrow uppercase text-amber"> Storage tiers</div>
         <h2 className="mt-3 max-w-3xl text-display font-medium leading-[1.05] tracking-[-0.8px] text-ink">
           Per-box, per-tier. Pick the smallest box your inventory fits into.
         </h2>
