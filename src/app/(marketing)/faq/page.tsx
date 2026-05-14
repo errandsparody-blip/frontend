@@ -99,7 +99,7 @@ const FAQ_GROUPS: ReadonlyArray<FAQGroup> = [
         q: "Which carriers can I use?",
         a: "All major U.S. carriers — USPS, UPS, FedEx, DHL — through our integrated rate engine. You pick the carrier per order or set a default in your shipping preferences. Shipping is billed at the carrier's live rate plus our flat fulfillment fee; you see the breakdown before the label is purchased.",
       },
-     
+      
     ],
   },
   {
@@ -117,10 +117,7 @@ const FAQ_GROUPS: ReadonlyArray<FAQGroup> = [
         q: "What happens to a damaged return?",
         a: "We photograph the unit at receive, log the condition, and pause it in the Returns Inspection state. You decide whether to discard, donate, recycle, or have it shipped to a U.S. address you provide. We charge handling at the published rate for whichever route you pick; no decision happens silently.",
       },
-      {
-        q: "How long do I have to claim a return?",
-        a: "Buyers must initiate an RMA within the return window configured in your vendor settings (default 30 days from delivery). Once we receive the package, inspection and disposition usually complete within 48 working hours. The full window — from buyer request to refund posted — is visible on the order timeline.",
-      },
+      
     ],
   },
   {
