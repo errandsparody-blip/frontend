@@ -1,20 +1,38 @@
 /**
- * /verification — vendor KYC self-service.
+ * /verification — vendor KYC v2 multi-step wizard.
  *
- * The KYC flow is currently manual review (we don't yet integrate Stripe
- * Identity / Persona). The vendor's job here is to:
- *   1. Provide at least one social handle / business website for the
- *      reviewer to verify against.
- *   2. Accept the vendor agreement.
- *   3. Press "Submit for review" — this flips kycStatus PENDING → IN_PROGRESS
- *      and lands the account in the admin review queue.
+ * Phase 1 of the expanded onboarding form. Structured data only — uploads
+ * (ID front/back, selfie, business registration document) land in a
+ * follow-up. The wizard walks the vendor through 7 sections, persisting
+ * progress on every "Next" click so a refresh / tab close doesn't lose
+ * work. Progress is also mirrored to sessionStorage (keyed by user id) so
+ * a refresh BEFORE the first server save still keeps the form state.
  *
- * Once the admin approves, kycStatus → APPROVED and (if agreement is signed)
- * vendor.status → ACTIVE. The dashboard banner disappears automatically.
+ * The 7 steps are:
+ *   1. Business information
+ *   2. Primary contact
+ *   3. Identity verification
+ *   4. Business verification — placeholder (uploads come later)
+ *   5. Inventory information
+ *   6. Shipping & operations
+ *   7. Review & submit (read-only summary + Submit button)
  *
- * The page is intentionally one screen: status pill, checklist, inline
- * social-handles form, and a single decisive submit button. No multi-step
- * wizard — a vendor's mental model of "verify my account" is one task.
+ * The FINAL step posts the full payload with `submitForReview: true` set;
+ * the backend flips kycStatus → IN_PROGRESS and queues the admin review.
+ *
+ * Pre-existing simple-mode behaviour:
+ *   - If KYC is APPROVED / IN_PROGRESS / REJECTED, we don't show the wizard.
+ *     We show a status panel that matches the previous /verification page
+ *     so vendors who already submitted don't see a confusing form re-open.
+ *
+ * Form validation:
+ *   - The full SubmitKycV2 Zod schema is the resolver, but every field is
+ *     individually `.optional()` at the schema level. We layer a per-step
+ *     "is this step complete?" predicate on top of formState so the Next
+ *     button only enables when the current step has valid inputs.
+ *   - The very last submit uses the schema's `.superRefine` to enforce
+ *     "every required field present" — that's the server's source of truth
+ *     and we mirror it client-side for the inline error display.
  */
 
 "use client";
@@ -22,7 +40,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, type Resolver, type UseFormReturn } from "react-hook-form";
 import { z } from "zod";
 
 import { ErrorBanner } from "@/components/errors/error-banner";
@@ -32,174 +50,590 @@ import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
 import { api } from "@/lib/api-client";
-import { normalizeError, useApiErrorHandler } from "@/lib/errors";
 import { useAuth } from "@/lib/auth-context";
+import { normalizeError, useApiErrorHandler } from "@/lib/errors";
+
+// ---------------------------------------------------------------------------
+// Types — mirror the API's VendorProfile shape (kycV2 sub-object included).
+// ---------------------------------------------------------------------------
+
+type KycStatus =
+  | "PENDING"
+  | "IN_PROGRESS"
+  | "REQUIRES_RESUBMISSION"
+  | "APPROVED"
+  | "REJECTED"
+  | "EXPIRED";
+
+interface KycV2State {
+  businessType: string | null;
+  businessTypeOther: string | null;
+  businessRegistrationNumber: string | null;
+  businessRegistrationCountry: string | null;
+  businessIndustry: string | null;
+  businessIndustryOther: string | null;
+  contactFullName: string | null;
+  contactPosition: string | null;
+  contactPhone: string | null;
+  contactAddressLine1: string | null;
+  contactAddressLine2: string | null;
+  contactCountry: string | null;
+  idType: string | null;
+  idNumber: string | null;
+  idExpirationDate: string | null;
+  productsStoredDescription: string | null;
+  monthlyInventoryVolume: string | null;
+  monthlyOrderVolume: string | null;
+  serviceIntent: string | null;
+  primaryShippingCountries: string | null;
+  requiresReturnsHandling: boolean | null;
+  productHazards: string[];
+}
 
 interface VendorProfile {
   id: string;
   businessName: string;
-  country: string;
-  kycStatus:
-    | "PENDING"
-    | "IN_PROGRESS"
-    | "REQUIRES_RESUBMISSION"
-    | "APPROVED"
-    | "REJECTED"
-    | "EXPIRED";
-  status: "PENDING_KYC" | "ACTIVE" | "SUSPENDED" | "CLOSED";
-  agreementAcceptedAt: string | null;
-  agreementVersion: string | null;
-  createdAt: string;
-  instagramHandle: string | null;
-  tiktokHandle: string | null;
-  xHandle: string | null;
-  websiteUrl: string | null;
-  socialVerifiedAt: string | null;
-  // The most recent reviewer note when status is REJECTED or
-  // REQUIRES_RESUBMISSION. We surface it verbatim so the vendor knows what
-  // to fix. Not present in the public profile shape — `kycRejectionReason`
-  // is read-only and admin-set, but we expose it on /vendors/me for this
-  // exact use case.
+  kycStatus: KycStatus;
   kycRejectionReason?: string | null;
+  agreementAcceptedAt: string | null;
+  status: "PENDING_KYC" | "ACTIVE" | "SUSPENDED" | "CLOSED";
+  kycV2: KycV2State;
 }
 
 // ---------------------------------------------------------------------------
-// Social handles validation — mirrors backend rules, accepts inputs with or
-// without the leading "@", normalizes to lowercase.
+// Zod schema — exact mirror of the backend submitKycV2Schema for the FULL
+// submit. We use this as the resolver. Per-step validity is layered on top
+// in the `STEP_FIELDS` map below; the resolver itself permits every field
+// to be empty so users can hop between steps freely.
 // ---------------------------------------------------------------------------
 
-const stripAt = (s: string) => s.trim().replace(/^@/, "").toLowerCase();
+const BUSINESS_TYPES = [
+  { value: "SOLE_PROPRIETORSHIP", label: "Sole Proprietorship" },
+  { value: "REGISTERED_BUSINESS", label: "Registered Business" },
+  { value: "LLC", label: "LLC" },
+  { value: "CORPORATION", label: "Corporation" },
+  { value: "PARTNERSHIP", label: "Partnership" },
+  { value: "OTHER", label: "Other" },
+] as const;
 
-const handleField = (opts: { max: number; pattern: RegExp; label: string }) =>
-  z
-    .string()
-    .transform(stripAt)
-    .refine(
-      (s) => s === "" || (s.length <= opts.max && opts.pattern.test(s)),
-      `${opts.label} doesn't match the platform's allowed format.`,
-    );
+const INDUSTRIES = [
+  { value: "FASHION_APPAREL", label: "Fashion & Apparel" },
+  { value: "BEAUTY_COSMETICS", label: "Beauty / Cosmetics" },
+  { value: "HAIR_WIGS", label: "Hair / Wigs" },
+  { value: "ELECTRONICS", label: "Electronics" },
+  { value: "ACCESSORIES", label: "Accessories" },
+  { value: "HOME_GOODS", label: "Home Goods" },
+  { value: "OTHER", label: "Other" },
+] as const;
 
-const socialSchema = z.object({
-  instagramHandle: handleField({
-    max: 30,
-    pattern: /^[a-z0-9._]+$/,
-    label: "Instagram handle",
-  }),
-  tiktokHandle: handleField({
-    max: 24,
-    pattern: /^[a-z0-9._]+$/,
-    label: "TikTok handle",
-  }),
-  xHandle: handleField({
-    max: 15,
-    pattern: /^[a-z0-9_]+$/,
-    label: "X handle",
-  }),
-  websiteUrl: z
-    .string()
-    .trim()
-    .refine(
-      (s) => s === "" || /^https?:\/\/[^\s/$.?#].[^\s]*$/i.test(s),
-      "Enter a full URL starting with https://",
-    ),
-});
-type SocialInput = z.infer<typeof socialSchema>;
+const ID_TYPES = [
+  { value: "PASSPORT", label: "Passport" },
+  { value: "NATIONAL_ID", label: "National ID Card" },
+  { value: "DRIVERS_LICENSE", label: "Driver's License" },
+] as const;
 
-function kycPillTone(status: VendorProfile["kycStatus"]): "success" | "error" | "warning" {
-  if (status === "APPROVED") return "success";
-  if (status === "REJECTED" || status === "EXPIRED") return "error";
-  return "warning";
-}
+const INVENTORY_VOLUMES = [
+  { value: "SMALL_1_10", label: "Small (1–10 boxes)" },
+  { value: "MEDIUM_11_30", label: "Medium (11–30 boxes)" },
+  { value: "LARGE_31_100", label: "Large (31–100 boxes)" },
+  { value: "XLARGE_100_PLUS", label: "X-Large (100+ boxes)" },
+  { value: "BULK_PALLET", label: "Bulk / Pallet Level" },
+] as const;
 
-function kycHeadline(status: VendorProfile["kycStatus"]): { title: string; body: string } {
-  switch (status) {
-    case "APPROVED":
-      return {
-        title: "You're verified.",
-        body: "Your account is fully verified. You can ship inventory in and place orders.",
-      };
-    case "IN_PROGRESS":
-      return {
-        title: "Review in progress.",
-        body: "Our team is verifying your business. This usually takes one business day.",
-      };
-    case "REQUIRES_RESUBMISSION":
-      return {
-        title: "Almost there — small fixes needed.",
-        body: "Our reviewer left a note. Address it below, then resubmit.",
-      };
-    case "REJECTED":
-      return {
-        title: "We couldn't verify your account.",
-        body: "Reach out to support if you have additional documentation.",
-      };
-    case "EXPIRED":
-      return {
-        title: "Your verification expired.",
-        body: "Confirm your details and resubmit for a fresh review.",
-      };
-    case "PENDING":
-    default:
-      return {
-        title: "Verify your business.",
-        body: "Provide a public footprint our reviewers can check, then submit. Most accounts are verified within one business day.",
-      };
+const ORDER_VOLUMES = [
+  { value: "V_1_20", label: "1–20 orders" },
+  { value: "V_21_100", label: "21–100 orders" },
+  { value: "V_101_500", label: "101–500 orders" },
+  { value: "V_500_PLUS", label: "500+ orders" },
+] as const;
+
+const SERVICE_INTENTS = [
+  { value: "FULFILLMENT_ONLY", label: "Fulfillment Only" },
+  { value: "PERSONAL_SHOPPER", label: "Personal Shopper Service" },
+  { value: "BOTH", label: "Both Services" },
+] as const;
+
+const HAZARDS = [
+  { value: "BATTERIES", label: "Batteries" },
+  { value: "LIQUIDS", label: "Liquids" },
+  { value: "FRAGILE", label: "Fragile Items" },
+  { value: "HAZARDOUS", label: "Hazardous Materials" },
+  { value: "NONE", label: "None of the Above" },
+] as const;
+
+// All values literally typed via `as const` so the zod enums and form
+// values share a TS source of truth.
+const businessTypeEnum = z.enum(BUSINESS_TYPES.map((b) => b.value) as [string, ...string[]]);
+const industryEnum = z.enum(INDUSTRIES.map((b) => b.value) as [string, ...string[]]);
+const idTypeEnum = z.enum(ID_TYPES.map((b) => b.value) as [string, ...string[]]);
+const inventoryVolumeEnum = z.enum(
+  INVENTORY_VOLUMES.map((b) => b.value) as [string, ...string[]],
+);
+const orderVolumeEnum = z.enum(ORDER_VOLUMES.map((b) => b.value) as [string, ...string[]]);
+const serviceIntentEnum = z.enum(
+  SERVICE_INTENTS.map((b) => b.value) as [string, ...string[]],
+);
+const hazardEnum = z.enum(HAZARDS.map((b) => b.value) as [string, ...string[]]);
+
+const iso2 = z
+  .string()
+  .trim()
+  .regex(/^[A-Za-z]{2}$/, "Use a 2-letter ISO country code (e.g. US, GB).")
+  .transform((s) => s.toUpperCase());
+
+const phoneRegex = /^\+?[0-9 \-()]{6,}$/;
+
+const wizardSchema = z
+  .object({
+    businessType: businessTypeEnum.optional().or(z.literal("")),
+    businessTypeOther: z.string().max(120).optional(),
+    businessRegistrationNumber: z.string().max(120).optional(),
+    businessRegistrationCountry: z
+      .string()
+      .max(2)
+      .optional()
+      .or(iso2.optional()),
+    businessIndustry: industryEnum.optional().or(z.literal("")),
+    businessIndustryOther: z.string().max(120).optional(),
+
+    contactFullName: z.string().max(160).optional(),
+    contactPosition: z.string().max(120).optional(),
+    contactPhone: z
+      .string()
+      .trim()
+      .optional()
+      .refine(
+        (s) => !s || phoneRegex.test(s),
+        "Enter a phone number with country code.",
+      ),
+    contactAddressLine1: z.string().max(200).optional(),
+    contactAddressLine2: z.string().max(200).optional(),
+    contactCountry: z.string().max(2).optional(),
+
+    idType: idTypeEnum.optional().or(z.literal("")),
+    idNumber: z.string().max(60).optional(),
+    idExpirationDate: z
+      .string()
+      .optional()
+      .refine((s) => !s || /^\d{4}-\d{2}-\d{2}$/.test(s), "Use YYYY-MM-DD.")
+      .refine((s) => {
+        if (!s) return true;
+        const d = new Date(`${s}T00:00:00Z`);
+        if (Number.isNaN(d.getTime())) return false;
+        const now = new Date();
+        const utcToday = Date.UTC(
+          now.getUTCFullYear(),
+          now.getUTCMonth(),
+          now.getUTCDate(),
+        );
+        return d.getTime() > utcToday;
+      }, "ID is expired or expires today."),
+
+    productsStoredDescription: z.string().max(1000).optional(),
+    monthlyInventoryVolume: inventoryVolumeEnum.optional().or(z.literal("")),
+    monthlyOrderVolume: orderVolumeEnum.optional().or(z.literal("")),
+    serviceIntent: serviceIntentEnum.optional().or(z.literal("")),
+
+    primaryShippingCountries: z.string().max(400).optional(),
+    requiresReturnsHandling: z.union([z.boolean(), z.literal("")]).optional(),
+    productHazards: z.array(hazardEnum).max(5).optional(),
+  })
+  .strip();
+
+type WizardInput = z.infer<typeof wizardSchema>;
+
+const EMPTY_WIZARD: WizardInput = {
+  businessType: "",
+  businessTypeOther: "",
+  businessRegistrationNumber: "",
+  businessRegistrationCountry: "",
+  businessIndustry: "",
+  businessIndustryOther: "",
+  contactFullName: "",
+  contactPosition: "",
+  contactPhone: "",
+  contactAddressLine1: "",
+  contactAddressLine2: "",
+  contactCountry: "",
+  idType: "",
+  idNumber: "",
+  idExpirationDate: "",
+  productsStoredDescription: "",
+  monthlyInventoryVolume: "",
+  monthlyOrderVolume: "",
+  serviceIntent: "",
+  primaryShippingCountries: "",
+  requiresReturnsHandling: "",
+  productHazards: [],
+};
+
+// ---------------------------------------------------------------------------
+// Step model
+// ---------------------------------------------------------------------------
+
+type StepKey =
+  | "business"
+  | "contact"
+  | "identity"
+  | "verification"
+  | "inventory"
+  | "shipping"
+  | "review";
+
+const STEPS: Array<{ key: StepKey; label: string }> = [
+  { key: "business", label: "Business info" },
+  { key: "contact", label: "Primary contact" },
+  { key: "identity", label: "Identity" },
+  { key: "verification", label: "Business verification" },
+  { key: "inventory", label: "Inventory" },
+  { key: "shipping", label: "Shipping & ops" },
+  { key: "review", label: "Review & submit" },
+];
+
+/**
+ * Required fields per step. Used both to gate the Next button and to
+ * decide which fields to PATCH to the server on each "Next" click.
+ *
+ * The `verification` step has no fields (uploads come in the follow-up
+ * phase) — Next is always enabled there.
+ *
+ * `review` is a read-only summary screen — no fields to validate; the
+ * Submit button is the only gesture.
+ */
+const STEP_FIELDS: Record<StepKey, Array<keyof WizardInput>> = {
+  business: [
+    "businessType",
+    "businessTypeOther",
+    "businessRegistrationNumber",
+    "businessRegistrationCountry",
+    "businessIndustry",
+    "businessIndustryOther",
+  ],
+  contact: [
+    "contactFullName",
+    "contactPosition",
+    "contactPhone",
+    "contactAddressLine1",
+    "contactAddressLine2",
+    "contactCountry",
+  ],
+  identity: ["idType", "idNumber", "idExpirationDate"],
+  verification: [],
+  inventory: [
+    "productsStoredDescription",
+    "monthlyInventoryVolume",
+    "monthlyOrderVolume",
+    "serviceIntent",
+  ],
+  shipping: [
+    "primaryShippingCountries",
+    "requiresReturnsHandling",
+    "productHazards",
+  ],
+  review: [],
+};
+
+/**
+ * Per-step completeness check. Mirrors the server's `superRefine` for
+ * the matching subset so users can't click Next past an empty required
+ * field — they'd just trip the server validator on the next save.
+ */
+function isStepComplete(step: StepKey, v: WizardInput): boolean {
+  const has = (s: string | null | undefined): s is string =>
+    typeof s === "string" && s.trim().length > 0;
+  switch (step) {
+    case "business":
+      if (!has(v.businessType)) return false;
+      if (v.businessType === "OTHER" && !has(v.businessTypeOther)) return false;
+      if (!has(v.businessRegistrationCountry)) return false;
+      if (!/^[A-Za-z]{2}$/.test(v.businessRegistrationCountry ?? "")) return false;
+      if (!has(v.businessIndustry)) return false;
+      if (v.businessIndustry === "OTHER" && !has(v.businessIndustryOther)) return false;
+      return true;
+    case "contact":
+      return (
+        has(v.contactFullName) &&
+        has(v.contactPosition) &&
+        has(v.contactPhone) &&
+        phoneRegex.test(v.contactPhone ?? "") &&
+        has(v.contactAddressLine1) &&
+        has(v.contactCountry) &&
+        /^[A-Za-z]{2}$/.test(v.contactCountry ?? "")
+      );
+    case "identity":
+      return (
+        has(v.idType) &&
+        has(v.idNumber) &&
+        has(v.idExpirationDate) &&
+        /^\d{4}-\d{2}-\d{2}$/.test(v.idExpirationDate ?? "")
+      );
+    case "verification":
+      return true;
+    case "inventory":
+      return (
+        has(v.productsStoredDescription) &&
+        has(v.monthlyInventoryVolume) &&
+        has(v.monthlyOrderVolume) &&
+        has(v.serviceIntent)
+      );
+    case "shipping":
+      return (
+        has(v.primaryShippingCountries) &&
+        typeof v.requiresReturnsHandling === "boolean" &&
+        Array.isArray(v.productHazards) &&
+        v.productHazards.length > 0
+      );
+    case "review":
+      // No input on this step — the Submit button is the gesture.
+      return true;
   }
 }
 
-export default function VerificationPage() {
+/**
+ * Translate the wizard form state into the server's payload shape.
+ *
+ * - Empty strings → undefined (the server treats undefined as "don't touch").
+ * - Bare "" enum picks → undefined.
+ * - `requiresReturnsHandling === ""` → undefined.
+ * - `productHazards` always sent if non-empty.
+ *
+ * Only the fields in `fieldFilter` (current step's keys + earlier steps'
+ * keys) are forwarded; that's what allows step-by-step partial saves.
+ *
+ * `finalSubmit` adds `submitForReview: true` — the backend uses that flag
+ * to flip kycStatus → IN_PROGRESS and queue the admin review.
+ */
+function buildPayload(
+  values: WizardInput,
+  fieldFilter: Array<keyof WizardInput>,
+  finalSubmit: boolean,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  const include = (k: keyof WizardInput) => fieldFilter.includes(k);
+  const stringIfSet = (k: keyof WizardInput) => {
+    if (!include(k)) return;
+    const v = values[k];
+    if (typeof v === "string" && v.trim().length > 0) out[k] = v.trim();
+  };
+
+  stringIfSet("businessType");
+  stringIfSet("businessTypeOther");
+  stringIfSet("businessRegistrationNumber");
+  if (include("businessRegistrationCountry") && values.businessRegistrationCountry) {
+    out.businessRegistrationCountry = values.businessRegistrationCountry.toUpperCase();
+  }
+  stringIfSet("businessIndustry");
+  stringIfSet("businessIndustryOther");
+
+  stringIfSet("contactFullName");
+  stringIfSet("contactPosition");
+  stringIfSet("contactPhone");
+  stringIfSet("contactAddressLine1");
+  stringIfSet("contactAddressLine2");
+  if (include("contactCountry") && values.contactCountry) {
+    out.contactCountry = values.contactCountry.toUpperCase();
+  }
+
+  stringIfSet("idType");
+  stringIfSet("idNumber");
+  stringIfSet("idExpirationDate");
+
+  stringIfSet("productsStoredDescription");
+  stringIfSet("monthlyInventoryVolume");
+  stringIfSet("monthlyOrderVolume");
+  stringIfSet("serviceIntent");
+
+  stringIfSet("primaryShippingCountries");
+  if (include("requiresReturnsHandling") && typeof values.requiresReturnsHandling === "boolean") {
+    out.requiresReturnsHandling = values.requiresReturnsHandling;
+  }
+  if (include("productHazards") && Array.isArray(values.productHazards) && values.productHazards.length > 0) {
+    out.productHazards = values.productHazards;
+  }
+
+  if (finalSubmit) {
+    out.submitForReview = true;
+  }
+
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// Per-user sessionStorage key — keeps progress across refreshes BEFORE the
+// first server save lands.
+// ---------------------------------------------------------------------------
+
+function storageKey(userId: string | undefined): string | null {
+  if (!userId) return null;
+  return `kyc_wizard_v2:${userId}`;
+}
+
+function loadFromStorage(userId: string | undefined): Partial<WizardInput> | null {
+  const key = storageKey(userId);
+  if (!key || typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as unknown;
+    if (parsed && typeof parsed === "object") return parsed as Partial<WizardInput>;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function saveToStorage(userId: string | undefined, values: WizardInput): void {
+  const key = storageKey(userId);
+  if (!key || typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(key, JSON.stringify(values));
+  } catch {
+    // Storage quota / private-mode failures are non-fatal — we still have
+    // server-side persistence on every Next. Swallow silently.
+  }
+}
+
+function clearStorage(userId: string | undefined): void {
+  const key = storageKey(userId);
+  if (!key || typeof window === "undefined") return;
+  try {
+    window.sessionStorage.removeItem(key);
+  } catch {
+    /* ignore */
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Page
+// ---------------------------------------------------------------------------
+
+export default function VerificationPage(): JSX.Element {
   const { user } = useAuth();
-  const isSubUser = user?.role === "VENDOR_SUB_USER";
   const qc = useQueryClient();
+  const isSubUser = user?.role === "VENDOR_SUB_USER";
 
   const profileQ = useQuery({
     queryKey: ["vendor", "me"],
     queryFn: () => api.get<VendorProfile>("/vendors/me"),
   });
 
-  const socialForm = useForm<SocialInput>({
-    resolver: zodResolver(socialSchema),
-    defaultValues: { instagramHandle: "", tiktokHandle: "", xHandle: "", websiteUrl: "" },
+  const [currentStep, setCurrentStep] = useState(0);
+
+  // The Zod resolver enforces field-level shape only (everything optional,
+  // strings have format checks). Step completeness is layered on top via
+  // isStepComplete() so partial saves succeed.
+  const form = useForm<WizardInput>({
+    resolver: zodResolver(wizardSchema) as unknown as Resolver<WizardInput>,
+    defaultValues: EMPTY_WIZARD,
+    mode: "onChange",
   });
 
+  // Pre-fill from server + sessionStorage. Server wins for fields the user
+  // has already saved; sessionStorage only fills in anything still empty.
+  // Run once after profile loads.
+  const [seeded, setSeeded] = useState(false);
   useEffect(() => {
-    if (profileQ.data) {
-      socialForm.reset({
-        instagramHandle: profileQ.data.instagramHandle ?? "",
-        tiktokHandle: profileQ.data.tiktokHandle ?? "",
-        xHandle: profileQ.data.xHandle ?? "",
-        websiteUrl: profileQ.data.websiteUrl ?? "",
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profileQ.data]);
+    if (seeded || !profileQ.data) return;
+    const kyc = profileQ.data.kycV2;
+    const stored = loadFromStorage(user?.id);
+    const merged: WizardInput = {
+      ...EMPTY_WIZARD,
+      businessType: kyc.businessType ?? stored?.businessType ?? "",
+      businessTypeOther: kyc.businessTypeOther ?? stored?.businessTypeOther ?? "",
+      businessRegistrationNumber:
+        kyc.businessRegistrationNumber ?? stored?.businessRegistrationNumber ?? "",
+      businessRegistrationCountry:
+        kyc.businessRegistrationCountry ?? stored?.businessRegistrationCountry ?? "",
+      businessIndustry: kyc.businessIndustry ?? stored?.businessIndustry ?? "",
+      businessIndustryOther: kyc.businessIndustryOther ?? stored?.businessIndustryOther ?? "",
+      contactFullName: kyc.contactFullName ?? stored?.contactFullName ?? "",
+      contactPosition: kyc.contactPosition ?? stored?.contactPosition ?? "",
+      contactPhone: kyc.contactPhone ?? stored?.contactPhone ?? "",
+      contactAddressLine1: kyc.contactAddressLine1 ?? stored?.contactAddressLine1 ?? "",
+      contactAddressLine2: kyc.contactAddressLine2 ?? stored?.contactAddressLine2 ?? "",
+      contactCountry: kyc.contactCountry ?? stored?.contactCountry ?? "",
+      idType: kyc.idType ?? stored?.idType ?? "",
+      idNumber: kyc.idNumber ?? stored?.idNumber ?? "",
+      idExpirationDate: kyc.idExpirationDate ?? stored?.idExpirationDate ?? "",
+      productsStoredDescription:
+        kyc.productsStoredDescription ?? stored?.productsStoredDescription ?? "",
+      monthlyInventoryVolume:
+        kyc.monthlyInventoryVolume ?? stored?.monthlyInventoryVolume ?? "",
+      monthlyOrderVolume: kyc.monthlyOrderVolume ?? stored?.monthlyOrderVolume ?? "",
+      serviceIntent: kyc.serviceIntent ?? stored?.serviceIntent ?? "",
+      primaryShippingCountries:
+        kyc.primaryShippingCountries ?? stored?.primaryShippingCountries ?? "",
+      requiresReturnsHandling:
+        typeof kyc.requiresReturnsHandling === "boolean"
+          ? kyc.requiresReturnsHandling
+          : typeof stored?.requiresReturnsHandling === "boolean"
+            ? stored.requiresReturnsHandling
+            : "",
+      productHazards:
+        Array.isArray(kyc.productHazards) && kyc.productHazards.length > 0
+          ? kyc.productHazards
+          : Array.isArray(stored?.productHazards)
+            ? (stored?.productHazards as string[])
+            : [],
+    };
+    form.reset(merged);
+    setSeeded(true);
+  }, [profileQ.data, seeded, form, user?.id]);
+
+  // Persist on every change (debounced via React's batching to whatever the
+  // form's onChange cycle is — small enough payload that we don't need an
+  // explicit debounce). sessionStorage is robust enough that synchronous
+  // writes on every change are fine.
+  const watched = form.watch();
+  useEffect(() => {
+    if (!seeded) return;
+    saveToStorage(user?.id, watched);
+  }, [watched, seeded, user?.id]);
+
+  const { bannerError, handle, clear } = useApiErrorHandler(
+    form as unknown as UseFormReturn<Record<string, unknown>>,
+  );
 
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
 
-  const { bannerError, handle, clear } = useApiErrorHandler(socialForm);
-
-  const saveSocialMut = useMutation({
-    mutationFn: (input: SocialInput) =>
-      api.patch<VendorProfile>("/vendors/me", {
-        instagramHandle: input.instagramHandle === "" ? null : input.instagramHandle,
-        tiktokHandle: input.tiktokHandle === "" ? null : input.tiktokHandle,
-        xHandle: input.xHandle === "" ? null : input.xHandle,
-        websiteUrl: input.websiteUrl === "" ? null : input.websiteUrl,
-      }),
+  /**
+   * "Next" save — POSTs the just-edited step's fields plus everything from
+   * prior steps (the server treats it as upsert). On success advances the
+   * step counter.
+   */
+  const stepSaveMut = useMutation({
+    mutationFn: async (args: { upToStep: number }): Promise<VendorProfile> => {
+      const values = form.getValues();
+      const fieldFilter: Array<keyof WizardInput> = STEPS
+        .slice(0, args.upToStep + 1)
+        .flatMap((s) => STEP_FIELDS[s.key]);
+      const payload = buildPayload(values, fieldFilter, false);
+      return api.post<VendorProfile>("/vendors/me/kyc/submit", payload);
+    },
     onMutate: clear,
-    onSuccess: async () => {
-      setActionSuccess("Saved.");
+    onSuccess: async (_data, vars) => {
+      setCurrentStep(Math.min(vars.upToStep + 1, STEPS.length - 1));
+      setActionSuccess(null);
       await qc.invalidateQueries({ queryKey: ["vendor", "me"] });
-      setTimeout(() => setActionSuccess(null), 2000);
     },
     onError: (err) => handle(err),
   });
 
-  const submitKycMut = useMutation({
-    mutationFn: () => api.post<VendorProfile>("/vendors/me/kyc/submit", {}),
+  /**
+   * FINAL submit — every field plus the `submitForReview: true` flag. The
+   * server stamps kycSubmittedAt and flips kycStatus → IN_PROGRESS.
+   */
+  const finalSubmitMut = useMutation({
+    mutationFn: async (): Promise<VendorProfile> => {
+      const values = form.getValues();
+      const fieldFilter: Array<keyof WizardInput> = STEPS.flatMap((s) => STEP_FIELDS[s.key]);
+      const payload = buildPayload(values, fieldFilter, true);
+      return api.post<VendorProfile>("/vendors/me/kyc/submit", payload);
+    },
     onMutate: clear,
     onSuccess: async () => {
       setActionSuccess("Submitted. We'll email you when the review is complete.");
+      clearStorage(user?.id);
       await qc.invalidateQueries({ queryKey: ["vendor", "me"] });
     },
     onError: (err) => handle(err),
@@ -209,16 +643,17 @@ export default function VerificationPage() {
     if (handler === "support") window.location.href = "mailto:support@myusaerrands.com";
   }
 
+  // ---------------------------------------------------------------------------
+  // Render
+  // ---------------------------------------------------------------------------
+
   if (profileQ.isLoading) {
     return <div className="font-mono text-mono-label uppercase text-text-muted">Loading…</div>;
   }
   if (profileQ.error || !profileQ.data) {
     const normalized = profileQ.error ? normalizeError(profileQ.error) : null;
     return (
-      <div
-        role="alert"
-        className="rounded-md border-l-4 border-error bg-error/10 px-5 py-4"
-      >
+      <div role="alert" className="rounded-md border-l-4 border-error bg-error/10 px-5 py-4">
         <div className="font-mono text-mono-label uppercase text-error">
           {normalized?.entry.title ?? "Couldn't load your profile"}
         </div>
@@ -229,292 +664,745 @@ export default function VerificationPage() {
     );
   }
 
-  const v = profileQ.data;
-  const headline = kycHeadline(v.kycStatus);
-  const hasAnyHandle = !!(v.instagramHandle || v.tiktokHandle || v.xHandle || v.websiteUrl);
-  const agreementAccepted = !!v.agreementAcceptedAt;
-  // Submitting for KYC review without an agreement on file is a guaranteed
-  // dead-end: even if KYC is approved, the vendor can't activate. We
-  // require both signals here so the user discovers the missing piece on
-  // this page, not three screens later.
-  const canSubmit =
-    !isSubUser &&
-    hasAnyHandle &&
-    agreementAccepted &&
-    (v.kycStatus === "PENDING" ||
-      v.kycStatus === "REQUIRES_RESUBMISSION" ||
-      v.kycStatus === "EXPIRED");
+  const profile = profileQ.data;
+  const ks = profile.kycStatus;
+
+  // Status panels — for non-editable states, show the previous-page-style
+  // verdict instead of the wizard form.
+  if (ks === "APPROVED") {
+    return (
+      <StatusPanel
+        eyebrow="[02] Verification"
+        title="You're verified."
+        body="Your account is fully verified. You can ship inventory in and place orders."
+        tone="success"
+        statusLabel={ks}
+      />
+    );
+  }
+  if (ks === "IN_PROGRESS") {
+    return (
+      <StatusPanel
+        eyebrow="[02] Verification"
+        title="Review in progress."
+        body="Our team is verifying your business. This usually takes one business day."
+        tone="warning"
+        statusLabel={ks}
+      />
+    );
+  }
+  if (ks === "REJECTED") {
+    return (
+      <StatusPanel
+        eyebrow="[02] Verification"
+        title="We couldn't verify your account."
+        body="Reach out to support if you have additional documentation."
+        tone="error"
+        statusLabel={ks}
+        rejectionReason={profile.kycRejectionReason ?? null}
+      />
+    );
+  }
+  if (isSubUser) {
+    return (
+      <StatusPanel
+        eyebrow="[02] Verification"
+        title="Verification is account-admin only."
+        body="Ask your account admin to complete the verification form. Sub-users can't submit on their behalf."
+        tone="warning"
+        statusLabel={ks}
+      />
+    );
+  }
+
+  // Active wizard. PENDING / REQUIRES_RESUBMISSION / EXPIRED all show the
+  // form. Resubmission carries the reviewer note so the vendor knows what
+  // to change. The non-null-assert on the step lookup is safe — currentStep
+  // is clamped to [0, STEPS.length-1] by the Back/Next handlers — and saves
+  // us from `noUncheckedIndexedAccess` widening every read to `| undefined`.
+  const safeIdx = Math.min(Math.max(currentStep, 0), STEPS.length - 1);
+  const step = STEPS[safeIdx]!;
+  const stepKey = step.key;
+  const stepValid = isStepComplete(stepKey, watched);
+  const onLastStep = safeIdx === STEPS.length - 1;
+  const onPlaceholderStep = stepKey === "verification";
+  const submitDisabled =
+    !stepValid || stepSaveMut.isPending || finalSubmitMut.isPending;
 
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
         eyebrow="[02] Verification"
-        title={headline.title}
-        description={headline.body}
-        actions={
-          <StatusPill tone={kycPillTone(v.kycStatus)}>
-            KYC {v.kycStatus.replace(/_/g, " ")}
-          </StatusPill>
-        }
+        title="Verify your business."
+        description="Provide your business details, identity, and operations so we can activate your account. Each step is saved as you go."
+        actions={<StatusPill tone="warning">KYC {ks.replace(/_/g, " ")}</StatusPill>}
       />
 
-      {/* Reviewer note — shown only when there's something to act on. */}
-      {(v.kycStatus === "REQUIRES_RESUBMISSION" || v.kycStatus === "REJECTED") &&
-      v.kycRejectionReason ? (
+      {/* Reviewer note for REQUIRES_RESUBMISSION / EXPIRED. */}
+      {(ks === "REQUIRES_RESUBMISSION" || ks === "EXPIRED") && profile.kycRejectionReason ? (
         <section className="rounded-md border-l-4 border-amber bg-cream-soft p-6">
           <div className="font-mono text-mono-label uppercase text-amber">Reviewer note</div>
           <p className="mt-2 whitespace-pre-line text-body-sm text-text">
-            {v.kycRejectionReason}
+            {profile.kycRejectionReason}
           </p>
         </section>
       ) : null}
 
-      {/* Checklist — what we need from the vendor. */}
-      <section className="rounded-md border border-line bg-white p-6">
-        <h2 className="text-h3 font-semibold text-ink">What we need</h2>
-        <p className="mt-1 max-w-prose text-body-sm text-text-muted">
-          We verify accounts manually right now. The fastest review is one with
-          a clear public footprint and a signed agreement.
-        </p>
-        <ul className="mt-5 flex flex-col divide-y divide-line">
-          <ChecklistRow
-            checked={hasAnyHandle}
-            title="Public business presence"
-            body={
-              hasAnyHandle
-                ? "We have at least one handle to verify. Add more below if you'd like."
-                : "Add at least one social handle or your business website."
-            }
-          />
-          <ChecklistRow
-            checked={agreementAccepted}
-            title="Vendor agreement"
-            body={
-              agreementAccepted
-                ? `Accepted ${
-                    v.agreementAcceptedAt
-                      ? new Date(v.agreementAcceptedAt).toLocaleDateString()
-                      : ""
-                  }${v.agreementVersion ? ` · v${v.agreementVersion}` : ""}.`
-                : "Read the terms and accept on behalf of your business. Required before activation."
-            }
-            cta={
-              agreementAccepted
-                ? undefined
-                : { label: "Read & accept", href: "/legal/vendor-agreement" }
-            }
-          />
-        </ul>
-      </section>
-
-      {/* Social handles editor — same rules as /settings, but inline so the
-          vendor can fix things without context-switching. */}
-      <section className="rounded-md border border-line bg-white p-6">
-        <h2 className="text-h3 font-semibold text-ink">Public business presence</h2>
-        <p className="mt-1 max-w-prose text-body-sm text-text-muted">
-          At least one is required. Editing any handle re-opens the review.
-        </p>
-
-        <form
-          onSubmit={socialForm.handleSubmit((vals) => saveSocialMut.mutate(vals))}
-          className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2"
-          noValidate
+      {/* Progress bar */}
+      <section className="rounded-md border border-line bg-white p-5">
+        <div className="flex items-baseline justify-between">
+          <div className="font-mono text-mono-label uppercase text-text-muted">
+            Step {safeIdx + 1} of {STEPS.length}
+          </div>
+          <div className="font-mono text-mono-label uppercase text-text">
+            {step.label}
+          </div>
+        </div>
+        <div className="mt-3 flex gap-1.5" role="progressbar"
+          aria-valuemin={1}
+          aria-valuemax={STEPS.length}
+          aria-valuenow={safeIdx + 1}
         >
-          <Field
-            label="Instagram"
-            hint="Without the @. e.g. adela.apparel"
-            error={socialForm.formState.errors.instagramHandle?.message}
-          >
-            <Input
-              type="text"
-              placeholder="adela.apparel"
-              disabled={isSubUser}
-              invalid={!!socialForm.formState.errors.instagramHandle}
-              {...socialForm.register("instagramHandle")}
+          {STEPS.map((s, i) => (
+            <div
+              key={s.key}
+              className={
+                "h-1.5 flex-1 rounded-sm " +
+                (i <= safeIdx ? "bg-amber" : "bg-line")
+              }
+              aria-hidden="true"
             />
-          </Field>
-          <Field
-            label="TikTok"
-            hint="Without the @. e.g. adelaofficial"
-            error={socialForm.formState.errors.tiktokHandle?.message}
-          >
-            <Input
-              type="text"
-              placeholder="adelaofficial"
-              disabled={isSubUser}
-              invalid={!!socialForm.formState.errors.tiktokHandle}
-              {...socialForm.register("tiktokHandle")}
-            />
-          </Field>
-          <Field
-            label="X (Twitter)"
-            hint="Letters, numbers, underscore only."
-            error={socialForm.formState.errors.xHandle?.message}
-          >
-            <Input
-              type="text"
-              placeholder="adelahq"
-              disabled={isSubUser}
-              invalid={!!socialForm.formState.errors.xHandle}
-              {...socialForm.register("xHandle")}
-            />
-          </Field>
-          <Field
-            label="Website"
-            hint="Full URL with https://"
-            error={socialForm.formState.errors.websiteUrl?.message}
-          >
-            <Input
-              type="url"
-              placeholder="https://adela.example"
-              disabled={isSubUser}
-              invalid={!!socialForm.formState.errors.websiteUrl}
-              {...socialForm.register("websiteUrl")}
-            />
-          </Field>
-
-          {!isSubUser ? (
-            <div className="md:col-span-2 flex justify-end">
-              <Button
-                type="submit"
-                variant="outline"
-                loading={saveSocialMut.isPending}
-                disabled={!socialForm.formState.isDirty}
-              >
-                Save details
-              </Button>
-            </div>
-          ) : null}
-        </form>
+          ))}
+        </div>
       </section>
 
-      {/* Submit-for-review band — only shown when actionable. */}
-      {canSubmit ? (
-        <section className="rounded-md border border-line bg-white p-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-h3 font-semibold text-ink">Ready when you are.</h2>
-              <p className="mt-1 max-w-prose text-body-sm text-text-muted">
-                Save any pending handle changes first. Once you submit, our team
-                reviews within one business day. We&apos;ll email you the result.
-              </p>
-            </div>
-            <Button
-              type="button"
-              variant="amber"
-              size="lg"
-              withArrow
-              loading={submitKycMut.isPending}
-              disabled={socialForm.formState.isDirty}
-              onClick={() => submitKycMut.mutate()}
-            >
-              {v.kycStatus === "PENDING" ? "Submit for review" : "Resubmit for review"}
-            </Button>
-          </div>
-        </section>
-      ) : v.kycStatus === "IN_PROGRESS" ? (
-        <section className="rounded-md border-l-4 border-amber bg-amber/10 p-6">
-          <div className="font-mono text-mono-label uppercase text-amber">In review</div>
-          <p className="mt-2 text-body-sm text-text">
-            Our team is verifying your business. We&apos;ll email{" "}
-            {user?.email ? <strong>{user.email}</strong> : "you"} when the review
-            is complete — usually within one business day.
-          </p>
-        </section>
-      ) : !isSubUser &&
-        hasAnyHandle &&
-        !agreementAccepted &&
-        (v.kycStatus === "PENDING" ||
-          v.kycStatus === "REQUIRES_RESUBMISSION" ||
-          v.kycStatus === "EXPIRED") ? (
-        // The vendor has provided enough public footprint to submit, but
-        // the agreement isn't on file yet. Without this hint they'd see
-        // an empty section here and assume the page is broken.
-        <section className="rounded-md border-l-4 border-amber bg-amber/10 p-6">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <div className="font-mono text-mono-label uppercase text-amber">
-                One more step
-              </div>
-              <p className="mt-2 max-w-prose text-body-sm text-text">
-                You&apos;re ready to submit for review — just need the vendor agreement on
-                file first. It takes a minute.
-              </p>
-            </div>
-            <a
-              href="/legal/vendor-agreement"
-              className="self-start font-mono text-[11px] uppercase tracking-[1.2px] text-amber hover:text-amber-hi sm:self-center"
-            >
-              Read &amp; accept →
-            </a>
-          </div>
-        </section>
-      ) : null}
+      {/* Step body */}
+      <section className="rounded-md border border-line bg-white p-6">
+        {stepKey === "business" ? <BusinessStep form={form} /> : null}
+        {stepKey === "contact" ? <ContactStep form={form} /> : null}
+        {stepKey === "identity" ? <IdentityStep form={form} /> : null}
+        {stepKey === "verification" ? <VerificationPlaceholder /> : null}
+        {stepKey === "inventory" ? <InventoryStep form={form} /> : null}
+        {stepKey === "shipping" ? <ShippingStep form={form} /> : null}
+        {stepKey === "review" ? <ReviewStep values={watched} businessName={profile.businessName} /> : null}
+      </section>
 
-      {/* Inline result banners. */}
+      {/* Banner + result */}
       <ErrorBanner error={bannerError} onAction={onAction} />
       {actionSuccess ? (
         <div className="rounded-sm border-l-4 border-success bg-success/10 px-4 py-3 text-body-sm text-success">
           {actionSuccess}
         </div>
       ) : null}
+
+      {/* Nav buttons */}
+      <div className="flex items-center justify-between gap-3">
+        <Button
+          type="button"
+          variant="ghost"
+          disabled={currentStep === 0 || stepSaveMut.isPending || finalSubmitMut.isPending}
+          onClick={() => {
+            clear();
+            setCurrentStep((s) => Math.max(0, s - 1));
+          }}
+        >
+          ← Back
+        </Button>
+
+        {onLastStep ? (
+          <Button
+            type="button"
+            variant="amber"
+            size="lg"
+            withArrow
+            loading={finalSubmitMut.isPending}
+            disabled={submitDisabled}
+            onClick={() => finalSubmitMut.mutate()}
+          >
+            Submit for review
+          </Button>
+        ) : (
+          <Button
+            type="button"
+            variant="amber"
+            withArrow
+            loading={stepSaveMut.isPending}
+            // The placeholder verification step has no fields, so don't
+            // require validity there. Every other step gates on stepValid.
+            disabled={
+              (onPlaceholderStep ? false : !stepValid) || stepSaveMut.isPending
+            }
+            onClick={() => stepSaveMut.mutate({ upToStep: safeIdx })}
+          >
+            Next
+          </Button>
+        )}
+      </div>
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
+// Status panel — used when the wizard is not editable.
+// ---------------------------------------------------------------------------
 
-function ChecklistRow({
-  checked,
-  title,
-  body,
-  cta,
-}: {
-  checked: boolean;
+function StatusPanel(props: {
+  eyebrow: string;
   title: string;
   body: string;
-  /** Optional call-to-action shown only when the row is unchecked. */
-  cta?: { label: string; href: string };
-}) {
+  tone: "success" | "warning" | "error";
+  statusLabel: string;
+  rejectionReason?: string | null;
+}): JSX.Element {
   return (
-    <li className="flex items-start gap-4 py-3">
-      <div
-        className={
-          "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border " +
-          (checked
-            ? "border-success bg-success/15 text-success"
-            : "border-line-strong text-text-muted")
-        }
-        aria-hidden
-      >
-        {checked ? (
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <path
-              d="M3 7.5L5.5 10L11 4"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        ) : (
-          <span className="font-mono text-[11px]">·</span>
-        )}
-      </div>
-      <div className="flex-1">
-        <div className={"font-medium " + (checked ? "text-text" : "text-ink")}>
-          {title}
-        </div>
-        <div className="mt-0.5 text-body-sm text-text-muted">{body}</div>
-      </div>
-      {!checked && cta ? (
-        <a
-          href={cta.href}
-          className="font-mono text-[11px] uppercase tracking-[1.2px] text-amber hover:text-amber-hi"
-        >
-          {cta.label} →
-        </a>
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        eyebrow={props.eyebrow}
+        title={props.title}
+        description={props.body}
+        actions={<StatusPill tone={props.tone}>KYC {props.statusLabel.replace(/_/g, " ")}</StatusPill>}
+      />
+      {props.rejectionReason ? (
+        <section className="rounded-md border-l-4 border-amber bg-cream-soft p-6">
+          <div className="font-mono text-mono-label uppercase text-amber">Reviewer note</div>
+          <p className="mt-2 whitespace-pre-line text-body-sm text-text">
+            {props.rejectionReason}
+          </p>
+        </section>
       ) : null}
-    </li>
+    </div>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Step components — each one renders its section's inputs against the shared
+// react-hook-form instance. Kept inline for legibility; the wizard never
+// renders more than one at a time.
+// ---------------------------------------------------------------------------
+
+type StepProps = { form: UseFormReturn<WizardInput> };
+
+const selectClass =
+  "h-11 w-full rounded-sm border bg-cream-soft px-3 text-body text-text outline-none transition-colors duration-fast ease-out focus:ring-2 focus:ring-ink/10 border-line-strong hover:border-text/40 focus:border-ink";
+
+const textareaClass =
+  "w-full rounded-sm border bg-cream-soft px-4 py-3 text-body text-text outline-none transition-colors duration-fast ease-out focus:ring-2 focus:ring-ink/10 border-line-strong hover:border-text/40 focus:border-ink";
+
+function BusinessStep({ form }: StepProps): JSX.Element {
+  const businessType = form.watch("businessType");
+  const businessIndustry = form.watch("businessIndustry");
+  return (
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <h2 className="md:col-span-2 text-h3 font-semibold text-ink">Business information</h2>
+
+      <Field label="Business type *" error={form.formState.errors.businessType?.message}>
+        <select
+          aria-label="Business type"
+          className={selectClass}
+          {...form.register("businessType")}
+        >
+          <option value="">Select…</option>
+          {BUSINESS_TYPES.map((b) => (
+            <option key={b.value} value={b.value}>{b.label}</option>
+          ))}
+        </select>
+      </Field>
+
+      {businessType === "OTHER" ? (
+        <Field label="Specify business type *" error={form.formState.errors.businessTypeOther?.message}>
+          <Input type="text" {...form.register("businessTypeOther")} />
+        </Field>
+      ) : (
+        <div className="hidden md:block" />
+      )}
+
+      <Field label="Business registration number" hint="If applicable." error={form.formState.errors.businessRegistrationNumber?.message}>
+        <Input type="text" placeholder="e.g. 12345678" {...form.register("businessRegistrationNumber")} />
+      </Field>
+
+      <Field
+        label="Country of registration *"
+        hint="ISO 3166-1 alpha-2 (e.g. US, GB, NG)"
+        error={form.formState.errors.businessRegistrationCountry?.message}
+      >
+        <Input
+          type="text"
+          maxLength={2}
+          autoComplete="country"
+          placeholder="US"
+          className="uppercase"
+          {...form.register("businessRegistrationCountry")}
+        />
+      </Field>
+
+      <Field label="Industry / category *" error={form.formState.errors.businessIndustry?.message}>
+        <select
+          aria-label="Industry"
+          className={selectClass}
+          {...form.register("businessIndustry")}
+        >
+          <option value="">Select…</option>
+          {INDUSTRIES.map((i) => (
+            <option key={i.value} value={i.value}>{i.label}</option>
+          ))}
+        </select>
+      </Field>
+
+      {businessIndustry === "OTHER" ? (
+        <Field label="Specify industry *" error={form.formState.errors.businessIndustryOther?.message}>
+          <Input type="text" {...form.register("businessIndustryOther")} />
+        </Field>
+      ) : (
+        <div className="hidden md:block" />
+      )}
+    </div>
+  );
+}
+
+function ContactStep({ form }: StepProps): JSX.Element {
+  return (
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <h2 className="md:col-span-2 text-h3 font-semibold text-ink">Primary contact</h2>
+
+      <Field label="Full legal name *" error={form.formState.errors.contactFullName?.message}>
+        <Input type="text" autoComplete="name" {...form.register("contactFullName")} />
+      </Field>
+      <Field label="Position / role *" error={form.formState.errors.contactPosition?.message}>
+        <Input type="text" autoComplete="organization-title" {...form.register("contactPosition")} />
+      </Field>
+      <Field
+        label="Phone (with country code) *"
+        hint="e.g. +1 305 555 0190"
+        error={form.formState.errors.contactPhone?.message}
+      >
+        <Input type="tel" autoComplete="tel" {...form.register("contactPhone")} />
+      </Field>
+      <Field
+        label="Country of residence *"
+        hint="ISO 3166-1 alpha-2"
+        error={form.formState.errors.contactCountry?.message}
+      >
+        <Input
+          type="text"
+          maxLength={2}
+          autoComplete="country"
+          className="uppercase"
+          {...form.register("contactCountry")}
+        />
+      </Field>
+      <Field
+        label="Address line 1 *"
+        error={form.formState.errors.contactAddressLine1?.message}
+        className="md:col-span-2"
+      >
+        <Input type="text" autoComplete="address-line1" {...form.register("contactAddressLine1")} />
+      </Field>
+      <Field
+        label="Address line 2"
+        error={form.formState.errors.contactAddressLine2?.message}
+        className="md:col-span-2"
+      >
+        <Input type="text" autoComplete="address-line2" {...form.register("contactAddressLine2")} />
+      </Field>
+    </div>
+  );
+}
+
+function IdentityStep({ form }: StepProps): JSX.Element {
+  return (
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <h2 className="md:col-span-2 text-h3 font-semibold text-ink">Identity verification</h2>
+      <p className="md:col-span-2 text-body-sm text-text-muted">
+        We collect ID details now; document uploads (front, back, selfie) come after this submission.
+      </p>
+
+      <Field label="Government-issued ID type *" error={form.formState.errors.idType?.message}>
+        <select aria-label="ID type" className={selectClass} {...form.register("idType")}>
+          <option value="">Select…</option>
+          {ID_TYPES.map((t) => (
+            <option key={t.value} value={t.value}>{t.label}</option>
+          ))}
+        </select>
+      </Field>
+      <Field label="ID number *" error={form.formState.errors.idNumber?.message}>
+        <Input type="text" autoComplete="off" {...form.register("idNumber")} />
+      </Field>
+      <Field
+        label="Expiration date *"
+        hint="YYYY-MM-DD"
+        error={form.formState.errors.idExpirationDate?.message}
+      >
+        <Input type="date" {...form.register("idExpirationDate")} />
+      </Field>
+    </div>
+  );
+}
+
+function VerificationPlaceholder(): JSX.Element {
+  return (
+    <div className="flex flex-col gap-4">
+      <h2 className="text-h3 font-semibold text-ink">Business verification</h2>
+      <p className="text-body-sm text-text-muted">
+        Document uploads — Certificate of Registration, Business License, Tax
+        Certificate, and similar supporting documents — are coming soon. After
+        you submit this form, our team will send you a secure link to upload
+        these documents for review.
+      </p>
+      <div className="rounded-sm border-l-4 border-amber bg-amber/10 px-4 py-3 text-body-sm text-text">
+        No fields are required on this step. Press Next to continue.
+      </div>
+    </div>
+  );
+}
+
+function InventoryStep({ form }: StepProps): JSX.Element {
+  return (
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <h2 className="md:col-span-2 text-h3 font-semibold text-ink">Inventory information</h2>
+
+      <Field
+        label="What products will you store with USA Errands? *"
+        error={form.formState.errors.productsStoredDescription?.message}
+        className="md:col-span-2"
+      >
+        <textarea
+          rows={4}
+          className={textareaClass}
+          {...form.register("productsStoredDescription")}
+        />
+      </Field>
+
+      <Field label="Estimated monthly inventory volume *" error={form.formState.errors.monthlyInventoryVolume?.message}>
+        <select aria-label="Monthly inventory volume" className={selectClass} {...form.register("monthlyInventoryVolume")}>
+          <option value="">Select…</option>
+          {INVENTORY_VOLUMES.map((v) => (
+            <option key={v.value} value={v.value}>{v.label}</option>
+          ))}
+        </select>
+      </Field>
+      <Field label="Estimated monthly order volume *" error={form.formState.errors.monthlyOrderVolume?.message}>
+        <select aria-label="Monthly order volume" className={selectClass} {...form.register("monthlyOrderVolume")}>
+          <option value="">Select…</option>
+          {ORDER_VOLUMES.map((v) => (
+            <option key={v.value} value={v.value}>{v.label}</option>
+          ))}
+        </select>
+      </Field>
+      <Field
+        label="Service intent *"
+        hint="Which USA Errands services will you use?"
+        error={form.formState.errors.serviceIntent?.message}
+        className="md:col-span-2"
+      >
+        <select aria-label="Service intent" className={selectClass} {...form.register("serviceIntent")}>
+          <option value="">Select…</option>
+          {SERVICE_INTENTS.map((v) => (
+            <option key={v.value} value={v.value}>{v.label}</option>
+          ))}
+        </select>
+      </Field>
+    </div>
+  );
+}
+
+function ShippingStep({ form }: StepProps): JSX.Element {
+  const hazards = form.watch("productHazards") ?? [];
+  const returns = form.watch("requiresReturnsHandling");
+
+  // "NONE" is mutually exclusive with the other hazard checkboxes. Toggling
+  // NONE clears the others; toggling any other clears NONE. We use a single
+  // setValue here so react-hook-form keeps the array in sync.
+  const toggleHazard = (value: string, checked: boolean): void => {
+    const current = new Set(hazards);
+    if (checked) {
+      if (value === "NONE") {
+        form.setValue("productHazards", ["NONE"], { shouldValidate: true, shouldDirty: true });
+        return;
+      }
+      current.delete("NONE");
+      current.add(value);
+    } else {
+      current.delete(value);
+    }
+    form.setValue("productHazards", Array.from(current), {
+      shouldValidate: true,
+      shouldDirty: true,
+    });
+  };
+
+  return (
+    <div className="grid grid-cols-1 gap-4">
+      <h2 className="text-h3 font-semibold text-ink">Shipping & operations</h2>
+
+      <Field
+        label="Primary shipping countries to the U.S. *"
+        hint="Comma-separate (e.g. China, Nigeria, UK)"
+        error={form.formState.errors.primaryShippingCountries?.message}
+      >
+        <Input type="text" {...form.register("primaryShippingCountries")} />
+      </Field>
+
+      <fieldset className="flex flex-col gap-2">
+        <legend className="font-mono text-[11px] uppercase tracking-[1.4px] text-text-muted">
+          Will you require returns handling? *
+        </legend>
+        <div className="flex gap-6 pt-1">
+          <label className="flex cursor-pointer items-center gap-2 text-body-sm text-text">
+            <input
+              type="radio"
+              name="requiresReturnsHandling"
+              checked={returns === true}
+              onChange={() =>
+                form.setValue("requiresReturnsHandling", true, {
+                  shouldValidate: true,
+                  shouldDirty: true,
+                })
+              }
+            />
+            Yes
+          </label>
+          <label className="flex cursor-pointer items-center gap-2 text-body-sm text-text">
+            <input
+              type="radio"
+              name="requiresReturnsHandling"
+              checked={returns === false}
+              onChange={() =>
+                form.setValue("requiresReturnsHandling", false, {
+                  shouldValidate: true,
+                  shouldDirty: true,
+                })
+              }
+            />
+            No
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset className="flex flex-col gap-2">
+        <legend className="font-mono text-[11px] uppercase tracking-[1.4px] text-text-muted">
+          Do your products contain? * (select all that apply)
+        </legend>
+        <div className="mt-1 grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {HAZARDS.map((h) => {
+            const checked = hazards.includes(h.value);
+            return (
+              <label
+                key={h.value}
+                className="flex cursor-pointer items-center gap-2 text-body-sm text-text"
+              >
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={(e) => toggleHazard(h.value, e.target.checked)}
+                />
+                {h.label}
+              </label>
+            );
+          })}
+        </div>
+      </fieldset>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Review step — read-only summary of every field collected in steps 1–6.
+//
+// No inputs here; the only gesture is the Submit button rendered by the
+// wizard's nav. Empty values render as "Not provided" so the vendor sees
+// at a glance what (if anything) they skipped.
+// ---------------------------------------------------------------------------
+
+const BUSINESS_TYPE_LABEL: Record<string, string> = Object.fromEntries(
+  BUSINESS_TYPES.map((b) => [b.value, b.label]),
+);
+const INDUSTRY_LABEL: Record<string, string> = Object.fromEntries(
+  INDUSTRIES.map((b) => [b.value, b.label]),
+);
+const ID_TYPE_LABEL: Record<string, string> = Object.fromEntries(
+  ID_TYPES.map((b) => [b.value, b.label]),
+);
+const INVENTORY_VOLUME_LABEL: Record<string, string> = Object.fromEntries(
+  INVENTORY_VOLUMES.map((b) => [b.value, b.label]),
+);
+const ORDER_VOLUME_LABEL: Record<string, string> = Object.fromEntries(
+  ORDER_VOLUMES.map((b) => [b.value, b.label]),
+);
+const SERVICE_INTENT_LABEL: Record<string, string> = Object.fromEntries(
+  SERVICE_INTENTS.map((b) => [b.value, b.label]),
+);
+const HAZARD_LABEL: Record<string, string> = Object.fromEntries(
+  HAZARDS.map((b) => [b.value, b.label]),
+);
+
+function ReviewStep({
+  values,
+  businessName,
+}: {
+  values: WizardInput;
+  businessName: string;
+}): JSX.Element {
+  const fmt = (v: string | undefined | null): string =>
+    typeof v === "string" && v.trim().length > 0 ? v.trim() : "Not provided";
+  const fmtEnum = (
+    v: string | undefined | null,
+    table: Record<string, string>,
+  ): string => {
+    if (typeof v !== "string" || v.trim().length === 0) return "Not provided";
+    return table[v] ?? v;
+  };
+  const fmtBool = (v: boolean | "" | undefined | null): string => {
+    if (typeof v === "boolean") return v ? "Yes" : "No";
+    return "Not provided";
+  };
+  const fmtHazards = (arr: string[] | undefined): string => {
+    if (!Array.isArray(arr) || arr.length === 0) return "Not provided";
+    return arr.map((h) => HAZARD_LABEL[h] ?? h).join(", ");
+  };
+  const fmtAddress = (
+    line1: string | undefined,
+    line2: string | undefined,
+    country: string | undefined,
+  ): string => {
+    const parts = [line1, line2, country]
+      .map((s) => (typeof s === "string" ? s.trim() : ""))
+      .filter((s) => s.length > 0);
+    return parts.length > 0 ? parts.join(" · ") : "Not provided";
+  };
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div>
+        <h2 className="text-h3 font-semibold text-ink">Review & submit</h2>
+        <p className="mt-1 text-body-sm text-text-muted">
+          Take one last look at the details {businessName} is submitting. Use
+          Back if you need to change anything.
+        </p>
+      </div>
+
+      <ReviewSection title="Business">
+        <ReviewRow label="Business type" value={fmtEnum(values.businessType, BUSINESS_TYPE_LABEL)} />
+        {values.businessType === "OTHER" ? (
+          <ReviewRow label="Business type (other)" value={fmt(values.businessTypeOther)} />
+        ) : null}
+        <ReviewRow label="Registration number" value={fmt(values.businessRegistrationNumber)} />
+        <ReviewRow
+          label="Country of registration"
+          value={fmt(values.businessRegistrationCountry?.toUpperCase())}
+          mono
+        />
+        <ReviewRow label="Industry" value={fmtEnum(values.businessIndustry, INDUSTRY_LABEL)} />
+        {values.businessIndustry === "OTHER" ? (
+          <ReviewRow label="Industry (other)" value={fmt(values.businessIndustryOther)} />
+        ) : null}
+      </ReviewSection>
+
+      <ReviewSection title="Primary contact">
+        <ReviewRow label="Full legal name" value={fmt(values.contactFullName)} />
+        <ReviewRow label="Position / role" value={fmt(values.contactPosition)} />
+        <ReviewRow label="Phone" value={fmt(values.contactPhone)} mono />
+        <ReviewRow
+          label="Address"
+          value={fmtAddress(
+            values.contactAddressLine1,
+            values.contactAddressLine2,
+            values.contactCountry?.toUpperCase(),
+          )}
+        />
+      </ReviewSection>
+
+      <ReviewSection title="Identity">
+        <ReviewRow label="ID type" value={fmtEnum(values.idType, ID_TYPE_LABEL)} />
+        <ReviewRow label="ID number" value={fmt(values.idNumber)} mono />
+        <ReviewRow label="Expiration date" value={fmt(values.idExpirationDate)} mono />
+      </ReviewSection>
+
+      <ReviewSection title="Inventory">
+        <ReviewRow
+          label="Products stored"
+          value={fmt(values.productsStoredDescription)}
+          multiline
+        />
+        <ReviewRow
+          label="Monthly inventory volume"
+          value={fmtEnum(values.monthlyInventoryVolume, INVENTORY_VOLUME_LABEL)}
+        />
+        <ReviewRow
+          label="Monthly order volume"
+          value={fmtEnum(values.monthlyOrderVolume, ORDER_VOLUME_LABEL)}
+        />
+        <ReviewRow
+          label="Service intent"
+          value={fmtEnum(values.serviceIntent, SERVICE_INTENT_LABEL)}
+        />
+      </ReviewSection>
+
+      <ReviewSection title="Shipping & operations">
+        <ReviewRow
+          label="Primary shipping countries"
+          value={fmt(values.primaryShippingCountries)}
+        />
+        <ReviewRow
+          label="Returns handling needed"
+          value={fmtBool(values.requiresReturnsHandling)}
+        />
+        <ReviewRow label="Product hazards" value={fmtHazards(values.productHazards)} />
+      </ReviewSection>
+
+      <p className="text-body-sm text-text-muted">
+        By submitting you confirm the above information is accurate. Our team
+        will review within 1 business day.
+      </p>
+    </div>
+  );
+}
+
+function ReviewSection({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}): JSX.Element {
+  return (
+    <div>
+      <div className="font-mono text-mono-label uppercase tracking-[1.4px] text-text-muted">
+        {title}
+      </div>
+      <dl className="mt-2 grid grid-cols-1 gap-y-2 sm:grid-cols-[220px_minmax(0,1fr)] text-body-sm">
+        {children}
+      </dl>
+    </div>
+  );
+}
+
+function ReviewRow({
+  label,
+  value,
+  mono,
+  multiline,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+  multiline?: boolean;
+}): JSX.Element {
+  const empty = value === "Not provided";
+  return (
+    <>
+      <dt className="font-mono text-mono-label uppercase text-text-muted">
+        {label}
+      </dt>
+      <dd
+        className={
+          (mono ? "font-mono " : "") +
+          (multiline ? "whitespace-pre-line " : "") +
+          (empty ? "text-text-muted italic" : "text-text")
+        }
+      >
+        {value}
+      </dd>
+    </>
+  );
+}
+

@@ -36,7 +36,7 @@ export default function HomePage() {
           <FadeUp>
             <div>
               <div className="font-mono text-mono-eyebrow uppercase text-amber">
-                3PL · Personal shopper · Forwarding
+                Personal shopper · Fulfillment partner
               </div>
               <h1 className="mt-4 text-display-xl font-medium leading-[0.98] tracking-[-2px] text-ink">
                 Ship from
@@ -48,7 +48,7 @@ export default function HomePage() {
               <p className="mt-10 max-w-md text-body-lg text-text-muted">
                 Hold your best-selling inventory in our U.S. warehouse, or
                 let our personal-shopper desk buy from any U.S. store on
-                your behalf. One platform, two products, zero forwarders.
+                your behalf. One platform.
               </p>
               <div className="mt-10 flex flex-wrap gap-3">
                 <Link href="/signup">

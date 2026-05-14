@@ -86,6 +86,36 @@ interface VendorDetail {
     status: string;
     lowBalanceThresholdCents: number;
   } | null;
+  /**
+   * KYC v2 — structured submission from the vendor's multi-step wizard.
+   * Surfaced here so the reviewer can see every field collected during
+   * onboarding. Every field is nullable until the vendor reaches that
+   * step; the UI prints "Not provided" placeholders for nulls.
+   */
+  kycV2?: {
+    businessType: string | null;
+    businessTypeOther: string | null;
+    businessRegistrationNumber: string | null;
+    businessRegistrationCountry: string | null;
+    businessIndustry: string | null;
+    businessIndustryOther: string | null;
+    contactFullName: string | null;
+    contactPosition: string | null;
+    contactPhone: string | null;
+    contactAddressLine1: string | null;
+    contactAddressLine2: string | null;
+    contactCountry: string | null;
+    idType: string | null;
+    idNumber: string | null;
+    idExpirationDate: string | null;
+    productsStoredDescription: string | null;
+    monthlyInventoryVolume: string | null;
+    monthlyOrderVolume: string | null;
+    serviceIntent: string | null;
+    primaryShippingCountries: string | null;
+    requiresReturnsHandling: boolean | null;
+    productHazards: string[];
+  };
 }
 
 interface VendorOverview {
@@ -506,6 +536,11 @@ export default function AdminVendorDetailPage() {
               </p>
             </section>
           ) : null}
+
+          {/* KYC v2 — full submission. Surfaces every field the vendor filled
+              in via the multi-step wizard. Nulls render as "Not provided" so
+              the reviewer sees instantly what's still outstanding. */}
+          {v.kycV2 ? <KycV2Card kyc={v.kycV2} submittedAt={v.kycSubmittedAt} /> : null}
 
           {/* ============================================
               Operational stats — everything from /overview
@@ -1210,4 +1245,250 @@ function SocialRow({
       ) : null}
     </li>
   );
+}
+
+// ---------------------------------------------------------------------------
+// KYC v2 — admin review card
+//
+// Renders every structured field the vendor submitted via the multi-step
+// wizard. Each section mirrors the wizard's grouping (Business, Contact,
+// Identity, Inventory, Shipping) so a reviewer reading top-to-bottom is
+// walking the same path the vendor filled in.
+//
+// Empty values render as "Not provided" rather than "—" so the reviewer can
+// tell at a glance which sections are incomplete. Enum values are shown
+// with the same human label the vendor saw at submission time.
+// ---------------------------------------------------------------------------
+
+type KycV2Payload = NonNullable<VendorDetail["kycV2"]>;
+
+const KYC_BUSINESS_TYPE_LABELS: Record<string, string> = {
+  SOLE_PROPRIETORSHIP: "Sole Proprietorship",
+  REGISTERED_BUSINESS: "Registered Business",
+  LLC: "LLC",
+  CORPORATION: "Corporation",
+  PARTNERSHIP: "Partnership",
+  OTHER: "Other",
+};
+
+const KYC_INDUSTRY_LABELS: Record<string, string> = {
+  FASHION_APPAREL: "Fashion & Apparel",
+  BEAUTY_COSMETICS: "Beauty / Cosmetics",
+  HAIR_WIGS: "Hair / Wigs",
+  ELECTRONICS: "Electronics",
+  ACCESSORIES: "Accessories",
+  HOME_GOODS: "Home Goods",
+  OTHER: "Other",
+};
+
+const KYC_ID_LABELS: Record<string, string> = {
+  PASSPORT: "Passport",
+  NATIONAL_ID: "National ID Card",
+  DRIVERS_LICENSE: "Driver's License",
+};
+
+const KYC_INVENTORY_LABELS: Record<string, string> = {
+  SMALL_1_10: "Small (1–10 boxes)",
+  MEDIUM_11_30: "Medium (11–30 boxes)",
+  LARGE_31_100: "Large (31–100 boxes)",
+  XLARGE_100_PLUS: "X-Large (100+ boxes)",
+  BULK_PALLET: "Bulk / Pallet Level",
+};
+
+const KYC_ORDER_LABELS: Record<string, string> = {
+  V_1_20: "1–20 orders",
+  V_21_100: "21–100 orders",
+  V_101_500: "101–500 orders",
+  V_500_PLUS: "500+ orders",
+};
+
+const KYC_INTENT_LABELS: Record<string, string> = {
+  FULFILLMENT_ONLY: "Fulfillment Only",
+  PERSONAL_SHOPPER: "Personal Shopper Service",
+  BOTH: "Both Services",
+};
+
+const KYC_HAZARD_LABELS: Record<string, string> = {
+  BATTERIES: "Batteries",
+  LIQUIDS: "Liquids",
+  FRAGILE: "Fragile Items",
+  HAZARDOUS: "Hazardous Materials",
+  NONE: "None of the Above",
+};
+
+function KycV2Card({
+  kyc,
+  submittedAt,
+}: {
+  kyc: KycV2Payload;
+  submittedAt: string | null;
+}): JSX.Element {
+  // Submitted-for-review is now the canonical "vendor finished filling
+  // out the wizard" timestamp — there's no separate compliance signature.
+  const signed = !!submittedAt;
+
+  return (
+    <section className="rounded-md border border-line bg-white p-6">
+      <header className="flex flex-wrap items-baseline justify-between gap-3">
+        <h2 className="text-h3 font-semibold text-ink">
+          KYC v2 — full submission
+        </h2>
+        <span className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
+          {signed ? "Submitted for review" : "In progress"}
+        </span>
+      </header>
+      <p className="mt-1 text-body-sm text-text-muted">
+        Every structured field the vendor entered. &quot;Not provided&quot; rows
+        show fields the vendor hasn&apos;t reached yet.
+      </p>
+
+      <KycSection title="Business">
+        <KycRow label="Business type" value={lookup(kyc.businessType, KYC_BUSINESS_TYPE_LABELS)} />
+        {kyc.businessType === "OTHER" ? (
+          <KycRow label="Business type (other)" value={kyc.businessTypeOther} />
+        ) : null}
+        <KycRow label="Registration number" value={kyc.businessRegistrationNumber} />
+        <KycRow
+          label="Country of registration"
+          value={kyc.businessRegistrationCountry}
+          mono
+        />
+        <KycRow label="Industry" value={lookup(kyc.businessIndustry, KYC_INDUSTRY_LABELS)} />
+        {kyc.businessIndustry === "OTHER" ? (
+          <KycRow label="Industry (other)" value={kyc.businessIndustryOther} />
+        ) : null}
+      </KycSection>
+
+      <KycSection title="Primary contact">
+        <KycRow label="Full legal name" value={kyc.contactFullName} />
+        <KycRow label="Position / role" value={kyc.contactPosition} />
+        <KycRow label="Phone" value={kyc.contactPhone} mono />
+        <KycRow
+          label="Address"
+          value={formatAddress(
+            kyc.contactAddressLine1,
+            kyc.contactAddressLine2,
+            kyc.contactCountry,
+          )}
+        />
+      </KycSection>
+
+      <KycSection title="Identity">
+        <KycRow label="ID type" value={lookup(kyc.idType, KYC_ID_LABELS)} />
+        <KycRow label="ID number" value={kyc.idNumber} mono />
+        <KycRow label="Expiration date" value={kyc.idExpirationDate} mono />
+      </KycSection>
+
+      <KycSection title="Inventory">
+        <KycRow
+          label="Products stored"
+          value={kyc.productsStoredDescription}
+          multiline
+        />
+        <KycRow
+          label="Monthly inventory volume"
+          value={lookup(kyc.monthlyInventoryVolume, KYC_INVENTORY_LABELS)}
+        />
+        <KycRow
+          label="Monthly order volume"
+          value={lookup(kyc.monthlyOrderVolume, KYC_ORDER_LABELS)}
+        />
+        <KycRow label="Service intent" value={lookup(kyc.serviceIntent, KYC_INTENT_LABELS)} />
+      </KycSection>
+
+      <KycSection title="Shipping & operations">
+        <KycRow
+          label="Primary shipping countries"
+          value={kyc.primaryShippingCountries}
+        />
+        <KycRow
+          label="Returns handling needed"
+          value={
+            typeof kyc.requiresReturnsHandling === "boolean"
+              ? kyc.requiresReturnsHandling
+                ? "Yes"
+                : "No"
+              : null
+          }
+        />
+        <KycRow
+          label="Product hazards"
+          value={
+            kyc.productHazards.length > 0
+              ? kyc.productHazards.map((h) => KYC_HAZARD_LABELS[h] ?? h).join(", ")
+              : null
+          }
+        />
+      </KycSection>
+
+    </section>
+  );
+}
+
+function KycSection({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}): JSX.Element {
+  return (
+    <div className="mt-6">
+      <div className="font-mono text-mono-label uppercase tracking-[1.4px] text-text-muted">
+        {title}
+      </div>
+      <dl className="mt-2 grid grid-cols-1 gap-y-2 sm:grid-cols-[220px_minmax(0,1fr)] text-body-sm">
+        {children}
+      </dl>
+    </div>
+  );
+}
+
+function KycRow({
+  label,
+  value,
+  mono,
+  multiline,
+}: {
+  label: string;
+  value: string | null | undefined;
+  mono?: boolean;
+  multiline?: boolean;
+}): JSX.Element {
+  const empty = value === null || value === undefined || value === "";
+  return (
+    <>
+      <dt className="font-mono text-mono-label uppercase text-text-muted">
+        {label}
+      </dt>
+      <dd
+        className={
+          (mono ? "font-mono " : "") +
+          (multiline ? "whitespace-pre-line " : "") +
+          (empty ? "text-text-muted italic" : "text-text")
+        }
+      >
+        {empty ? "Not provided" : value}
+      </dd>
+    </>
+  );
+}
+
+function lookup(
+  value: string | null | undefined,
+  table: Record<string, string>,
+): string | null {
+  if (!value) return null;
+  return table[value] ?? value;
+}
+
+function formatAddress(
+  line1: string | null,
+  line2: string | null,
+  country: string | null,
+): string | null {
+  const parts = [line1, line2, country].filter(
+    (s): s is string => typeof s === "string" && s.length > 0,
+  );
+  return parts.length > 0 ? parts.join(" · ") : null;
 }
