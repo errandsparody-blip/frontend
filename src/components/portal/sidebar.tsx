@@ -63,7 +63,7 @@ const NAV: NavItem[] = [
   { href: "/orders", label: "Orders", icon: Truck, category: "order" },
   { href: "/returns", label: "Returns", icon: Undo2, category: "return" },
   { href: "/notifications", label: "Notifications", icon: Bell, category: "__total__" },
-  { href: "/team", label: "Team", icon: Users },
+  // { href: "/team", label: "Team", icon: Users },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
