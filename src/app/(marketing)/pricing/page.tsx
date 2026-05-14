@@ -333,7 +333,7 @@ export default function PricingPage() {
       </section>
 
       {/* FULFILLMENT */}
-      <section className="border-y border-line bg-cream-soft">
+      {/* <section className="border-y border-line bg-cream-soft">
         <div className="mx-auto max-w-[84rem] px-8 py-20">
           <div className="grid gap-12 lg:grid-cols-[1fr_1.2fr] lg:gap-16">
             <div>
@@ -376,7 +376,7 @@ export default function PricingPage() {
             </div>
           </div>
         </div>
-      </section>
+      </section> */}
 
       {/* WORKED EXAMPLE */}
       {/* <section className="mx-auto max-w-[84rem] px-8 py-20">
