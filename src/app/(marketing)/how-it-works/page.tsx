@@ -173,7 +173,7 @@ export default function HowItWorksPage() {
             <ul className="grid gap-3 text-body-sm text-text-2">
               <li className="flex gap-3">
                 <span className="mt-2 inline-block h-px w-4 shrink-0 bg-amber" aria-hidden />
-                <span>Submit your items, pay upfront via Stripe — items + 18% service fee.</span>
+                <span>Submit your items, pay upfront via Stripe — items.</span>
               </li>
               <li className="flex gap-3">
                 <span className="mt-2 inline-block h-px w-4 shrink-0 bg-amber" aria-hidden />

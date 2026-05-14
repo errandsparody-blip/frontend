@@ -27,11 +27,11 @@ const ABOUT_ITEMS = [
     label: "3PL fulfillment",
     description: "Hold your inventory in our warehouse, ship to U.S. buyers in days.",
   },
-  {
-    href: "/integrations",
-    label: "Integrations",
-    description: "Shopify, WooCommerce, and the storefronts we connect to.",
-  },
+  // {
+  //   href: "/integrations",
+  //   label: "Integrations",
+  //   description: "Shopify, WooCommerce, and the storefronts we connect to.",
+  // },
   {
     href: "/security",
     label: "Security & compliance",
