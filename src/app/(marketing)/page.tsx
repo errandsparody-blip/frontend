@@ -131,7 +131,7 @@ export default function HomePage() {
         <div className="mx-auto max-w-[84rem] px-8 py-24">
           <FadeUp>
             <div className="font-mono text-mono-eyebrow uppercase text-amber">
-              [02] What we do
+               What we do
             </div>
             <h2 className="mt-3 max-w-3xl text-display font-medium leading-[1.05] tracking-[-1px] text-ink">
               Two ways into U.S. retail. Pick yours.
@@ -172,7 +172,7 @@ export default function HomePage() {
         <div className="mx-auto max-w-[84rem] px-8 py-24">
           <FadeUp>
             <div className="font-mono text-mono-eyebrow uppercase text-amber">
-              [03] How it works
+               How it works
             </div>
             <h2 className="mt-3 max-w-3xl text-display font-medium leading-[1.05] tracking-[-1px] text-ink">
               You ship. We hold. We fulfill.
@@ -404,10 +404,7 @@ const FAQS: ReadonlyArray<{ q: string; a: string }> = [
     q: "How do storage fees work — do they keep running if I don't sell?",
     a: "Yes. Storage is billed on the 1st of each month regardless of sales velocity, against the wallet balance you've prefunded. Quarterly storage-tier audits identify boxes you can consolidate or downsize to lower your monthly bill.",
   },
-  {
-    q: "Can I integrate my Shopify, WooCommerce, or custom store?",
-    a: "Yes. Shopify and WooCommerce connect out of the box. Anything else hits our REST API. Orders flow into the pick queue automatically and tracking numbers post back the moment a label is generated.",
-  },
+  
   {
     q: "I just want to buy something from a U.S. store — can you help?",
     a: "That's exactly what the personal-shopper service does. Paste a U.S. retailer URL, we verify it, you pay an intake fee, we buy it, consolidate, and ship to your address worldwide. Orders over $1,000 require government-issued ID and a wire transfer for compliance.",
