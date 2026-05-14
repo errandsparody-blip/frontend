@@ -967,6 +967,10 @@ function WorkflowPanel({
       if (vars.path === "/shipping") {
         setSaveJustSucceeded(true);
         setTimeout(() => setSaveJustSucceeded(false), 1800);
+        // Flip the shipping panel back to preview mode so the operator
+        // sees a clean read-only summary of what just saved. They can
+        // hit Edit to make another change.
+        setEditingShipping(false);
       }
       onChange();
     },
@@ -1068,6 +1072,18 @@ function WorkflowPanel({
   const [cancelReason, setCancelReason] = useState("");
   const [issueRefund, setIssueRefund] = useState(true);
 
+  // Shipping panel — preview vs edit toggle.
+  //
+  // When the row already has a saved shipping method we open in
+  // preview mode: a compact read-only card showing every value with
+  // an "Edit" button. Clicking Edit reveals the full form. After a
+  // successful save we flip back to preview so the operator confirms
+  // what landed. First-time edits start in edit mode (no method
+  // saved yet) so the form is reachable without an extra click.
+  const [editingShipping, setEditingShipping] = useState<boolean>(
+    !r.shippingMethod,
+  );
+
   return (
     <section className="rounded-md border border-line bg-white p-6">
       <h2 className="mb-4 font-mono text-mono-label uppercase text-text-muted">Workflow</h2>
@@ -1159,6 +1175,203 @@ function WorkflowPanel({
 
         {actions.includes("shipping") ? (
           (() => {
+            // Preview mode — when shipping has been saved at least once
+            // we collapse the form into a compact read-only card. The
+            // operator clicks Edit to flip back into the form below.
+            // First-time edits (no method saved yet) skip this branch
+            // because `editingShipping` defaults to true in that case.
+            if (!editingShipping && r.shippingMethod) {
+              const methodLabel =
+                r.shippingMethod === "PLATFORM_FREIGHT"
+                  ? "Platform freight"
+                  : r.shippingMethod === "BUYER_FORWARDER"
+                    ? "Buyer forwarder"
+                    : r.shippingMethod === "BUYER_FREIGHT"
+                      ? "Buyer freight (their label)"
+                      : r.shippingMethod === "PICKUP"
+                        ? "Pickup"
+                        : String(r.shippingMethod);
+              const rPv = r as unknown as {
+                shippingMethod: string | null;
+                shippingCostCents: number | null;
+                shippingCalculatedCents: number | null;
+                freightRateCentsPerLb: number | null;
+                parcelWeightOz: number | null;
+                parcelLengthIn: number | null;
+                parcelWidthIn: number | null;
+                parcelHeightIn: number | null;
+                buyerLabelUrl: string | null;
+                pickupName: string | null;
+                pickupScheduledAt: string | Date | null;
+                shippingAddress: {
+                  recipientName?: string;
+                  line1?: string;
+                  line2?: string;
+                  city?: string;
+                  state?: string;
+                  postalCode?: string;
+                  country?: string;
+                } | null;
+              };
+              const wLb =
+                rPv.parcelWeightOz != null
+                  ? (rPv.parcelWeightOz / 16).toFixed(2)
+                  : null;
+              const rateDollars =
+                rPv.freightRateCentsPerLb != null
+                  ? (rPv.freightRateCentsPerLb / 100).toFixed(2)
+                  : null;
+              const dimsLine =
+                rPv.parcelLengthIn != null ||
+                rPv.parcelWidthIn != null ||
+                rPv.parcelHeightIn != null
+                  ? `${rPv.parcelLengthIn ?? "—"} × ${rPv.parcelWidthIn ?? "—"} × ${rPv.parcelHeightIn ?? "—"} in`
+                  : null;
+              const addr = rPv.shippingAddress;
+              const isFreight =
+                rPv.shippingMethod === "PLATFORM_FREIGHT" ||
+                rPv.shippingMethod === "BUYER_FORWARDER";
+              const pickupAtFmt = (() => {
+                const v = rPv.pickupScheduledAt;
+                if (!v) return null;
+                const d = v instanceof Date ? v : new Date(v);
+                if (Number.isNaN(d.getTime())) return null;
+                return d.toLocaleString();
+              })();
+              return (
+                <div className="rounded-sm border border-line bg-cream-soft p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <h3 className="text-body font-semibold text-ink">
+                        Shipping (saved)
+                      </h3>
+                      <p className="mt-1 text-body-sm text-text-muted">
+                        Method, freight, and destination are locked in. Click
+                        Edit to change anything; saving will refresh the
+                        receipt and (if the cost changes) re-issue the buyer&apos;s
+                        shipping invoice.
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setEditingShipping(true)}
+                    >
+                      Edit
+                    </Button>
+                  </div>
+                  <dl className="mt-3 grid gap-x-6 gap-y-2 text-body-sm md:grid-cols-2">
+                    <div className="flex justify-between gap-3 border-b border-line/60 py-1">
+                      <dt className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
+                        Method
+                      </dt>
+                      <dd className="text-ink">{methodLabel}</dd>
+                    </div>
+                    {isFreight ? (
+                      <>
+                        <div className="flex justify-between gap-3 border-b border-line/60 py-1">
+                          <dt className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
+                            Rate
+                          </dt>
+                          <dd className="font-mono text-ink tabular-nums">
+                            {rateDollars != null ? `$${rateDollars}/lb` : "—"}
+                          </dd>
+                        </div>
+                        <div className="flex justify-between gap-3 border-b border-line/60 py-1">
+                          <dt className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
+                            Weight
+                          </dt>
+                          <dd className="font-mono text-ink tabular-nums">
+                            {wLb != null ? `${wLb} lb` : "—"}
+                          </dd>
+                        </div>
+                        <div className="flex justify-between gap-3 border-b border-line/60 py-1">
+                          <dt className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
+                            Shipping cost
+                          </dt>
+                          <dd className="font-mono text-ink tabular-nums">
+                            {dollars(rPv.shippingCostCents ?? 0)}
+                          </dd>
+                        </div>
+                        <div className="flex justify-between gap-3 border-b border-line/60 py-1">
+                          <dt className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
+                            Parcel dims
+                          </dt>
+                          <dd className="text-ink">{dimsLine ?? "—"}</dd>
+                        </div>
+                      </>
+                    ) : null}
+                    {rPv.shippingMethod === "BUYER_FREIGHT" ? (
+                      <div className="flex justify-between gap-3 border-b border-line/60 py-1 md:col-span-2">
+                        <dt className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
+                          Buyer label
+                        </dt>
+                        <dd className="text-ink">
+                          {rPv.buyerLabelUrl ? (
+                            <a
+                              href={rPv.buyerLabelUrl}
+                              target="_blank"
+                              rel="noreferrer noopener"
+                              className="break-all text-amber underline hover:text-amber-hi"
+                            >
+                              {rPv.buyerLabelUrl}
+                            </a>
+                          ) : (
+                            "—"
+                          )}
+                        </dd>
+                      </div>
+                    ) : null}
+                    {rPv.shippingMethod === "PICKUP" ? (
+                      <>
+                        <div className="flex justify-between gap-3 border-b border-line/60 py-1">
+                          <dt className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
+                            Pickup person
+                          </dt>
+                          <dd className="text-ink">{rPv.pickupName ?? "—"}</dd>
+                        </div>
+                        <div className="flex justify-between gap-3 border-b border-line/60 py-1">
+                          <dt className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
+                            Scheduled
+                          </dt>
+                          <dd className="text-ink">{pickupAtFmt ?? "—"}</dd>
+                        </div>
+                      </>
+                    ) : null}
+                  </dl>
+                  {isFreight && addr && (addr.line1 || addr.recipientName) ? (
+                    <div className="mt-4 rounded-sm border border-line bg-white p-3">
+                      <h4 className="mb-2 font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
+                        {rPv.shippingMethod === "BUYER_FORWARDER"
+                          ? "Forwarder address"
+                          : "Destination address"}
+                      </h4>
+                      <address className="not-italic text-body-sm leading-relaxed text-ink">
+                        {addr.recipientName ? (
+                          <>
+                            {addr.recipientName}
+                            <br />
+                          </>
+                        ) : null}
+                        {addr.line1}
+                        {addr.line2 ? `, ${addr.line2}` : ""}
+                        <br />
+                        {[addr.city, addr.state, addr.postalCode]
+                          .filter(Boolean)
+                          .join(" ")}
+                        {addr.country && addr.country.toUpperCase() !== "US" ? (
+                          <>
+                            <br />
+                            {addr.country}
+                          </>
+                        ) : null}
+                      </address>
+                    </div>
+                  ) : null}
+                </div>
+              );
+            }
             // Live freight calculation. Mirrors the backend formula:
             //   cost (cents) = pounds × rate_cents_per_lb
             // Both the weight AND the rate are typed inline; the server
@@ -1303,6 +1516,20 @@ function WorkflowPanel({
                   post.mutate({ path: "/shipping", body });
                 }}
               >
+                {/* Cancel-edit link — only meaningful when there's a
+                    previously-saved row to fall back to. Lets the
+                    operator back out of the form without saving. */}
+                {r.shippingMethod ? (
+                  <div className="mb-3 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setEditingShipping(false)}
+                      className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted underline hover:text-ink"
+                    >
+                      ← Cancel edit
+                    </button>
+                  </div>
+                ) : null}
                 {/* Show the admin exactly why save is disabled — without
                     this hint the button silently greys out and clicks
                     feel like nothing happened. Only renders when the
