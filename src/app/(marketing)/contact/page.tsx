@@ -33,40 +33,7 @@ export default function ContactPage() {
       </section>
 
       {/* INBOXES */}
-      <section className="border-b border-line">
-        <div className="mx-auto max-w-[84rem] px-8 py-24">
-          <FadeUp>
-            <div className="font-mono text-mono-eyebrow uppercase text-amber">
-              [02] Pick your inbox
-            </div>
-            <h2 className="mt-3 max-w-3xl text-h2 font-medium leading-tight tracking-[-0.5px] text-ink">
-              The fastest way to reach the team that can actually help.
-            </h2>
-          </FadeUp>
-
-          <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {INBOXES.map((box, i) => (
-              <FadeUp key={box.email} delay={i * 70}>
-                <a
-                  href={`mailto:${box.email}`}
-                  className="group flex h-full flex-col gap-3 rounded-md border border-line bg-white p-8 transition-transform duration-300 ease-out hover:-translate-y-1 hover:shadow-2"
-                >
-                  <div className="font-mono text-mono-label uppercase tracking-[1.2px] text-amber">
-                    {box.label}
-                  </div>
-                  <div className="text-h3 font-medium text-ink">
-                    {box.title}
-                  </div>
-                  <p className="text-body-sm text-text-muted">{box.body}</p>
-                  <div className="mt-auto pt-4 font-mono text-body-sm text-ink group-hover:text-amber">
-                    {box.email} →
-                  </div>
-                </a>
-              </FadeUp>
-            ))}
-          </div>
-        </div>
-      </section>
+    
 
       {/* OFFICE / DETAILS */}
       <section className="border-b border-line bg-cream-soft">
