@@ -47,10 +47,7 @@ export default function HowItWorksPage() {
           duration="~10 minutes"
           body="Sign up, verify your business through Stripe Identity, and accept the vendor agreement. Your wallet is provisioned the moment you sign up — fund it once and we draw against it as costs land."
           bullets={[
-            "Vendor + first user created in a single transaction",
-            "Two-factor authentication is mandatory (TOTP + 10 single-use recovery codes)",
-            "KYC handled by Stripe Identity — we never see your government ID",
-            "Wallet starts at $0, fund anytime via Stripe, Wise, or Payoneer",
+           
           ]}
         >
           <MockTimeline
@@ -70,11 +67,7 @@ export default function HowItWorksPage() {
           duration="2–7 days, depending on origin"
           body="Pre-declare every shipment with a Pre-Shipment Notice (PSN). Pay the onboarding fee at submit; we lock in the SKU layout before the box leaves your warehouse. Operators receive against your PSN line-by-line."
           bullets={[
-            "Box counts declared in 5 size tiers — small, medium, large, x-large, pallet",
-            "Onboarding fee snapshot at submit time so a fee-schedule change doesn't catch you mid-shipment",
-            "Receiving operators reconcile your declared vs received quantities, flagging discrepancies",
-            "SKU buckets generated at receipt: UER-<vendor>-<product>-<variant>",
-            "Damage flagged at receiving routes the box to a packaging exception queue, not your inventory",
+            
           ]}
         >
           <MockPsn
@@ -92,10 +85,7 @@ export default function HowItWorksPage() {
           duration="Ongoing"
           body="Storage billed monthly per SKU bucket per tier. Stock counts update in real time as orders ship. Low-balance alerts fire 30 days before storage drains your wallet — never a surprise overdraft."
           bullets={[
-            "Real-time stock dashboard: quantity_available, quantity_reserved, monthly burn rate",
-            "Append-only inventory movement log — every receive, reserve, ship, and return is on record",
-            "Damaged / quarantined SKUs are tracked separately, never sold to a customer",
-            "Storage tier auto-recomputed if a SKU outgrows its bucket",
+            
           ]}
         >
           <MockKpiTrio />
@@ -107,11 +97,7 @@ export default function HowItWorksPage() {
           duration="Same day in, next day out"
           body="Submit an order via the dashboard or your e-commerce integration. Stock + funds are reserved atomically — insufficient anything rolls back the whole submit. We pick, pack, weigh, and hand to the carrier; you watch the timeline."
           bullets={[
-            "Quote → Create → Allocated → Label → Picking → Packed → Shipped → Delivered",
-            "Address validated by Smarty before submit — no carrier rejects",
-            "Carrier rate quoted per order; vendor sees a 5% upper-bound cap on every submit",
-            "Reassessment cron writes a delta if billed weight differs from quoted weight",
-            "Tracking webhook updates status + writes a CARRIER event automatically",
+            
           ]}
         >
           <MockOrderTimeline />
