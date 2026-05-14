@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import type { ApiError } from "@/lib/api-client";
+import { COUNTRIES } from "@/lib/countries";
 import {
   createProductSchema,
   storageTierSchema,
@@ -419,15 +420,61 @@ export function ProductForm({
             {...register("declaredValueDollars")}
           />
         </Field>
-        <Field label="Country of origin" error={errors.countryOfOrigin?.message} hint="ISO code: NG, GB, US.">
-          <Input
-            type="text"
-            maxLength={2}
-            placeholder="NG"
-            invalid={!!errors.countryOfOrigin}
-            disabled={locked}
-            {...register("countryOfOrigin")}
-          />
+        <Field
+          label="Country of origin"
+          error={errors.countryOfOrigin?.message}
+          hint="Pick from the list, or type the 2-letter ISO code directly (NG, GB, US…)."
+        >
+          {/* Picker + code input live side-by-side. The picker is the
+              primary UI; the code input mirrors the selection and
+              remains editable for power users who already know the
+              code. Selecting from the dropdown calls setValue() on
+              the ISO field so react-hook-form stays the source of
+              truth — the dropdown itself is not registered. */}
+          <div className="grid grid-cols-[1fr_88px] gap-2">
+            <select
+              aria-label="Country picker"
+              disabled={locked}
+              value={(watch("countryOfOrigin") ?? "").toUpperCase()}
+              onChange={(e) => {
+                setValue("countryOfOrigin", e.target.value, {
+                  shouldValidate: true,
+                  shouldDirty: true,
+                });
+              }}
+              className="h-11 w-full rounded-sm border border-line-strong bg-cream-soft px-3 text-body text-text outline-none focus:border-ink focus:ring-2 focus:ring-ink/10 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <option value="">— Select country —</option>
+              {COUNTRIES.map((c) => (
+                <option key={c.code} value={c.code}>
+                  {c.name} ({c.code})
+                </option>
+              ))}
+            </select>
+            <Input
+              type="text"
+              maxLength={2}
+              placeholder="NG"
+              aria-label="ISO 3166-1 alpha-2 country code"
+              invalid={!!errors.countryOfOrigin}
+              disabled={locked}
+              {...register("countryOfOrigin", {
+                // Normalise to uppercase as the user types so the
+                // dropdown's value-match works without a separate
+                // effect. The schema also uppercases at submit time
+                // but doing it here keeps the UI in sync immediately.
+                onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
+                  const v = e.target.value.toUpperCase();
+                  if (v !== e.target.value) {
+                    setValue("countryOfOrigin", v, {
+                      shouldValidate: true,
+                      shouldDirty: true,
+                    });
+                  }
+                },
+              })}
+            />
+          </div>
         </Field>
         <Field label="HS code (optional)" error={errors.hsCode?.message}>
           <Input
