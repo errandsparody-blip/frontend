@@ -99,10 +99,7 @@ const FAQ_GROUPS: ReadonlyArray<FAQGroup> = [
         q: "Which carriers can I use?",
         a: "All major U.S. carriers — USPS, UPS, FedEx, DHL — through our integrated rate engine. You pick the carrier per order or set a default in your shipping preferences. Shipping is billed at the carrier's live rate plus our flat fulfillment fee; you see the breakdown before the label is purchased.",
       },
-      {
-        q: "Can I integrate my Shopify, WooCommerce, or custom store?",
-        a: "Yes. Shopify and WooCommerce have first-class connectors that pull new orders into the pick queue automatically and post tracking numbers back as soon as labels print. For anything else — Amazon, eBay, your own checkout — our REST API accepts the same payload. The connector docs live under Integrations.",
-      },
+     
     ],
   },
   {
