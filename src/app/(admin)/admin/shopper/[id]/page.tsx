@@ -739,11 +739,20 @@ function LinesPanel({
   status: ShopperRequestStatus;
   onChange: () => void;
 }): JSX.Element {
-  // Editing is gated to PROCURING — once admin has moved the request past
-  // procurement (AWAITING_DELIVERY onwards) the line statuses are locked.
-  // If price/availability changes after this point, admin cancels + rebooks
-  // rather than mutating in place.
-  const editable = status === "PROCURING";
+  // Line editing stays open until the request hits a terminal state.
+  // SHIPPED / DELIVERED / CANCELLED / REFUNDED freeze the line table
+  // because the package has either left the warehouse or the order is
+  // closed; anything earlier (PROCURING, AWAITING_DELIVERY,
+  // READY_TO_SHIP, READY_FOR_PICKUP, the wire-track statuses, etc.)
+  // remains editable so admin can correct a wrongly-marked line without
+  // having to cancel and rebook the whole request.
+  const TERMINAL_STATUSES: ReadonlyArray<ShopperRequestStatus> = [
+    "SHIPPED",
+    "DELIVERED",
+    "CANCELLED",
+    "REFUNDED",
+  ];
+  const editable = !TERMINAL_STATUSES.includes(status);
 
   const totalUnits = lines.reduce((sum, l) => sum + l.quantity, 0);
 
@@ -1076,6 +1085,65 @@ function WorkflowPanel({
       ) : null}
 
       <div className="flex flex-col gap-6">
+        {/* Migration 0027 — shipping-invoice payment banner.
+            Surfaces the pay link and current paid/unpaid state right
+            below the breadcrumbs so the admin knows whether they can
+            advance the request toward shipment. Buyer-freight and
+            pickup methods (cost = 0) skip this entirely — there's no
+            invoice to wait for. */}
+        {(() => {
+          const ra = r as unknown as {
+            shippingCostCents: number | null;
+            shippingPaidAt: string | null;
+            shippingInvoiceUrl: string | null;
+            shippingMethod: string | null;
+          };
+          const cost = ra.shippingCostCents ?? 0;
+          const NEEDS_INVOICE = ["PLATFORM_FREIGHT", "BUYER_FORWARDER"];
+          const needsInvoice = cost > 0 && NEEDS_INVOICE.includes(ra.shippingMethod ?? "");
+          if (!needsInvoice) return null;
+          if (ra.shippingPaidAt) {
+            return (
+              <div className="rounded-sm border border-success/40 bg-success/10 p-4">
+                <h3 className="font-mono text-mono-label uppercase tracking-[1.2px] text-success">
+                  Shipping invoice paid
+                </h3>
+                <p className="mt-1 text-body-sm text-text-muted">
+                  Buyer paid {dollars(cost)} for shipping on{" "}
+                  {new Date(ra.shippingPaidAt).toLocaleString()}. You can now
+                  mark items delivered to warehouse and proceed to ship.
+                </p>
+              </div>
+            );
+          }
+          return (
+            <div className="rounded-sm border border-amber/40 bg-amber/10 p-4">
+              <h3 className="font-mono text-mono-label uppercase tracking-[1.2px] text-amber">
+                Awaiting shipping payment
+              </h3>
+              <p className="mt-1 text-body-sm text-text-muted">
+                Shipping invoice for {dollars(cost)} has been emailed and
+                posted to chat. Warehouse-delivery, ship, and release
+                actions are locked until the buyer pays. Re-save the
+                shipping form to regenerate the link if needed.
+              </p>
+              {ra.shippingInvoiceUrl ? (
+                <p className="mt-2 text-caption text-text-muted">
+                  Pay link (for support):{" "}
+                  <a
+                    href={ra.shippingInvoiceUrl}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="break-all text-amber underline hover:text-amber-hi"
+                  >
+                    {ra.shippingInvoiceUrl}
+                  </a>
+                </p>
+              ) : null}
+            </div>
+          );
+        })()}
+
         {actions.includes("start") ? (
           <Action
             title="Start procurement"
@@ -1503,27 +1571,58 @@ function WorkflowPanel({
           })()
         ) : null}
 
-        {actions.includes("delivered_to_warehouse") ? (
-          <Action
-            title="Items delivered to warehouse"
-            description="Use this once every line has physically arrived and is ready to pack. Moves the request to READY_TO_SHIP so you can buy a label."
-            cta="Mark delivered to warehouse"
-            disabled={post.isPending}
-            onClick={() => {
-              clear();
-              post.mutate({ path: "/delivered-to-warehouse" });
-            }}
-          />
-        ) : null}
+        {actions.includes("delivered_to_warehouse") ? (() => {
+          // Migration 0027 — gate on shipping-invoice payment. We
+          // mirror the server-side check so admin sees a clear
+          // disabled state instead of a 409 after the click.
+          const ra = r as unknown as {
+            shippingCostCents: number | null;
+            shippingPaidAt: string | null;
+            shippingMethod: string | null;
+          };
+          const cost = ra.shippingCostCents ?? 0;
+          const NEEDS_INVOICE = ["PLATFORM_FREIGHT", "BUYER_FORWARDER"];
+          const shippingGate =
+            cost > 0 &&
+            NEEDS_INVOICE.includes(ra.shippingMethod ?? "") &&
+            !ra.shippingPaidAt;
+          return (
+            <Action
+              title="Items delivered to warehouse"
+              description={
+                shippingGate
+                  ? "Locked until the buyer pays the shipping invoice above. Once paid, this advances the request to READY_TO_SHIP."
+                  : "Use this once every line has physically arrived and is ready to pack. Moves the request to READY_TO_SHIP so you can buy a label."
+              }
+              cta="Mark delivered to warehouse"
+              disabled={post.isPending || shippingGate}
+              onClick={() => {
+                clear();
+                post.mutate({ path: "/delivered-to-warehouse" });
+              }}
+            />
+          );
+        })() : null}
 
         {actions.includes("ship") &&
         r.shippingMethod !== "BUYER_FREIGHT" &&
-        r.shippingMethod !== "PICKUP" ? (
+        r.shippingMethod !== "PICKUP" ? (() => {
+          const ra = r as unknown as {
+            shippingCostCents: number | null;
+            shippingPaidAt: string | null;
+          };
+          const cost = ra.shippingCostCents ?? 0;
+          const shippingGate = cost > 0 && !ra.shippingPaidAt;
+          return (
           <Action
             title="Ship (platform / forwarder)"
-            description="Mark shipped on our carrier and email the buyer with tracking. Use this for PLATFORM_FREIGHT and BUYER_FORWARDER methods."
+            description={
+              shippingGate
+                ? "Locked until the buyer pays the shipping invoice above."
+                : "Mark shipped on our carrier and email the buyer with tracking. Use this for PLATFORM_FREIGHT and BUYER_FORWARDER methods."
+            }
             cta="Mark shipped"
-            disabled={post.isPending || !carrier.trim() || !trackingNumber.trim()}
+            disabled={post.isPending || !carrier.trim() || !trackingNumber.trim() || shippingGate}
             onClick={() => {
               clear();
               post.mutate({
@@ -1545,7 +1644,8 @@ function WorkflowPanel({
               </Field>
             </div>
           </Action>
-        ) : null}
+          );
+        })() : null}
 
         {/* Migration 0025 — release on the buyer's prepaid label. Same
             carrier + tracking inputs (admin reads them off the buyer's
