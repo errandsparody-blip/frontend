@@ -10,12 +10,18 @@ interface TotpInputProps {
   invalid?: boolean;
   disabled?: boolean;
   autoFocus?: boolean;
-  /** Called when the user types the 6th digit. */
+  /**
+   * Number of digit slots. Defaults to 6 (TOTP authenticator apps and the
+   * legacy email-verify flow). Email verification raised its codes to 8 as
+   * part of the M-4 hardening, so that call site passes `length={8}`.
+   */
+  length?: number;
+  /** Called when the user types the final digit. */
   onComplete?: (code: string) => void;
   className?: string;
 }
 
-const LENGTH = 6;
+const DEFAULT_LENGTH = 6;
 
 export function TotpInput({
   value,
@@ -23,15 +29,17 @@ export function TotpInput({
   invalid,
   disabled,
   autoFocus,
+  length,
   onComplete,
   className,
 }: TotpInputProps): JSX.Element {
+  const LENGTH = length ?? DEFAULT_LENGTH;
   const refs = useRef<Array<HTMLInputElement | null>>([]);
-  const [digits, setDigits] = useState<string[]>(() => splitToDigits(value));
+  const [digits, setDigits] = useState<string[]>(() => splitToDigits(value, LENGTH));
 
   useEffect(() => {
-    setDigits(splitToDigits(value));
-  }, [value]);
+    setDigits(splitToDigits(value, LENGTH));
+  }, [value, LENGTH]);
 
   useEffect(() => {
     if (autoFocus) refs.current[0]?.focus();
@@ -58,7 +66,7 @@ export function TotpInput({
     const text = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, LENGTH);
     if (text.length === 0) return;
     e.preventDefault();
-    const next = splitToDigits(text);
+    const next = splitToDigits(text, LENGTH);
     setDigits(next);
     onChange(next.join(""));
     refs.current[Math.min(text.length, LENGTH - 1)]?.focus();
@@ -98,8 +106,8 @@ export function TotpInput({
   );
 }
 
-function splitToDigits(s: string): string[] {
-  const arr = s.replace(/\D/g, "").slice(0, LENGTH).split("");
-  while (arr.length < LENGTH) arr.push("");
+function splitToDigits(s: string, length: number): string[] {
+  const arr = s.replace(/\D/g, "").slice(0, length).split("");
+  while (arr.length < length) arr.push("");
   return arr;
 }

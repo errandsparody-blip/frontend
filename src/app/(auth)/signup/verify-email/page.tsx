@@ -1,7 +1,8 @@
 /**
  * Email verification — code form. The user lands here after signup with the
- * email address carried in the URL (?email=...). The 6-digit code arrives by
- * email; they type it into this form and we POST it back to the API.
+ * email address carried in the URL (?email=...). The 8-digit code arrives by
+ * email (raised from 6 → 8 as part of the M-4 hardening); they type it into
+ * this form and we POST it back to the API.
  *
  * On success, redirect to /login?verified=1 — the user signs in fresh, and
  * the post-login flow handles MFA enrollment. We don't enroll MFA here for
@@ -108,7 +109,7 @@ function VerifyEmailInner() {
         Check your inbox.
       </h1>
       <p className="mt-3 text-body text-text-muted">
-        We sent a 6-digit code to{" "}
+        We sent an 8-digit code to{" "}
         {initialEmail ? (
           <strong className="text-ink">{initialEmail}</strong>
         ) : (
@@ -140,6 +141,7 @@ function VerifyEmailInner() {
             value={code}
             onChange={(v) => setValue("code", v, { shouldValidate: true })}
             invalid={!!errors.code}
+            length={8}
           />
           {errors.code ? (
             <span className="text-caption text-error">{errors.code.message}</span>
@@ -161,7 +163,7 @@ function VerifyEmailInner() {
           size="lg"
           withArrow
           loading={isSubmitting}
-          disabled={code.length !== 6}
+          disabled={code.length !== 8}
         >
           {isSubmitting ? "Verifying" : "Verify email"}
         </Button>

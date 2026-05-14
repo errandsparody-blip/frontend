@@ -92,7 +92,7 @@ export default function SignupPage() {
         Set up your business account.
       </h1>
       <p className="mt-3 text-body text-text-muted">
-        We&apos;ll email a 6-digit code, then walk you through MFA enrollment and KYC.
+        We&apos;ll email an 8-digit code, then walk you through MFA enrollment and KYC.
       </p>
 
       <form onSubmit={handleSubmit(onSubmit)} className="mt-10 flex flex-col gap-5" noValidate>

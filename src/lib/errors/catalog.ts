@@ -79,7 +79,7 @@ export const errorCatalog: Record<string, ErrorEntry> = {
   },
   verify_invalid: {
     title: "That code is invalid or has expired",
-    body: "Verification codes are 6 digits and expire after 15 minutes. Request a fresh one and try again.",
+    body: "Verification codes are 8 digits and expire after 15 minutes. Request a fresh one and try again.",
     action: { label: "Resend code", handler: "verifyEmail" },
     surface: "inline",
     field: "code",
