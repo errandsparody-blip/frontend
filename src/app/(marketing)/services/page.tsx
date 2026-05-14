@@ -52,7 +52,8 @@ export default function ServicesPage() {
             <p className="mt-4 text-body text-text-muted">
               Send us inventory once. We stock it, label it, and ship every
               order from a U.S. warehouse — locally, in days, with full
-              tracking.
+              tracking. Connect Shopify or WooCommerce and orders flow
+              straight in; or push to the API yourself.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link href="/signup">
@@ -143,18 +144,32 @@ export default function ServicesPage() {
                   Open a request
                 </Button>
               </Link>
-              <Link href="/how-it-works">
-                <Button variant="ghost" size="lg">
-                  How shopper requests work
-                </Button>
-              </Link>
+              
             </div>
           </FadeUp>
         </div>
       </section>
 
       {/* INTEGRATIONS */}
-    
+      <section id="integrations" className="border-b border-line">
+        <div className="mx-auto max-w-[84rem] px-8 py-24">
+          <FadeUp>
+            <div className="font-mono text-mono-eyebrow uppercase text-amber">
+              [04] Integrations
+            </div>
+            <h2 className="mt-3 max-w-3xl text-h2 font-medium leading-tight tracking-[-0.5px] text-ink">
+              Plug us into the store you already run.
+            </h2>
+            <p className="mt-4 max-w-2xl text-body text-text-muted">
+              We&apos;re built to disappear behind your storefront. Connect
+              Shopify or WooCommerce in a few clicks and orders flow into
+              our pick queue automatically. Custom stack? The API is open.
+            </p>
+          </FadeUp>
+
+         
+        </div>
+      </section>
     </>
   );
 }
