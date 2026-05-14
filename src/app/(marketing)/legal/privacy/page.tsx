@@ -198,10 +198,10 @@ export default function PrivacyPage(): JSX.Element {
           </p>
         </article>
 
-        <footer className="rounded-md border-l-4 border-line-strong bg-cream-soft p-5 text-body-sm text-text-muted">
+        {/* <footer className="rounded-md border-l-4 border-line-strong bg-cream-soft p-5 text-body-sm text-text-muted">
           This Policy reflects the current published version. Earlier versions are kept in our
           compliance archive — email privacy@myusaerrands.com to request a copy.
-        </footer>
+        </footer> */}
       </div>
 
       {/* `.prose-legal` styles live in src/styles/globals.css.
