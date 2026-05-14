@@ -152,7 +152,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
             </FooterCol>
           </div>
           <div className="flex flex-col gap-2 border-t border-line pt-6 font-mono text-mono-label text-text-muted sm:flex-row sm:items-center sm:justify-between">
-            <span>v0.1.0 (P0 foundations)</span>
+            <span></span>
             <span className="text-text-subtle">© 2026 USA Errands</span>
           </div>
         </div>
