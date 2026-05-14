@@ -1113,12 +1113,18 @@ function WorkflowPanel({
             //   PLATFORM_FREIGHT / BUYER_FORWARDER → rate + weight + dest
             //   BUYER_FREIGHT                       → label URL only
             //   PICKUP                              → pickup name + date
-            const destReady =
-              destRecipientName.trim().length > 0 &&
-              destLine1.trim().length > 0 &&
-              destCity.trim().length > 0 &&
-              /^[A-Za-z]{2}$/.test(destState.trim()) &&
-              destPostalCode.trim().length > 0;
+            //
+            // We also build a "what's missing" list so the admin can see
+            // exactly which field is blocking the Save button. Without
+            // this the button silently disables and clicks feel like
+            // they're doing nothing.
+            const missingDest: string[] = [];
+            if (!destRecipientName.trim()) missingDest.push("recipient name");
+            if (!destLine1.trim()) missingDest.push("address line 1");
+            if (!destCity.trim()) missingDest.push("city");
+            if (!/^[A-Za-z]{2}$/.test(destState.trim())) missingDest.push("state (2 letters)");
+            if (!destPostalCode.trim()) missingDest.push("postal code");
+            const destReady = missingDest.length === 0;
             const isFreightMode =
               shippingMethod === "PLATFORM_FREIGHT" ||
               shippingMethod === "BUYER_FORWARDER";
@@ -1147,6 +1153,32 @@ function WorkflowPanel({
               saveLabel = "Saving…";
             } else if (isShipMutation && saveJustSucceeded) {
               saveLabel = "Saved ✓";
+            }
+            // Build a human-readable "why is save disabled" line so the
+            // admin sees exactly what's missing instead of staring at an
+            // inert button. Buyer-freight + pickup get their own
+            // method-specific blockers; freight modes list any missing
+            // rate / weight / destination fields.
+            let missingHint = "";
+            if (!shippingMethod) {
+              missingHint = "Pick a shipping method.";
+            } else if (isFreightMode) {
+              const parts: string[] = [];
+              if (liveRateCentsPerLb <= 0) parts.push("rate ($/lb)");
+              if (liveWeightLb <= 0) parts.push("total weight (lb)");
+              if (!destReady) parts.push(...missingDest);
+              if (parts.length > 0) {
+                missingHint = "Missing: " + parts.join(", ") + ".";
+              }
+            } else if (isBuyerFreight) {
+              if (buyerLabelUrl.trim().length === 0) {
+                missingHint = "Paste the buyer's label URL above.";
+              }
+            } else if (isPickup) {
+              const parts: string[] = [];
+              if (pickupName.trim().length < 2) parts.push("pickup person's name");
+              if (pickupScheduledAt.trim().length === 0) parts.push("scheduled pickup date");
+              if (parts.length > 0) missingHint = "Missing: " + parts.join(", ") + ".";
             }
             return (
               <Action
@@ -1203,6 +1235,22 @@ function WorkflowPanel({
                   post.mutate({ path: "/shipping", body });
                 }}
               >
+                {/* Show the admin exactly why save is disabled — without
+                    this hint the button silently greys out and clicks
+                    feel like nothing happened. Only renders when the
+                    form is incomplete. */}
+                {missingHint ? (
+                  <div
+                    role="status"
+                    className="mb-3 rounded-sm border-l-4 border-amber bg-amber/10 px-3 py-2 text-body-sm text-text"
+                  >
+                    <span className="font-mono text-mono-label uppercase tracking-[1.2px] text-amber">
+                      Save disabled —{" "}
+                    </span>
+                    {missingHint}
+                  </div>
+                ) : null}
+
                 {/* Method picker always visible — the inputs below
                     change based on which method is selected. */}
                 <div className="grid gap-3 md:grid-cols-2">
