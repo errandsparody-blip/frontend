@@ -220,7 +220,7 @@ export default function PricingPage() {
       </section>
 
       {/* PALLET STORAGE */}
-      <section className="border-y border-line bg-cream-soft">
+      {/* <section className="border-y border-line bg-cream-soft">
         <div className="mx-auto max-w-[84rem] px-8 py-20">
           <div className="font-mono text-mono-eyebrow uppercase text-amber">[ 05 ] Pallet storage</div>
           <h2 className="mt-3 max-w-3xl text-display font-medium leading-[1.05] tracking-[-0.8px] text-ink">
@@ -280,7 +280,6 @@ export default function PricingPage() {
             </div>
           </div>
 
-          {/* Pallet policy — uniform tier rule + max box counts. */}
           <div className="mt-10 grid gap-6 lg:grid-cols-2">
             <PolicyCard
               title="Pallet box rules"
@@ -330,7 +329,7 @@ export default function PricingPage() {
             </p>
           </div>
         </div>
-      </section>
+      </section> */}
 
       {/* FULFILLMENT */}
       {/* <section className="border-y border-line bg-cream-soft">
