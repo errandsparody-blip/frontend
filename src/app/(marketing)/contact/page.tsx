@@ -127,43 +127,7 @@ export default function ContactPage() {
             </p>
           </FadeUp>
 
-          <div className="mt-10 grid gap-6 md:grid-cols-2">
-            <FadeUp>
-              <Link
-                href="/integrations"
-                className="group flex h-full flex-col gap-3 rounded-md border border-line bg-white p-8 transition-transform duration-300 ease-out hover:-translate-y-1 hover:shadow-2"
-              >
-                <Zap className="h-6 w-6 text-amber" aria-hidden />
-                <div className="text-h3 font-medium text-ink">
-                  Integrations
-                </div>
-                <p className="text-body-sm text-text-muted">
-                  Shopify, WooCommerce, and the API for everything else.
-                  See what we already speak.
-                </p>
-                <div className="mt-auto pt-4 font-mono text-mono-label uppercase tracking-[1.2px] text-ink group-hover:text-amber">
-                  Browse integrations →
-                </div>
-              </Link>
-            </FadeUp>
-
-            <FadeUp delay={80}>
-              <Link
-                href="/security"
-                className="group flex h-full flex-col gap-3 rounded-md border border-line bg-white p-8 transition-transform duration-300 ease-out hover:-translate-y-1 hover:shadow-2"
-              >
-                <ShieldCheck className="h-6 w-6 text-amber" aria-hidden />
-                <div className="text-h3 font-medium text-ink">Security</div>
-                <p className="text-body-sm text-text-muted">
-                  How we hold credentials, segment tenants, and protect
-                  buyer money end-to-end.
-                </p>
-                <div className="mt-auto pt-4 font-mono text-mono-label uppercase tracking-[1.2px] text-ink group-hover:text-amber">
-                  Read the security overview →
-                </div>
-              </Link>
-            </FadeUp>
-          </div>
+        
         </div>
       </section>
     </>
