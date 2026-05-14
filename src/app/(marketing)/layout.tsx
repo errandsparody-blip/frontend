@@ -22,11 +22,11 @@ const ABOUT_ITEMS = [
     label: "Personal shopping",
     description: "Buy anything from any U.S. store. We handle the rest.",
   },
-  {
-    href: "/how-it-works",
-    label: "3PL fulfillment",
-    description: "Hold your inventory in our warehouse, ship to U.S. buyers in days.",
-  },
+  // {
+  //   href: "/how-it-works",
+  //   label: "3PL fulfillment",
+  //   description: "Hold your inventory in our warehouse, ship to U.S. buyers in days.",
+  // },
   // {
   //   href: "/integrations",
   //   label: "Integrations",
