@@ -348,14 +348,14 @@ const SERVICES: ReadonlyArray<{
     cta: "Open a request",
     href: "/shopper",
   },
-  {
-    Icon: Zap,
-    tag: "For partners",
-    title: "Integrations",
-    body: "Shopify, WooCommerce, REST API — plug us into the store you already run.",
-    cta: "See connectors",
-    href: "/integrations",
-  },
+  // {
+  //   Icon: Zap,
+  //   tag: "For partners",
+  //   title: "Integrations",
+  //   body: "Shopify, WooCommerce, REST API — plug us into the store you already run.",
+  //   cta: "See connectors",
+  //   href: "/integrations",
+  // },
 ];
 
 const STEPS: ReadonlyArray<{ label: string; body: string }> = [

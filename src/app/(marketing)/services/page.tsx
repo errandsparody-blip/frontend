@@ -155,25 +155,7 @@ export default function ServicesPage() {
       </section>
 
       {/* INTEGRATIONS */}
-      <section id="integrations" className="border-b border-line">
-        <div className="mx-auto max-w-[84rem] px-8 py-24">
-          <FadeUp>
-            <div className="font-mono text-mono-eyebrow uppercase text-amber">
-              [04] Integrations
-            </div>
-            <h2 className="mt-3 max-w-3xl text-h2 font-medium leading-tight tracking-[-0.5px] text-ink">
-              Plug us into the store you already run.
-            </h2>
-            <p className="mt-4 max-w-2xl text-body text-text-muted">
-              We&apos;re built to disappear behind your storefront. Connect
-              Shopify or WooCommerce in a few clicks and orders flow into
-              our pick queue automatically. Custom stack? The API is open.
-            </p>
-          </FadeUp>
-
-         
-        </div>
-      </section>
+    
     </>
   );
 }
