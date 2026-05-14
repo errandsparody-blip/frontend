@@ -74,7 +74,11 @@ export function TotpInput({
   };
 
   return (
-    <div className={cn("flex gap-2", className)}>
+    // gap shrinks on phones so the 8-box row clears a 375px viewport with
+    // padding to spare (8 × 36 + 7 × 4 = 316px). At the `sm:` breakpoint
+    // (≥ 640px) we restore the comfortable 48 × 56 boxes — desktops have
+    // plenty of room.
+    <div className={cn("flex justify-center gap-1.5 sm:gap-2", className)}>
       {Array.from({ length: LENGTH }).map((_, i) => (
         <input
           key={i}
@@ -95,7 +99,10 @@ export function TotpInput({
           onKeyDown={(e) => handleKeyDown(i, e)}
           onPaste={handlePaste}
           className={cn(
-            "h-14 w-12 rounded-sm border bg-cream-soft text-center font-mono text-[24px] font-medium tabular-nums",
+            // Mobile-first: compact boxes that fit 8 digits on a 375px phone.
+            // sm: restores the desktop sizing (matches the original spec).
+            "h-12 w-9 rounded-sm border bg-cream-soft text-center font-mono text-[20px] font-medium tabular-nums",
+            "sm:h-14 sm:w-12 sm:text-[24px]",
             "outline-none transition-colors duration-fast ease-out",
             invalid ? "border-error" : "border-line-strong focus:border-ink",
             "focus:ring-2 focus:ring-ink/10",
