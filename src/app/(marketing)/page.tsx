@@ -119,8 +119,8 @@ export default function HomePage() {
       {/* STATS BAR */}
       <section className="border-y border-line">
         <div className="mx-auto grid max-w-[84rem] grid-cols-2 lg:grid-cols-4">
-          <Stat value="$2.1M" label="Inventory value managed" />
-          <Stat value="340" label="Vendors trust the system" />
+          <Stat value="1" label="Inventory value managed" />
+          <Stat value="1" label="Vendors trust the system" />
           <Stat value="4.2 days" label="Average inbound onboarding" amber />
           <Stat value="99.97%" label="Uptime. Not rounded" />
         </div>
@@ -175,7 +175,7 @@ export default function HomePage() {
               [03] How it works
             </div>
             <h2 className="mt-3 max-w-3xl text-display font-medium leading-[1.05] tracking-[-1px] text-ink">
-              You ship. We hold. They get it tomorrow.
+              You ship. We hold. We fulfill.
             </h2>
             <p className="mt-4 max-w-2xl text-body-lg text-text-muted">
               The path from international shelf to American front door, in
