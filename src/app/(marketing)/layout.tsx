@@ -87,9 +87,9 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
             <Link href="/services" className="transition-colors hover:text-amber">
               Services
             </Link>
-            <Link href="/how-it-works" className="transition-colors hover:text-amber">
+            {/* <Link href="/how-it-works" className="transition-colors hover:text-amber">
               How it works
-            </Link>
+            </Link> */}
             <Link href="/pricing" className="transition-colors hover:text-amber">
               Pricing
             </Link>
