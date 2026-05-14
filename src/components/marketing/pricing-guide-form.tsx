@@ -45,12 +45,18 @@ const formSchema = z.object({
 type FormInput = z.infer<typeof formSchema>;
 
 /**
- * Resolve the API base URL. Same convention as the rest of the web
- * app — public env var injected at build time. Falls back to the
- * Next.js rewrites in dev.
+ * Resolve the API base URL. We use the SAME env var as the rest of
+ * the app (`NEXT_PUBLIC_API_BASE_URL`, defined in `lib/api-client.ts`).
+ * That var ALREADY includes the `/v1` prefix, so callers append only
+ * the rest of the path. Falls back to the local dev API so this
+ * component is testable without env vars.
+ *
+ * Without the matching env var on Vercel the previous wiring resolved
+ * to an empty string and `fetch("/v1/...")` hit the marketing domain
+ * — Vercel returned 404 and the form showed a generic error.
  */
 function getApiBase(): string {
-  return process.env.NEXT_PUBLIC_API_URL ?? "";
+  return process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000/v1";
 }
 
 export function PricingGuideForm(): JSX.Element {
@@ -69,7 +75,9 @@ export function PricingGuideForm(): JSX.Element {
   async function onSubmit(values: FormInput): Promise<void> {
     setServerError(null);
     try {
-      const res = await fetch(`${getApiBase()}/v1/marketing/pricing-guide`, {
+      // NEXT_PUBLIC_API_BASE_URL already ends with /v1, so the path here
+      // is just /marketing/pricing-guide (no double /v1 prefix).
+      const res = await fetch(`${getApiBase()}/marketing/pricing-guide`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(values),

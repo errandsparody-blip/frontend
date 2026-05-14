@@ -171,14 +171,7 @@ export default function ServicesPage() {
             </p>
           </FadeUp>
 
-          <div className="mt-10">
-            <Link
-              href="/integrations"
-              className="font-mono text-mono-label uppercase tracking-[1.2px] text-amber hover:text-amber-hi"
-            >
-              See all integrations →
-            </Link>
-          </div>
+         
         </div>
       </section>
     </>

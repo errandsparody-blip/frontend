@@ -180,19 +180,19 @@ const INBOXES: ReadonlyArray<{
     label: "Sales",
     title: "Onboarding a vendor",
     body: "Pallet sizes, volume estimates, integration questions, contract pricing. We reply within one business day.",
-    email: "sales@myusaerrands.com",
+    email: "",
   },
   {
     label: "Support",
     title: "Order or shopper request issue",
     body: "Stuck on a PSN receive, a shopper thread, or a checkout. Include the reference number and we'll dig in.",
-    email: "support@myusaerrands.com",
+    email: "",
   },
   {
     label: "Partnerships",
     title: "Integrations + payouts",
     body: "Built a storefront, a carrier route, or a payout corridor you think we should connect to. Pitch us.",
-    email: "partners@myusaerrands.com",
+    email: "",
   },
 ];
 
