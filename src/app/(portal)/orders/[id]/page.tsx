@@ -152,9 +152,13 @@ export default function OrderDetailPage() {
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
-        eyebrow={`[05] Orders / ${o.id.slice(0, 8)}`}
-        title={o.externalReference ?? `Order ${o.id.slice(0, 8)}`}
-        description="Status, line items, money breakdown, and timeline."
+        eyebrow={`[05] Orders / #${o.orderNumber}`}
+        title={`Order #${o.orderNumber}`}
+        description={
+          o.externalReference
+            ? `Your reference: ${o.externalReference}`
+            : "Status, line items, money breakdown, and timeline."
+        }
         actions={<BackButton fallback="/orders" />}
       />
 

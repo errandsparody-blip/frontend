@@ -12,6 +12,7 @@ import { api } from "@/lib/api-client";
 
 interface AdminOrderRow {
   id: string;
+  orderNumber: number;
   status:
     | "ALLOCATED"
     | "LABEL_PURCHASED"
@@ -140,7 +141,14 @@ export default function AdminOrdersQueuePage() {
           <TBody>
             {data.items.map((o) => (
               <TR key={o.id}>
-                <Td mono>{o.externalReference ?? o.id.slice(0, 8)}</Td>
+                <Td mono strong>
+                  #{o.orderNumber}
+                  {o.externalReference ? (
+                    <div className="font-mono text-caption font-normal text-text-muted">
+                      {o.externalReference}
+                    </div>
+                  ) : null}
+                </Td>
                 <Td strong>{o.vendor.businessName}</Td>
                 <Td>
                   {o.recipientName}{" "}

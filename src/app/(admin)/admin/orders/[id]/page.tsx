@@ -14,6 +14,7 @@ import { normalizeError, useApiErrorHandler } from "@/lib/errors";
 
 interface AdminOrderDetail {
   id: string;
+  orderNumber: number;
   status: string;
   externalReference: string | null;
   recipientName: string;
@@ -123,9 +124,14 @@ export default function AdminOrderDetailPage() {
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
-        eyebrow={`[04] Fulfillment / ${o.id.slice(0, 8)}`}
-        title={o.externalReference ?? `Order ${o.id.slice(0, 8)}`}
-        description={`${o.vendor.businessName} → ${o.recipientName}, ${o.shipCity}, ${o.shipState}`}
+        eyebrow={`[04] Fulfillment / #${o.orderNumber}`}
+        title={`Order #${o.orderNumber}`}
+        description={[
+          `${o.vendor.businessName} → ${o.recipientName}, ${o.shipCity}, ${o.shipState}`,
+          o.externalReference ? `vendor ref: ${o.externalReference}` : null,
+        ]
+          .filter(Boolean)
+          .join(" · ")}
         actions={<BackButton fallback="/admin/orders" label="← Queue" />}
       />
 

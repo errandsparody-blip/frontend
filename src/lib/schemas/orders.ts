@@ -157,6 +157,12 @@ export type CreateOrderInput = z.infer<typeof createOrderSchema>;
 
 export interface PublicOrder {
   id: string;
+  /**
+   * Monotonic, platform-assigned order number. Rendered as `#${orderNumber}`
+   * (e.g. `#1625`) — this is THE customer-facing identifier. Server-generated
+   * from a Postgres sequence so it's globally unique and never reused.
+   */
+  orderNumber: number;
   externalReference: string | null;
   status: OrderStatus;
   recipient: {

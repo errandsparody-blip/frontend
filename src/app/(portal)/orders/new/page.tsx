@@ -236,8 +236,13 @@ export default function NewOrderPage() {
         <div className="rounded-md border-l-4 border-success bg-success/10 px-5 py-4">
           <div className="font-mono text-mono-label uppercase text-success">Allocated</div>
           <div className="mt-1 text-h2 font-semibold text-ink">
-            {submitted.externalReference ?? submitted.id.slice(0, 8)}
+            #{submitted.orderNumber}
           </div>
+          {submitted.externalReference ? (
+            <p className="mt-1 font-mono text-caption text-text-muted">
+              Your reference: {submitted.externalReference}
+            </p>
+          ) : null}
           <p className="mt-1 text-body-sm text-text-muted">
             {formatCents(submitted.totalChargedCents)} charged · {submitted.carrierService}
           </p>

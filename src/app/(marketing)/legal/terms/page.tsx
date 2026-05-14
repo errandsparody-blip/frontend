@@ -179,14 +179,7 @@ export default function TermsPage(): JSX.Element {
           </p>
 
           <h2>13. Contact</h2>
-          <p>
-            Questions about these Terms? Email{" "}
-            <a href="mailto:legal@myusaerrands.com" className="underline">
-              legal@myusaerrands.com
-            </a>
-            . For privacy specifically, see our{" "}
-            <Link href="/legal/privacy" className="underline">Privacy Policy</Link>.
-          </p>
+         
         </article>
 
         <footer className="rounded-md border-l-4 border-line-strong bg-cream-soft p-5 text-body-sm text-text-muted">

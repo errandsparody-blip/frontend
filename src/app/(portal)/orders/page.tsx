@@ -114,9 +114,19 @@ export default function OrdersListPage() {
               <TR key={o.id}>
                 <Td>
                   <div className="flex flex-col">
-                    <span className="font-mono text-body-sm text-text">
-                      {o.externalReference ?? o.id.slice(0, 8)}
+                    {/* Platform-assigned, monotonic order number — the
+                        primary identifier vendors recognise. If they ALSO
+                        provided their own external reference we render it
+                        beneath as a smaller "your ref" line so they can
+                        cross-check against their own OMS. */}
+                    <span className="font-mono text-body-sm font-semibold text-text">
+                      #{o.orderNumber}
                     </span>
+                    {o.externalReference ? (
+                      <span className="font-mono text-caption text-text-muted">
+                        Your ref: {o.externalReference}
+                      </span>
+                    ) : null}
                     <span className="text-body-sm text-text-muted">
                       {o.recipient.name} · {o.recipient.city}, {o.recipient.state}
                     </span>

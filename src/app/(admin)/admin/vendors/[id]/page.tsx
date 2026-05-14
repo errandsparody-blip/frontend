@@ -111,6 +111,7 @@ interface VendorOverview {
     lifetimeRevenueCents: number;
     recent: Array<{
       id: string;
+      orderNumber: number;
       externalReference: string | null;
       status: string;
       recipientName: string;
@@ -810,7 +811,12 @@ export default function AdminVendorDetailPage() {
                       {o.orders.recent.map((or) => (
                         <TR key={or.id}>
                           <Td mono strong>
-                            {or.externalReference ?? or.id.slice(0, 8)}
+                            #{or.orderNumber}
+                            {or.externalReference ? (
+                              <div className="font-mono text-caption font-normal text-text-muted">
+                                {or.externalReference}
+                              </div>
+                            ) : null}
                           </Td>
                           <Td>
                             <StatusPill tone={ORDER_TONE[or.status] ?? "neutral"}>
