@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
-import { z } from "zod";
+import type { z } from "zod";
 
 import { ErrorBanner } from "@/components/errors/error-banner";
 import { Button } from "@/components/ui/button";
@@ -15,12 +15,23 @@ import { api } from "@/lib/api-client";
 import { useApiErrorHandler } from "@/lib/errors";
 import { signupSchema } from "@/lib/schemas/auth";
 
-// Client-only extension — the API schema can't add `agreementAccepted` without
-// a mirrored backend change, so we wrap signupSchema here, validate the
-// checkbox, then strip the field before POSTing. The acceptance is still
-// captured properly: after email + 2FA + KYC the vendor lands on
-// /legal/vendor-agreement?reaccept=1 and signs the current published version,
-// which records timestamp + IP + version on the audit trail.
+// ---------------------------------------------------------------------------
+// NOTE — VENDOR-AGREEMENT CHECKBOX TEMPORARILY DISABLED
+//
+// The signup page used to wrap `signupSchema` with an extra
+// `agreementAccepted: z.literal(true)` field and render a tick-box that gated
+// form submission. That has been commented out (here + in the JSX below) so
+// signup no longer requires acceptance at this step. Vendors are still bound
+// to the Vendor Agreement, Terms of Service, and Privacy Policy — they
+// re-accept the *versioned* document inside the portal post-KYC at
+// `/legal/vendor-agreement?reaccept=1`, which writes timestamp + IP + version
+// to the audit log (the legally durable record).
+//
+// To restore the checkbox: revert this file (the original block is preserved
+// verbatim inside the `/* ... */` comments). No backend change is required
+// either way — the API has never accepted `agreementAccepted` on the wire.
+// ---------------------------------------------------------------------------
+/*
 const signupFormSchema = signupSchema.extend({
   agreementAccepted: z.literal(true, {
     errorMap: () => ({
@@ -29,18 +40,20 @@ const signupFormSchema = signupSchema.extend({
   }),
 });
 type SignupFormInput = z.infer<typeof signupFormSchema>;
+*/
+type SignupFormInput = z.infer<typeof signupSchema>;
 
 export default function SignupPage() {
   const router = useRouter();
 
   const form = useForm<SignupFormInput>({
-    resolver: zodResolver(signupFormSchema),
+    resolver: zodResolver(signupSchema),
     defaultValues: {
       email: "",
       password: "",
       businessName: "",
       country: "",
-      agreementAccepted: false as unknown as true,
+      // agreementAccepted: false as unknown as true,   // disabled — see note above
     },
   });
   const {
@@ -54,12 +67,10 @@ export default function SignupPage() {
   async function onSubmit(values: SignupFormInput): Promise<void> {
     clear();
     try {
-      // Strip the client-only consent field before sending — the API schema
-      // doesn't accept it. The vendor formally re-accepts the versioned
-      // agreement after KYC via /legal/vendor-agreement.
-      const { agreementAccepted: _ignored, ...payload } = values;
-      void _ignored;
-      await api.post<{ ok: true; userId: string }>("/auth/signup", payload);
+      // The API schema doesn't accept `agreementAccepted`; with the checkbox
+      // disabled it's no longer on the form, so we forward `values` as-is.
+      // (Vendors re-accept the versioned agreement post-KYC.)
+      await api.post<{ ok: true; userId: string }>("/auth/signup", values);
       // Carry the email through so the verify form can pre-fill it for the
       // POST /auth/verify-email request without making the user retype.
       router.push(`/signup/verify-email?email=${encodeURIComponent(values.email)}`);
@@ -130,6 +141,15 @@ export default function SignupPage() {
 
         <ErrorBanner error={bannerError} onAction={onAction} />
 
+        {/*
+          --- Vendor-agreement consent block (temporarily disabled) ---
+          Vendors are still bound by the Vendor Agreement, Terms, and Privacy
+          Policy — they re-accept the versioned document post-KYC at
+          /legal/vendor-agreement?reaccept=1, which is the legally durable
+          signature (timestamp + IP + version written to the audit log).
+          Restore by uncommenting the block below AND re-enabling the
+          schema/default near the top of this file.
+
         <div>
           <label className="flex items-start gap-3 rounded-sm border border-line-strong bg-cream-soft p-4">
             <input
@@ -176,6 +196,7 @@ export default function SignupPage() {
             </span>
           ) : null}
         </div>
+        */}
 
         <Button type="submit" variant="primary" size="lg" withArrow loading={isSubmitting}>
           {isSubmitting ? "Creating account" : "Create account"}
