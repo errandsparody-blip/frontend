@@ -385,9 +385,33 @@ function isStepComplete(step: StepKey, v: WizardInput): boolean {
         v.productHazards.length > 0
       );
     case "review":
-      // No input on this step — the Submit button is the gesture.
-      return true;
+      // The Submit button is the gesture on this step, but it must only
+      // enable when every prior step is complete. Server-side .superRefine
+      // enforces the same set — checking here saves the vendor a 400
+      // round-trip and lets us name the missing steps in the UI. Keep this
+      // list in sync with `submitKycV2Schema.superRefine` in
+      // common/schemas/vendor.schema.ts.
+      return (
+        isStepComplete("business", v) &&
+        isStepComplete("contact", v) &&
+        isStepComplete("identity", v) &&
+        isStepComplete("inventory", v) &&
+        isStepComplete("shipping", v)
+      );
   }
+}
+
+/**
+ * Names of steps the vendor still needs to complete before final submit is
+ * allowed. Used on the Review step to tell the vendor exactly which
+ * sections to revisit — and to gate the Submit button. Returns the human
+ * step labels (matching the progress bar) so the message reads naturally.
+ */
+function missingStepsForReview(v: WizardInput): string[] {
+  const order: StepKey[] = ["business", "contact", "identity", "inventory", "shipping"];
+  return order
+    .filter((k) => !isStepComplete(k, v))
+    .map((k) => STEPS.find((s) => s.key === k)?.label ?? k);
 }
 
 /**
@@ -793,6 +817,30 @@ export default function VerificationPage(): JSX.Element {
       {actionSuccess ? (
         <div className="rounded-sm border-l-4 border-success bg-success/10 px-4 py-3 text-body-sm text-success">
           {actionSuccess}
+        </div>
+      ) : null}
+
+      {/* Missing-fields gate. Only shown on the Review step when one or more
+          prior steps are still incomplete. The Submit button below stays
+          disabled until this list is empty; the server-side superRefine
+          would reject the submit anyway, but blocking it client-side gives
+          the vendor a specific list of what to fix without a round-trip.
+          Tells them exactly which sections to revisit. */}
+      {stepKey === "review" && missingStepsForReview(watched).length > 0 ? (
+        <div
+          className="rounded-sm border-l-4 border-amber bg-amber/10 px-4 py-3"
+          role="status"
+          aria-live="polite"
+        >
+          <div className="font-mono text-mono-label uppercase text-amber">
+            Almost there
+          </div>
+          <p className="mt-1 text-body-sm text-text">
+            Finish these steps before submitting:{" "}
+            <strong className="text-ink">
+              {missingStepsForReview(watched).join(" · ")}
+            </strong>
+          </p>
         </div>
       ) : null}
 

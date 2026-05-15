@@ -147,9 +147,9 @@ export default function MfaEnrollPage() {
         <ErrorBanner error={bannerError} onAction={onAction} />
       </div>
 
-      <Link href="/" className="mt-8 inline-block text-body-sm text-text-muted hover:text-ink">
+      {/* <Link href="/" className="mt-8 inline-block text-body-sm text-text-muted hover:text-ink">
         Skip for now (not recommended)
-      </Link>
+      </Link> */}
     </div>
   );
 }
