@@ -39,7 +39,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm, type Resolver, type UseFormReturn } from "react-hook-form";
 import { z } from "zod";
 
@@ -51,6 +51,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
 import { api } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
+import { COUNTRIES, getDialCode } from "@/lib/countries";
 import { normalizeError, useApiErrorHandler } from "@/lib/errors";
 
 // ---------------------------------------------------------------------------
@@ -959,7 +960,156 @@ function BusinessStep({ form }: StepProps): JSX.Element {
   );
 }
 
+/**
+ * Convert an ISO 3166-1 alpha-2 code to its corresponding regional-indicator
+ * flag emoji ("US" → "🇺🇸"). Pure UI sugar — every modern OS renders these
+ * as the country flag; the few legacy systems that don't degrade to the
+ * two-letter code, which is also useful information for the picker.
+ *
+ * Defensive: returns "" for anything that isn't exactly two ASCII letters,
+ * so a stray "" or unexpected value can't blow up the render.
+ */
+function isoToFlagEmoji(iso2: string): string {
+  if (!iso2 || iso2.length !== 2) return "";
+  const upper = iso2.toUpperCase();
+  if (!/^[A-Z]{2}$/.test(upper)) return "";
+  const base = 0x1f1e6;
+  const a = upper.charCodeAt(0) - 65;
+  const b = upper.charCodeAt(1) - 65;
+  return String.fromCodePoint(base + a, base + b);
+}
+
+/**
+ * Given a saved canonical phone number like "+234 805 555 0190", try to
+ * separate the dial-code prefix from the local digits.
+ *
+ * We strip all non-digit characters from the post-"+" portion and then
+ * match the longest known dialCode prefix in COUNTRIES. If the saved
+ * `contactCountry` ISO code is supplied AND its dialCode is a valid
+ * prefix of the digits, prefer it — that disambiguates the many countries
+ * that share +1 / +44 / +590 / +599.
+ *
+ * Returns `null` for unrecognisable input so the caller can fall back to
+ * blank values without crashing.
+ */
+function splitSavedPhone(
+  saved: string | null | undefined,
+  savedIso: string | null | undefined,
+): { iso: string; local: string } | null {
+  if (typeof saved !== "string" || saved.trim().length === 0) return null;
+  const trimmed = saved.trim();
+  // Pull leading + if present, then keep only digits + spaces/dashes/parens.
+  const hasPlus = trimmed.startsWith("+");
+  const digits = trimmed
+    .slice(hasPlus ? 1 : 0)
+    .replace(/[^0-9]/g, "");
+  if (digits.length === 0) return null;
+
+  // Prefer the saved country if its dialCode prefix matches.
+  if (savedIso) {
+    const dc = getDialCode(savedIso);
+    if (dc) {
+      const dcDigits = dc.replace(/[^0-9]/g, "");
+      if (digits.startsWith(dcDigits)) {
+        return { iso: savedIso.toUpperCase(), local: digits.slice(dcDigits.length) };
+      }
+    }
+  }
+
+  // Otherwise scan COUNTRIES for the longest dial-code prefix match.
+  let bestIso = "";
+  let bestPrefixLen = 0;
+  for (const c of COUNTRIES) {
+    const dcDigits = c.dialCode.replace(/[^0-9]/g, "");
+    if (dcDigits.length > 0 && digits.startsWith(dcDigits) && dcDigits.length > bestPrefixLen) {
+      bestPrefixLen = dcDigits.length;
+      bestIso = c.code;
+    }
+  }
+  if (bestPrefixLen === 0) return null;
+  return { iso: bestIso, local: digits.slice(bestPrefixLen) };
+}
+
 function ContactStep({ form }: StepProps): JSX.Element {
+  // Watch canonical form values — `contactCountry` is the source of truth
+  // for the picker; `contactPhone` is the canonical "+code digits" string
+  // the schema validates against and the backend stores.
+  const contactCountry = form.watch("contactCountry") ?? "";
+  const contactPhone = form.watch("contactPhone") ?? "";
+
+  // Local-only digits the user types into the phone input. Kept in component
+  // state because the form schema only knows about the combined value.
+  const [localDigits, setLocalDigits] = useState<string>("");
+
+  // One-shot seed: when the wizard pre-fills `contactPhone` from the server,
+  // split it into the picker country + local digits. We only run this once
+  // per "fresh saved value" so subsequent edits don't fight the user.
+  const [seededFromSaved, setSeededFromSaved] = useState(false);
+  useEffect(() => {
+    if (seededFromSaved) return;
+    const split = splitSavedPhone(contactPhone, contactCountry);
+    if (!split) {
+      // Nothing to seed from, but mark seeded so we don't keep retrying on
+      // every keystroke once the user starts typing.
+      if (contactPhone.length > 0 || contactCountry.length > 0) {
+        setSeededFromSaved(true);
+      }
+      return;
+    }
+    // Only update if the picker country isn't already set to the matched
+    // one — avoids loops.
+    if (split.iso !== contactCountry) {
+      form.setValue("contactCountry", split.iso, { shouldValidate: true, shouldDirty: false });
+    }
+    setLocalDigits(split.local);
+    setSeededFromSaved(true);
+  }, [seededFromSaved, contactPhone, contactCountry, form]);
+
+  // Recompose the canonical contactPhone whenever either input changes.
+  const recomposePhone = (iso: string, digits: string): void => {
+    const dc = getDialCode(iso);
+    const cleaned = digits.replace(/[^0-9]/g, "");
+    const combined = dc && cleaned.length > 0 ? `${dc} ${cleaned}` : dc ? dc : cleaned;
+    form.setValue("contactPhone", combined, { shouldValidate: true, shouldDirty: true });
+  };
+
+  const onCountryChange = (e: React.ChangeEvent<HTMLSelectElement>): void => {
+    const iso = e.target.value.toUpperCase();
+    form.setValue("contactCountry", iso, { shouldValidate: true, shouldDirty: true });
+    recomposePhone(iso, localDigits);
+  };
+
+  const onLocalPhoneChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
+    // Allow the user to type whatever (spaces / dashes / parens are common
+    // in pasted numbers); we sanitise to digits before composing the
+    // canonical value, but keep what they typed in the visible input so
+    // the cursor doesn't jump.
+    const raw = e.target.value;
+    setLocalDigits(raw);
+    recomposePhone(contactCountry, raw);
+  };
+
+  // Stable display list. We don't sort on every render — COUNTRIES is
+  // already alphabetised by name in the data file.
+  const countryOptions = useMemo(
+    () =>
+      COUNTRIES.map((c) => ({
+        value: c.code,
+        // Compact option text so the native select doesn't overflow on
+        // mobile: "+234 NG · Nigeria".
+        label: `${c.dialCode} ${c.code} · ${c.name}`,
+        flag: isoToFlagEmoji(c.code),
+      })),
+    [],
+  );
+
+  // Selected-country pretty label for the trigger (shown as the closed
+  // <select> face on most browsers). We can't fully style the closed face,
+  // but the option text we render is what most browsers display.
+  const phoneError =
+    form.formState.errors.contactPhone?.message ??
+    form.formState.errors.contactCountry?.message;
+
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
       <h2 className="md:col-span-2 text-h3 font-semibold text-ink">Primary contact</h2>
@@ -970,26 +1120,48 @@ function ContactStep({ form }: StepProps): JSX.Element {
       <Field label="Position / role *" error={form.formState.errors.contactPosition?.message}>
         <Input type="text" autoComplete="organization-title" {...form.register("contactPosition")} />
       </Field>
+
+      {/*
+        Bundled country + phone. The Field's <label> associates with the
+        first focusable control (the select). The two controls share a flex
+        row that's locked to a known mobile width so the input never
+        overflows on a 320px viewport: 136px (select) + 8px (gap) + flex-1
+        input ≈ fits with room to spare given the page's outer padding.
+      */}
       <Field
         label="Phone (with country code) *"
-        hint="e.g. +1 305 555 0190"
-        error={form.formState.errors.contactPhone?.message}
+        hint="We'll send onboarding updates here. Pick your country, type the local number."
+        error={phoneError}
+        className="md:col-span-2"
       >
-        <Input type="tel" autoComplete="tel" {...form.register("contactPhone")} />
+        <div className="flex w-full min-w-0 gap-2">
+          <select
+            aria-label="Country dialing code"
+            autoComplete="tel-country-code"
+            className={`${selectClass} truncate flex-[0_0_8.5rem] sm:flex-[0_0_10rem]`}
+            value={contactCountry}
+            onChange={onCountryChange}
+          >
+            <option value="">Country…</option>
+            {countryOptions.map((opt) => (
+              <option key={opt.value} value={opt.value} className="truncate">
+                {opt.flag ? `${opt.flag} ` : ""}
+                {opt.label}
+              </option>
+            ))}
+          </select>
+          <Input
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel-national"
+            placeholder="Local number"
+            className="flex-1 min-w-0"
+            value={localDigits}
+            onChange={onLocalPhoneChange}
+          />
+        </div>
       </Field>
-      <Field
-        label="Country of residence *"
-        hint="ISO 3166-1 alpha-2"
-        error={form.formState.errors.contactCountry?.message}
-      >
-        <Input
-          type="text"
-          maxLength={2}
-          autoComplete="country"
-          className="uppercase"
-          {...form.register("contactCountry")}
-        />
-      </Field>
+
       <Field
         label="Address line 1 *"
         error={form.formState.errors.contactAddressLine1?.message}
