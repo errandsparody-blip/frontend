@@ -13,18 +13,18 @@ export default function HowItWorksPage() {
     <>
       {/* HERO */}
       <section className="border-b border-line bg-cream">
-        <div className="mx-auto max-w-[84rem] px-8 py-24 lg:py-32">
+        <div className="mx-auto max-w-[84rem] px-5 py-16 sm:px-8 sm:py-24 lg:py-32">
           <div className="font-mono text-mono-eyebrow uppercase text-amber">[ 02 ] How it works</div>
-          <h1 className="mt-3 max-w-3xl text-display-lg font-medium leading-[1.05] tracking-[-1.2px] text-ink">
+          <h1 className="mt-3 max-w-3xl text-display font-medium leading-[1.05] tracking-[-0.6px] text-ink sm:text-display-lg sm:tracking-[-1.2px]">
             You ship. We hold.
             <br />
             <span className="text-amber">They get it tomorrow.</span>
           </h1>
-          <p className="mt-8 max-w-2xl text-body-lg text-text-muted">
+          <p className="mt-6 max-w-2xl text-body sm:mt-8 sm:text-body-lg text-text-muted">
             The path from international shelf to American front door, in four steps. No U.S. business
             required, no inventory financing, no per-item handling fee surprises.
           </p>
-          <div className="mt-10 flex flex-wrap gap-3">
+          <div className="mt-8 flex flex-wrap gap-3 sm:mt-10">
             <Link href="/signup">
               <Button variant="amber" size="lg" withArrow>
                 Start onboarding
@@ -40,7 +40,7 @@ export default function HowItWorksPage() {
       </section>
 
       {/* THE FOUR STEPS */}
-      <section className="mx-auto max-w-[84rem] px-8 py-24">
+      <section className="mx-auto max-w-[84rem] px-5 py-12 sm:px-8 sm:py-24">
         <Step
           n="01"
           title="Onboard your account"
@@ -106,15 +106,15 @@ export default function HowItWorksPage() {
 
       {/* RETURNS — half-step */}
       <section className="border-y border-line bg-cream-soft">
-        <div className="mx-auto max-w-[84rem] px-8 py-20">
-          <div className="grid gap-12 lg:grid-cols-[1fr_1fr] lg:items-start">
+        <div className="mx-auto max-w-[84rem] px-5 py-14 sm:px-8 sm:py-20">
+          <div className="grid gap-8 sm:gap-12 lg:grid-cols-[1fr_1fr] lg:items-start">
             <div>
               <div className="font-mono text-mono-eyebrow uppercase text-amber">[ 05 ] Returns</div>
-              <h2 className="mt-3 text-display font-medium leading-[1.05] tracking-[-0.8px] text-ink">
+              <h2 className="mt-3 text-h1 sm:text-display font-medium leading-[1.05] tracking-[-0.4px] sm:tracking-[-0.8px] text-ink">
                 When something comes back, you&apos;re already covered.
               </h2>
             </div>
-            <div className="space-y-4 text-body-lg text-text">
+            <div className="space-y-4 text-body sm:text-body-lg text-text">
               <p>
                 Open an RMA from the order detail page. We email the customer a prepaid inbound label,
                 inspect the package on arrival, and split the units into{" "}
@@ -134,17 +134,17 @@ export default function HowItWorksPage() {
           so anyone reading the seller flow above also sees the buyer-direct
           option. Distinct visual treatment (amber-tinted card) so it doesn't
           read as another seller step. */}
-      <section className="mx-auto max-w-[84rem] px-8 py-20">
-        <div className="rounded-md border border-amber/40 bg-amber/5 p-12">
-          <div className="grid gap-10 lg:grid-cols-[1fr_1fr] lg:items-start">
+      <section className="mx-auto max-w-[84rem] px-5 py-14 sm:px-8 sm:py-20">
+        <div className="rounded-md border border-amber/40 bg-amber/5 p-6 sm:p-12">
+          <div className="grid gap-8 sm:gap-10 lg:grid-cols-[1fr_1fr] lg:items-start">
             <div>
               <div className="font-mono text-mono-eyebrow uppercase text-amber">
                 [ Sidebar ] Personal Shopper
               </div>
-              <h2 className="mt-3 text-display font-medium leading-[1.05] tracking-[-0.8px] text-ink">
+              <h2 className="mt-3 text-h1 sm:text-display font-medium leading-[1.05] tracking-[-0.4px] sm:tracking-[-0.8px] text-ink">
                 Not a seller? <span className="text-amber">We&apos;ll shop for you.</span>
               </h2>
-              <p className="mt-5 max-w-md text-body-lg text-text-muted">
+              <p className="mt-5 max-w-md text-body sm:text-body-lg text-text-muted">
                 Paste any U.S. retail link, pay an upfront estimate, and we buy the items + ship to
                 you internationally. No account needed.
               </p>
@@ -182,16 +182,16 @@ export default function HowItWorksPage() {
       </section>
 
       {/* CTA */}
-      <section className="mx-auto max-w-[84rem] px-8 py-24">
-        <div className="rounded-md border border-line bg-ink p-12 text-text-inv">
+      <section className="mx-auto max-w-[84rem] px-5 py-14 sm:px-8 sm:py-24">
+        <div className="rounded-md border border-line bg-ink p-6 sm:p-12 text-text-inv">
           <div className="font-mono text-mono-eyebrow uppercase text-amber">[ 06 ] Get started</div>
-          <h2 className="mt-3 max-w-2xl text-display font-medium leading-[1.05] tracking-[-0.8px]">
+          <h2 className="mt-3 max-w-2xl text-h1 sm:text-display font-medium leading-[1.05] tracking-[-0.4px] sm:tracking-[-0.8px]">
             Stand up your U.S. fulfillment in an afternoon.
           </h2>
-          <p className="mt-5 max-w-xl text-body-lg text-text-inv/70">
+          <p className="mt-5 max-w-xl text-body sm:text-body-lg text-text-inv/70">
             Sign up, verify, fund the wallet, send your first PSN. We&apos;ll do the rest.
           </p>
-          <div className="mt-8 flex flex-wrap gap-3">
+          <div className="mt-6 flex flex-wrap gap-3 sm:mt-8">
             <Link href="/signup">
               <Button variant="amber" size="lg" withArrow>
                 Create your account
@@ -227,21 +227,28 @@ function Step({
   bullets: string[];
   children: React.ReactNode;
 }) {
+  // Filter out empty / whitespace-only entries — the page-author may have
+  // commented bullet text out leaving stray empty strings, which would
+  // otherwise render zero-content <li> bars (visible as phantom margin
+  // under the body copy on mobile).
+  const visibleBullets = bullets.filter((b) => typeof b === "string" && b.trim().length > 0);
   return (
-    <article className="grid gap-12 border-b border-line py-16 lg:grid-cols-[1fr_1fr] lg:gap-16 [&:last-of-type]:border-b-0">
+    <article className="grid gap-8 border-b border-line py-10 sm:gap-12 sm:py-16 lg:grid-cols-[1fr_1fr] lg:gap-16 [&:last-of-type]:border-b-0">
       <div>
         <div className="font-mono text-mono-eyebrow uppercase text-amber">[ {n} ] {title}</div>
-        <h3 className="mt-3 text-h1 font-semibold tracking-[-0.4px] text-ink">{title}</h3>
+        <h3 className="mt-3 text-h2 sm:text-h1 font-semibold tracking-[-0.4px] text-ink">{title}</h3>
         <div className="mt-2 font-mono text-mono-label uppercase text-text-subtle">{duration}</div>
-        <p className="mt-5 max-w-md text-body-lg text-text-muted">{body}</p>
-        <ul className="mt-6 space-y-2 text-body-sm text-text-2">
-          {bullets.map((b) => (
-            <li key={b} className="flex gap-3">
-              <span className="mt-2 inline-block h-px w-4 shrink-0 bg-amber" aria-hidden />
-              <span>{b}</span>
-            </li>
-          ))}
-        </ul>
+        <p className="mt-4 max-w-md text-body sm:mt-5 sm:text-body-lg text-text-muted">{body}</p>
+        {visibleBullets.length > 0 ? (
+          <ul className="mt-6 space-y-2 text-body-sm text-text-2">
+            {visibleBullets.map((b) => (
+              <li key={b} className="flex gap-3">
+                <span className="mt-2 inline-block h-px w-4 shrink-0 bg-amber" aria-hidden />
+                <span>{b}</span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </div>
       <div>{children}</div>
     </article>
@@ -273,13 +280,16 @@ function MockTimeline({ entries }: { entries: Array<{ time: string; label: strin
 
 function MockPsn({ lines }: { lines: Array<{ product: string; declared: number; received: number }> }) {
   return (
+    // overflow-x-auto on the table wrapper protects narrow phones from a
+    // horizontal scroll on the WHOLE page when the product names are long.
     <div className="overflow-hidden rounded-md border border-line bg-white">
-      <div className="flex items-center justify-between border-b border-line px-5 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3 sm:px-5">
         <span className="font-mono text-mono-label uppercase text-text-muted">PSN-7C8A · receiving</span>
         <span className="rounded-xs bg-amber/10 px-2 py-0.5 font-mono text-mono-label uppercase text-amber">
           partially received
         </span>
       </div>
+      <div className="overflow-x-auto">
       <table className="min-w-full">
         <thead className="bg-ink">
           <tr>
@@ -316,13 +326,16 @@ function MockPsn({ lines }: { lines: Array<{ product: string; declared: number; 
           })}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }
 
 function MockKpiTrio() {
+  // 3 columns at base would crush the values on a 320px phone (each tile
+  // ends up ~95px wide). Stack on mobile, restore the row from `sm:` up.
   return (
-    <div className="grid grid-cols-3 gap-3">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
       <KpiTile label="Active" value="12,480" sub="units" tone="ink" />
       <KpiTile label="Reserved" value="184" sub="units" tone="amber" />
       <KpiTile label="This month" value="$1,420" sub="storage burn" tone="muted" />
