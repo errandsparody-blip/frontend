@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -8,6 +7,7 @@ import { ErrorBanner } from "@/components/errors/error-banner";
 import { Button } from "@/components/ui/button";
 import { TotpInput } from "@/components/ui/totp-input";
 import { api } from "@/lib/api-client";
+import { homeForRole, useAuth } from "@/lib/auth-context";
 import { useApiErrorHandler } from "@/lib/errors";
 
 interface BeginEnrollResponse {
@@ -21,6 +21,7 @@ interface ConfirmEnrollResponse {
 
 export default function MfaEnrollPage() {
   const router = useRouter();
+  const { user } = useAuth();
 
   const [step, setStep] = useState<"loading" | "scan" | "confirm" | "codes">("loading");
   const [qrDataUrl, setQrDataUrl] = useState<string>("");
@@ -147,9 +148,24 @@ export default function MfaEnrollPage() {
         <ErrorBanner error={bannerError} onAction={onAction} />
       </div>
 
-      {/* <Link href="/" className="mt-8 inline-block text-body-sm text-text-muted hover:text-ink">
+      {/*
+        Skip MFA enrolment. The user is authenticated at this point (they
+        landed here after login fired router.push("/signup/2fa-enroll")
+        because mfaEnrolled was false), so we send them to their portal
+        home rather than the marketing root — that's where the old
+        `<Link href="/">` was sending them, which is why nothing felt like
+        it was happening: they ended up on the public marketing page,
+        signed-in state and all. `homeForRole(user)` resolves to /admin
+        for admins, /dashboard for vendors. We fall back to /dashboard if
+        the auth context hasn't hydrated yet so the click is never a no-op.
+      */}
+      <button
+        type="button"
+        onClick={() => router.push(user ? homeForRole(user) : "/dashboard")}
+        className="mt-8 inline-block text-body-sm text-text-muted hover:text-ink"
+      >
         Skip for now (not recommended)
-      </Link> */}
+      </button>
     </div>
   );
 }
