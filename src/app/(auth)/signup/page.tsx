@@ -12,8 +12,17 @@ import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { api } from "@/lib/api-client";
+import { COUNTRIES } from "@/lib/countries";
 import { useApiErrorHandler } from "@/lib/errors";
 import { signupSchema } from "@/lib/schemas/auth";
+
+// Tiny helper — turn an ISO 3166-1 alpha-2 code into its regional flag emoji.
+// Inlined here (vs imported) to keep the auth bundle lean — it's two lines.
+function isoToFlag(code: string): string {
+  if (!/^[A-Z]{2}$/.test(code)) return "";
+  const A = 0x1f1e6;
+  return String.fromCodePoint(A + code.charCodeAt(0) - 65) + String.fromCodePoint(A + code.charCodeAt(1) - 65);
+}
 
 // ---------------------------------------------------------------------------
 // NOTE — VENDOR-AGREEMENT CHECKBOX TEMPORARILY DISABLED
@@ -106,15 +115,32 @@ export default function SignupPage() {
           />
         </Field>
 
-        <Field label="Country (ISO code)" error={errors.country?.message} hint="Two letters: NG, GB, US.">
-          <Input
-            type="text"
+        <Field
+          label="Country"
+          error={errors.country?.message}
+          hint="Pick the country your business operates from."
+        >
+          {/*
+            Native <select> — accessible, keyboard-friendly, and the OS
+            picker on mobile is genuinely better than any custom dropdown.
+            Option labels show the flag, dial code, ISO, and country name
+            so the closed face of the select is informative even when
+            truncated by narrow viewports. Underlying value is still the
+            2-letter ISO code that the API expects.
+          */}
+          <select
             autoComplete="country"
-            maxLength={2}
-            invalid={!!errors.country}
-            placeholder="NG"
+            aria-invalid={errors.country ? true : undefined}
+            className="block h-12 w-full appearance-none rounded-sm border border-line-strong bg-cream-soft px-3 pr-10 text-body text-ink outline-none focus:border-ink focus:ring-2 focus:ring-ink/10 truncate"
             {...register("country")}
-          />
+          >
+            <option value="">Select a country…</option>
+            {COUNTRIES.map((c) => (
+              <option key={c.code} value={c.code}>
+                {isoToFlag(c.code)} {c.dialCode} {c.code} · {c.name}
+              </option>
+            ))}
+          </select>
         </Field>
 
         <Field label="Email" error={errors.email?.message}>
