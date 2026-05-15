@@ -32,6 +32,17 @@ export const signupSchema = z.object({
   password: passwordSchema,
   businessName: z.string().min(2, "Business name is required.").max(120),
   country: z.string().length(2, "Use ISO country code (e.g., NG, US).").toUpperCase(),
+  // Mirrors the backend literal check — the vendor MUST positively click the
+  // agreement checkbox before signup. The backend stamps
+  // agreementAcceptedAt + agreementVersion onto the new Vendor row on the
+  // strength of this boolean, so the AgreementVersionGuard sees the vendor
+  // as up-to-date at first login (no /legal/vendor-agreement?reaccept=1
+  // bounce). Keep both schemas in sync.
+  agreementAccepted: z.literal(true, {
+    errorMap: () => ({
+      message: "You must accept the Vendor Agreement to continue.",
+    }),
+  }),
 });
 export type SignupInput = z.infer<typeof signupSchema>;
 

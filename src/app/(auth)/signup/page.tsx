@@ -25,31 +25,16 @@ function isoToFlag(code: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// NOTE — VENDOR-AGREEMENT CHECKBOX TEMPORARILY DISABLED
+// Vendor-agreement consent is captured AT signup, not after first login.
 //
-// The signup page used to wrap `signupSchema` with an extra
-// `agreementAccepted: z.literal(true)` field and render a tick-box that gated
-// form submission. That has been commented out (here + in the JSX below) so
-// signup no longer requires acceptance at this step. Vendors are still bound
-// to the Vendor Agreement, Terms of Service, and Privacy Policy — they
-// re-accept the *versioned* document inside the portal post-KYC at
-// `/legal/vendor-agreement?reaccept=1`, which writes timestamp + IP + version
-// to the audit log (the legally durable record).
-//
-// To restore the checkbox: revert this file (the original block is preserved
-// verbatim inside the `/* ... */` comments). No backend change is required
-// either way — the API has never accepted `agreementAccepted` on the wire.
+// The form's `agreementAccepted: z.literal(true)` field is now part of
+// `signupSchema` (in lib/schemas/auth.ts and mirrored on the backend in
+// common/schemas/auth.schema.ts). Posting it lets the backend stamp
+// `agreementAcceptedAt = now()` + `agreementVersion = current` onto the new
+// Vendor row inside the signup transaction — so the
+// AgreementVersionGuard sees the vendor as up-to-date on first login, and
+// new users never bounce through /legal/vendor-agreement?reaccept=1.
 // ---------------------------------------------------------------------------
-/*
-const signupFormSchema = signupSchema.extend({
-  agreementAccepted: z.literal(true, {
-    errorMap: () => ({
-      message: "Tick the box to confirm you accept the Vendor Agreement.",
-    }),
-  }),
-});
-type SignupFormInput = z.infer<typeof signupFormSchema>;
-*/
 type SignupFormInput = z.infer<typeof signupSchema>;
 
 export default function SignupPage() {
@@ -62,7 +47,11 @@ export default function SignupPage() {
       password: "",
       businessName: "",
       country: "",
-      // agreementAccepted: false as unknown as true,   // disabled — see note above
+      // Cast: the field's TYPE is `true`, the form's initial VALUE is false.
+      // react-hook-form needs a defined default so the controlled input has
+      // a starting state; the Zod resolver rejects `false` at submit-time
+      // with the "you must accept" error message.
+      agreementAccepted: false as unknown as true,
     },
   });
   const {
@@ -76,9 +65,11 @@ export default function SignupPage() {
   async function onSubmit(values: SignupFormInput): Promise<void> {
     clear();
     try {
-      // The API schema doesn't accept `agreementAccepted`; with the checkbox
-      // disabled it's no longer on the form, so we forward `values` as-is.
-      // (Vendors re-accept the versioned agreement post-KYC.)
+      // `values.agreementAccepted` is `true` here — Zod's `z.literal(true)`
+      // would have failed validation before reaching this branch otherwise.
+      // The backend (api/src/common/schemas/auth.schema.ts) accepts the
+      // same shape and stamps acceptance onto the new Vendor row inside
+      // the signup transaction. Forward the body verbatim.
       await api.post<{ ok: true; userId: string }>("/auth/signup", values);
       // Carry the email through so the verify form can pre-fill it for the
       // POST /auth/verify-email request without making the user retype.
@@ -168,14 +159,14 @@ export default function SignupPage() {
         <ErrorBanner error={bannerError} onAction={onAction} />
 
         {/*
-          --- Vendor-agreement consent block (temporarily disabled) ---
-          Vendors are still bound by the Vendor Agreement, Terms, and Privacy
-          Policy — they re-accept the versioned document post-KYC at
-          /legal/vendor-agreement?reaccept=1, which is the legally durable
-          signature (timestamp + IP + version written to the audit log).
-          Restore by uncommenting the block below AND re-enabling the
-          schema/default near the top of this file.
-
+          Vendor-agreement consent. The checkbox value flows through to the
+          backend via `signupSchema.agreementAccepted: z.literal(true)`; the
+          AuthService writes `agreementAcceptedAt = now()` +
+          `agreementVersion = <current>` onto the new Vendor row inside the
+          signup transaction. That stamp is what keeps the
+          AgreementVersionGuard from redirecting first-login users to
+          /legal/vendor-agreement?reaccept=1.
+        */}
         <div>
           <label className="flex items-start gap-3 rounded-sm border border-line-strong bg-cream-soft p-4">
             <input
@@ -222,7 +213,6 @@ export default function SignupPage() {
             </span>
           ) : null}
         </div>
-        */}
 
         <Button type="submit" variant="primary" size="lg" withArrow loading={isSubmitting}>
           {isSubmitting ? "Creating account" : "Create account"}
