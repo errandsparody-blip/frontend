@@ -27,22 +27,22 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       router.replace(homeForRole(user));
       return;
     }
-    // Defence in depth: a vendor with mfaEnrolled=false is on a low-priv
-    // (acr=1) access token. The backend rejects sensitive routes for that
-    // tier, but if they navigate here directly (e.g. by hitting "Skip" on
-    // the 2FA enrolment screen and then typing /dashboard), we'd render
-    // the portal shell with empty data. Bounce them back to enrolment so
-    // the UI matches the auth state.
-    if (user.mfaEnrolled === false) {
-      router.replace("/signup/2fa-enroll");
-    }
+    // NOTE — vendors WITHOUT MFA enrolled are now allowed into the portal.
+    // The previous code bounced them to /signup/2fa-enroll, which made the
+    // "Skip for now (not recommended)" button on that page silently
+    // ineffective (skip → /dashboard → bounce back). Product call: keep MFA
+    // strongly encouraged at first login (the login flow still pushes to
+    // the enrolment page when mfaEnrolled is false) but allow Skip to
+    // genuinely skip. The backend's per-route acr-tier checks still gate
+    // money- and inventory-moving operations for low-priv sessions, so the
+    // worst a non-MFA vendor can do is read their own portal pages and get
+    // a 401 the moment they try anything sensitive.
   }, [user, loading, router]);
 
   if (
     loading ||
     !user ||
-    (user.role !== "VENDOR" && user.role !== "VENDOR_SUB_USER") ||
-    user.mfaEnrolled === false
+    (user.role !== "VENDOR" && user.role !== "VENDOR_SUB_USER")
   ) {
     return (
       <div className="flex h-screen items-center justify-center bg-cream">

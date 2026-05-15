@@ -26,14 +26,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       router.replace("/dashboard");
       return;
     }
-    // Admins must have MFA enrolled — they can do destructive things, so
-    // we never render the admin shell to a low-priv (acr=1) session.
-    if (user.mfaEnrolled === false) {
-      router.replace("/signup/2fa-enroll");
-    }
+    // NOTE — MFA enrolment is no longer hard-gated at the layout level.
+    // The previous code redirected admins without MFA to /signup/2fa-enroll
+    // and made the Skip button on that page ineffective for them too.
+    // Product call (15 May 2026): make MFA optional across both portals so
+    // the Skip button works as advertised. Admins SHOULD still enrol — the
+    // backend's per-route acr-tier checks reject sensitive admin actions
+    // from a low-priv session — but the layout no longer forces it.
   }, [user, loading, router]);
 
-  if (loading || !user || !ADMIN_ROLES.has(user.role) || user.mfaEnrolled === false) {
+  if (loading || !user || !ADMIN_ROLES.has(user.role)) {
     return (
       <div className="flex h-screen items-center justify-center bg-cream">
         <div className="font-mono text-mono-label uppercase text-text-muted">Authenticating…</div>

@@ -108,10 +108,16 @@ interface VendorDetail {
     idType: string | null;
     idNumber: string | null;
     idExpirationDate: string | null;
+    // KYC v2 Phase 2 — public R2 URLs the reviewer opens to inspect the
+    // four uploaded documents (migration 0032). Null until the vendor
+    // uploads the matching file in the wizard.
+    idFrontUrl: string | null;
+    idBackUrl: string | null;
+    idSelfieUrl: string | null;
+    businessDocUrl: string | null;
     productsStoredDescription: string | null;
     monthlyInventoryVolume: string | null;
     monthlyOrderVolume: string | null;
-    serviceIntent: string | null;
     primaryShippingCountries: string | null;
     requiresReturnsHandling: boolean | null;
     productHazards: string[];
@@ -1302,11 +1308,7 @@ const KYC_ORDER_LABELS: Record<string, string> = {
   V_500_PLUS: "500+ orders",
 };
 
-const KYC_INTENT_LABELS: Record<string, string> = {
-  FULFILLMENT_ONLY: "Fulfillment Only",
-  PERSONAL_SHOPPER: "Personal Shopper Service",
-  BOTH: "Both Services",
-};
+// KYC_INTENT_LABELS removed in migration 0031 — service intent dropped.
 
 const KYC_HAZARD_LABELS: Record<string, string> = {
   BATTERIES: "Batteries",
@@ -1379,6 +1381,21 @@ function KycV2Card({
         <KycRow label="Expiration date" value={kyc.idExpirationDate} mono />
       </KycSection>
 
+      {/* KYC v2 Phase 2 — document uploads (migration 0032). Each row
+          renders an "Open" link to the public R2 URL the wizard saved
+          when the vendor uploaded the file. Null URLs render the
+          existing "Not provided" placeholder via the KycRow helper. */}
+      <KycSection title="Business verification">
+        <KycRow label="ID front" value={kyc.idFrontUrl} link />
+        <KycRow label="ID back" value={kyc.idBackUrl} link />
+        <KycRow label="ID-holding selfie" value={kyc.idSelfieUrl} link />
+        <KycRow
+          label="Business registration / license"
+          value={kyc.businessDocUrl}
+          link
+        />
+      </KycSection>
+
       <KycSection title="Inventory">
         <KycRow
           label="Products stored"
@@ -1393,7 +1410,7 @@ function KycV2Card({
           label="Monthly order volume"
           value={lookup(kyc.monthlyOrderVolume, KYC_ORDER_LABELS)}
         />
-        <KycRow label="Service intent" value={lookup(kyc.serviceIntent, KYC_INTENT_LABELS)} />
+        {/* Service intent row removed — see migration 0031. */}
       </KycSection>
 
       <KycSection title="Shipping & operations">
@@ -1449,11 +1466,16 @@ function KycRow({
   value,
   mono,
   multiline,
+  link,
 }: {
   label: string;
   value: string | null | undefined;
   mono?: boolean;
   multiline?: boolean;
+  /** Render the value as an "Open ↗" link rather than literal text.
+   *  Used for the four KYC v2 Phase 2 document URLs so the reviewer
+   *  can click straight through to inspect the file in R2. */
+  link?: boolean;
 }): JSX.Element {
   const empty = value === null || value === undefined || value === "";
   return (
@@ -1468,7 +1490,20 @@ function KycRow({
           (empty ? "text-text-muted italic" : "text-text")
         }
       >
-        {empty ? "Not provided" : value}
+        {empty ? (
+          "Not provided"
+        ) : link ? (
+          <a
+            href={value as string}
+            target="_blank"
+            rel="noreferrer"
+            className="text-amber underline-offset-4 hover:underline"
+          >
+            Open {label.toLowerCase()} ↗
+          </a>
+        ) : (
+          value
+        )}
       </dd>
     </>
   );

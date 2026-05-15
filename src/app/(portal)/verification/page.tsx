@@ -39,7 +39,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm, type Resolver, type UseFormReturn } from "react-hook-form";
 import { z } from "zod";
 
@@ -82,10 +82,16 @@ interface KycV2State {
   idType: string | null;
   idNumber: string | null;
   idExpirationDate: string | null;
+  // KYC v2 Phase 2 — public R2 URLs for the four document uploads
+  // collected on the wizard's "Business verification" step (migration
+  // 0032). Each is null until the vendor uploads the matching file.
+  idFrontUrl: string | null;
+  idBackUrl: string | null;
+  idSelfieUrl: string | null;
+  businessDocUrl: string | null;
   productsStoredDescription: string | null;
   monthlyInventoryVolume: string | null;
   monthlyOrderVolume: string | null;
-  serviceIntent: string | null;
   primaryShippingCountries: string | null;
   requiresReturnsHandling: boolean | null;
   productHazards: string[];
@@ -98,6 +104,14 @@ interface VendorProfile {
   kycRejectionReason?: string | null;
   agreementAcceptedAt: string | null;
   status: "PENDING_KYC" | "ACTIVE" | "SUSPENDED" | "CLOSED";
+  // Social presence — at least one of these must be set before the backend
+  // accepts a final KYC submit (see `submitKyc` `hasAnyHandle` check). The
+  // wizard's Review step collects them and PATCHes /vendors/me right before
+  // the kyc/submit POST so the gate passes.
+  instagramHandle: string | null;
+  tiktokHandle: string | null;
+  xHandle: string | null;
+  websiteUrl: string | null;
   kycV2: KycV2State;
 }
 
@@ -148,11 +162,8 @@ const ORDER_VOLUMES = [
   { value: "V_500_PLUS", label: "500+ orders" },
 ] as const;
 
-const SERVICE_INTENTS = [
-  { value: "FULFILLMENT_ONLY", label: "Fulfillment Only" },
-  { value: "PERSONAL_SHOPPER", label: "Personal Shopper Service" },
-  { value: "BOTH", label: "Both Services" },
-] as const;
+// SERVICE_INTENTS removed — vendors are no longer asked which service track
+// they intend to use during KYC (migration 0031).
 
 const HAZARDS = [
   { value: "BATTERIES", label: "Batteries" },
@@ -171,9 +182,6 @@ const inventoryVolumeEnum = z.enum(
   INVENTORY_VOLUMES.map((b) => b.value) as [string, ...string[]],
 );
 const orderVolumeEnum = z.enum(ORDER_VOLUMES.map((b) => b.value) as [string, ...string[]]);
-const serviceIntentEnum = z.enum(
-  SERVICE_INTENTS.map((b) => b.value) as [string, ...string[]],
-);
 const hazardEnum = z.enum(HAZARDS.map((b) => b.value) as [string, ...string[]]);
 
 const iso2 = z
@@ -230,14 +238,55 @@ const wizardSchema = z
         return d.getTime() > utcToday;
       }, "ID is expired or expires today."),
 
+    // Section 4 — Business verification document URLs (KYC v2 Phase 2).
+    // Each one is the public R2 URL returned by the kyc/uploads/presign
+    // → R2 PUT cycle. Empty string represents "not uploaded yet" so the
+    // form state is JSON-serialisable (sessionStorage round-trip).
+    idFrontUrl: z.string().url().optional().or(z.literal("")),
+    idBackUrl: z.string().url().optional().or(z.literal("")),
+    idSelfieUrl: z.string().url().optional().or(z.literal("")),
+    businessDocUrl: z.string().url().optional().or(z.literal("")),
+
     productsStoredDescription: z.string().max(1000).optional(),
     monthlyInventoryVolume: inventoryVolumeEnum.optional().or(z.literal("")),
     monthlyOrderVolume: orderVolumeEnum.optional().or(z.literal("")),
-    serviceIntent: serviceIntentEnum.optional().or(z.literal("")),
+    // serviceIntent removed in migration 0031.
 
     primaryShippingCountries: z.string().max(400).optional(),
     requiresReturnsHandling: z.union([z.boolean(), z.literal("")]).optional(),
     productHazards: z.array(hazardEnum).max(5).optional(),
+
+    // Social presence — at least one of the four is required to submit KYC
+    // (see `isStepComplete("review")` below). The wizard PATCHes these to
+    // /vendors/me right before the kyc/submit POST. Strict patterns mirror
+    // the backend Vendor schema; empty string is allowed for the optional
+    // ones so a vendor who only fills, say, websiteUrl can still submit.
+    instagramHandle: z
+      .string()
+      .trim()
+      .max(30)
+      .regex(/^[a-z0-9._]*$/i, "Lowercase letters, numbers, dots, underscores only.")
+      .optional(),
+    tiktokHandle: z
+      .string()
+      .trim()
+      .max(24)
+      .regex(/^[a-z0-9._]*$/i, "Lowercase letters, numbers, dots, underscores only.")
+      .optional(),
+    xHandle: z
+      .string()
+      .trim()
+      .max(15)
+      .regex(/^[a-z0-9_]*$/i, "Lowercase letters, numbers, underscores only.")
+      .optional(),
+    websiteUrl: z
+      .string()
+      .trim()
+      .refine(
+        (s) => s === "" || /^https?:\/\/[^\s/$.?#].[^\s]*$/i.test(s),
+        "Enter a full URL starting with https://",
+      )
+      .optional(),
   })
   .strip();
 
@@ -259,13 +308,25 @@ const EMPTY_WIZARD: WizardInput = {
   idType: "",
   idNumber: "",
   idExpirationDate: "",
+  // Document upload URLs default to "" (vs `null`) so the form state
+  // round-trips cleanly through sessionStorage and the Zod resolver.
+  idFrontUrl: "",
+  idBackUrl: "",
+  idSelfieUrl: "",
+  businessDocUrl: "",
   productsStoredDescription: "",
   monthlyInventoryVolume: "",
   monthlyOrderVolume: "",
-  serviceIntent: "",
   primaryShippingCountries: "",
   requiresReturnsHandling: "",
   productHazards: [],
+  // Social presence — at least one is required for final submit (mirrors
+  // the backend `submitKyc` `hasAnyHandle` check). Each defaults to ""
+  // and the Review step PATCHes /vendors/me right before kyc/submit.
+  instagramHandle: "",
+  tiktokHandle: "",
+  xHandle: "",
+  websiteUrl: "",
 };
 
 // ---------------------------------------------------------------------------
@@ -319,12 +380,14 @@ const STEP_FIELDS: Record<StepKey, Array<keyof WizardInput>> = {
     "contactCountry",
   ],
   identity: ["idType", "idNumber", "idExpirationDate"],
-  verification: [],
+  // KYC v2 Phase 2 — four document uploads. Each one is the public R2
+  // URL the wizard saved after the presigned PUT completed; the server
+  // persists them on the vendor row in submitKyc.
+  verification: ["idFrontUrl", "idBackUrl", "idSelfieUrl", "businessDocUrl"],
   inventory: [
     "productsStoredDescription",
     "monthlyInventoryVolume",
     "monthlyOrderVolume",
-    "serviceIntent",
   ],
   shipping: [
     "primaryShippingCountries",
@@ -369,13 +432,21 @@ function isStepComplete(step: StepKey, v: WizardInput): boolean {
         /^\d{4}-\d{2}-\d{2}$/.test(v.idExpirationDate ?? "")
       );
     case "verification":
-      return true;
+      // KYC v2 Phase 2 — every document upload is required before the
+      // vendor can advance past this step. The wizard's
+      // VerificationStep tile renders an inline error per slot; this
+      // guard backs that up so a vendor can't bypass the UI.
+      return (
+        has(v.idFrontUrl) &&
+        has(v.idBackUrl) &&
+        has(v.idSelfieUrl) &&
+        has(v.businessDocUrl)
+      );
     case "inventory":
       return (
         has(v.productsStoredDescription) &&
         has(v.monthlyInventoryVolume) &&
-        has(v.monthlyOrderVolume) &&
-        has(v.serviceIntent)
+        has(v.monthlyOrderVolume)
       );
     case "shipping":
       return (
@@ -391,12 +462,22 @@ function isStepComplete(step: StepKey, v: WizardInput): boolean {
       // round-trip and lets us name the missing steps in the UI. Keep this
       // list in sync with `submitKycV2Schema.superRefine` in
       // common/schemas/vendor.schema.ts.
+      //
+      // ALSO require at least one social handle (Instagram / TikTok / X
+      // / website URL) — mirrors the backend `submitKyc` `hasAnyHandle`
+      // check. The Review step collects these inline so a vendor who
+      // skipped /settings can still finish KYC without leaving the page.
       return (
         isStepComplete("business", v) &&
         isStepComplete("contact", v) &&
         isStepComplete("identity", v) &&
+        isStepComplete("verification", v) &&
         isStepComplete("inventory", v) &&
-        isStepComplete("shipping", v)
+        isStepComplete("shipping", v) &&
+        (has(v.instagramHandle) ||
+          has(v.tiktokHandle) ||
+          has(v.xHandle) ||
+          has(v.websiteUrl))
       );
   }
 }
@@ -408,10 +489,32 @@ function isStepComplete(step: StepKey, v: WizardInput): boolean {
  * step labels (matching the progress bar) so the message reads naturally.
  */
 function missingStepsForReview(v: WizardInput): string[] {
-  const order: StepKey[] = ["business", "contact", "identity", "inventory", "shipping"];
-  return order
+  const has = (s: string | null | undefined): s is string =>
+    typeof s === "string" && s.trim().length > 0;
+  const order: StepKey[] = [
+    "business",
+    "contact",
+    "identity",
+    "verification",
+    "inventory",
+    "shipping",
+  ];
+  const missing = order
     .filter((k) => !isStepComplete(k, v))
     .map((k) => STEPS.find((s) => s.key === k)?.label ?? k);
+  // Social presence isn't its own step — it lives in the Review form —
+  // but the backend rejects final-submit without at least one handle, so
+  // surface it here so the vendor sees a single consolidated to-do list
+  // instead of submitting and getting a 400.
+  if (
+    !has(v.instagramHandle) &&
+    !has(v.tiktokHandle) &&
+    !has(v.xHandle) &&
+    !has(v.websiteUrl)
+  ) {
+    missing.push("Social presence");
+  }
+  return missing;
 }
 
 /**
@@ -463,10 +566,15 @@ function buildPayload(
   stringIfSet("idNumber");
   stringIfSet("idExpirationDate");
 
+  // Section 4 — KYC v2 Phase 2 document upload URLs.
+  stringIfSet("idFrontUrl");
+  stringIfSet("idBackUrl");
+  stringIfSet("idSelfieUrl");
+  stringIfSet("businessDocUrl");
+
   stringIfSet("productsStoredDescription");
   stringIfSet("monthlyInventoryVolume");
   stringIfSet("monthlyOrderVolume");
-  stringIfSet("serviceIntent");
 
   stringIfSet("primaryShippingCountries");
   if (include("requiresReturnsHandling") && typeof values.requiresReturnsHandling === "boolean") {
@@ -580,12 +688,15 @@ export default function VerificationPage(): JSX.Element {
       idType: kyc.idType ?? stored?.idType ?? "",
       idNumber: kyc.idNumber ?? stored?.idNumber ?? "",
       idExpirationDate: kyc.idExpirationDate ?? stored?.idExpirationDate ?? "",
+      idFrontUrl: kyc.idFrontUrl ?? stored?.idFrontUrl ?? "",
+      idBackUrl: kyc.idBackUrl ?? stored?.idBackUrl ?? "",
+      idSelfieUrl: kyc.idSelfieUrl ?? stored?.idSelfieUrl ?? "",
+      businessDocUrl: kyc.businessDocUrl ?? stored?.businessDocUrl ?? "",
       productsStoredDescription:
         kyc.productsStoredDescription ?? stored?.productsStoredDescription ?? "",
       monthlyInventoryVolume:
         kyc.monthlyInventoryVolume ?? stored?.monthlyInventoryVolume ?? "",
       monthlyOrderVolume: kyc.monthlyOrderVolume ?? stored?.monthlyOrderVolume ?? "",
-      serviceIntent: kyc.serviceIntent ?? stored?.serviceIntent ?? "",
       primaryShippingCountries:
         kyc.primaryShippingCountries ?? stored?.primaryShippingCountries ?? "",
       requiresReturnsHandling:
@@ -600,6 +711,15 @@ export default function VerificationPage(): JSX.Element {
           : Array.isArray(stored?.productHazards)
             ? (stored?.productHazards as string[])
             : [],
+      // Social handles live at the top level of the /vendors/me payload
+      // (next to businessName), not inside `kyc.kycV2`. Pre-fill so a
+      // vendor who already filled them on /settings doesn't have to
+      // re-type on the Review step.
+      instagramHandle:
+        profileQ.data.instagramHandle ?? stored?.instagramHandle ?? "",
+      tiktokHandle: profileQ.data.tiktokHandle ?? stored?.tiktokHandle ?? "",
+      xHandle: profileQ.data.xHandle ?? stored?.xHandle ?? "",
+      websiteUrl: profileQ.data.websiteUrl ?? stored?.websiteUrl ?? "",
     };
     form.reset(merged);
     setSeeded(true);
@@ -620,6 +740,13 @@ export default function VerificationPage(): JSX.Element {
   );
 
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+
+  // Whether any of the four KYC document upload tiles is currently
+  // streaming bytes to R2. Tracked here (lifted from VerificationStep)
+  // so the wizard's Next button can stay disabled until every upload
+  // settles — without this, a vendor who clicks Next mid-upload would
+  // race the form.setValue() that records the public URL.
+  const [verificationUploading, setVerificationUploading] = useState(false);
 
   /**
    * "Next" save — POSTs the just-edited step's fields plus everything from
@@ -645,12 +772,46 @@ export default function VerificationPage(): JSX.Element {
   });
 
   /**
-   * FINAL submit — every field plus the `submitForReview: true` flag. The
-   * server stamps kycSubmittedAt and flips kycStatus → IN_PROGRESS.
+   * FINAL submit — two-step:
+   *   1. PATCH /vendors/me with the four social handles. Empty string
+   *      becomes `null` on the wire so the backend stripAt+optionalSocial
+   *      schema clears any stale value. We send the entire set on every
+   *      submit so the vendor's edits in the Review step always
+   *      overwrite whatever's on the row, including clears.
+   *   2. POST /vendors/me/kyc/submit with the wizard payload + the
+   *      `submitForReview: true` flag. The server stamps kycSubmittedAt
+   *      and flips kycStatus → IN_PROGRESS.
+   *
+   * If step 1 fails (e.g. one of the handles flunks the platform's
+   * format check at the backend), we surface the error and skip step 2 —
+   * the kyc/submit `hasAnyHandle` check would 400 anyway since none of
+   * the handles got persisted.
    */
   const finalSubmitMut = useMutation({
     mutationFn: async (): Promise<VendorProfile> => {
       const values = form.getValues();
+
+      // Step 1 — persist the social handles. Mirror the /settings page's
+      // null-on-empty convention so a cleared handle column actually
+      // clears server-side.
+      await api.patch<unknown>("/vendors/me", {
+        instagramHandle:
+          values.instagramHandle && values.instagramHandle.length > 0
+            ? values.instagramHandle
+            : null,
+        tiktokHandle:
+          values.tiktokHandle && values.tiktokHandle.length > 0
+            ? values.tiktokHandle
+            : null,
+        xHandle:
+          values.xHandle && values.xHandle.length > 0 ? values.xHandle : null,
+        websiteUrl:
+          values.websiteUrl && values.websiteUrl.length > 0
+            ? values.websiteUrl
+            : null,
+      });
+
+      // Step 2 — final KYC submit. Unchanged from before.
       const fieldFilter: Array<keyof WizardInput> = STEPS.flatMap((s) => STEP_FIELDS[s.key]);
       const payload = buildPayload(values, fieldFilter, true);
       return api.post<VendorProfile>("/vendors/me/kyc/submit", payload);
@@ -750,7 +911,6 @@ export default function VerificationPage(): JSX.Element {
   const stepKey = step.key;
   const stepValid = isStepComplete(stepKey, watched);
   const onLastStep = safeIdx === STEPS.length - 1;
-  const onPlaceholderStep = stepKey === "verification";
   const submitDisabled =
     !stepValid || stepSaveMut.isPending || finalSubmitMut.isPending;
 
@@ -806,10 +966,14 @@ export default function VerificationPage(): JSX.Element {
         {stepKey === "business" ? <BusinessStep form={form} /> : null}
         {stepKey === "contact" ? <ContactStep form={form} /> : null}
         {stepKey === "identity" ? <IdentityStep form={form} /> : null}
-        {stepKey === "verification" ? <VerificationPlaceholder /> : null}
+        {stepKey === "verification" ? (
+          <VerificationStep form={form} onUploadingChange={setVerificationUploading} />
+        ) : null}
         {stepKey === "inventory" ? <InventoryStep form={form} /> : null}
         {stepKey === "shipping" ? <ShippingStep form={form} /> : null}
-        {stepKey === "review" ? <ReviewStep values={watched} businessName={profile.businessName} /> : null}
+        {stepKey === "review" ? (
+          <ReviewStep values={watched} businessName={profile.businessName} form={form} />
+        ) : null}
       </section>
 
       {/* Banner + result */}
@@ -876,10 +1040,14 @@ export default function VerificationPage(): JSX.Element {
             variant="amber"
             withArrow
             loading={stepSaveMut.isPending}
-            // The placeholder verification step has no fields, so don't
-            // require validity there. Every other step gates on stepValid.
+            // Every step gates on its own validity (verification now
+            // requires all four uploads). Also block while an upload
+            // tile is mid-PUT so we don't fire Next before the public
+            // URL is recorded in form state.
             disabled={
-              (onPlaceholderStep ? false : !stepValid) || stepSaveMut.isPending
+              !stepValid ||
+              stepSaveMut.isPending ||
+              (stepKey === "verification" && verificationUploading)
             }
             onClick={() => stepSaveMut.mutate({ upToStep: safeIdx })}
           >
@@ -1258,19 +1426,302 @@ function IdentityStep({ form }: StepProps): JSX.Element {
   );
 }
 
-function VerificationPlaceholder(): JSX.Element {
+// ---------------------------------------------------------------------------
+// Verification step — the four KYC document uploads (migration 0032).
+//
+// Each tile owns a presign-then-PUT cycle:
+//   1. POST /v1/vendors/me/kyc/uploads/presign with { kind, contentType,
+//      sizeBytes } → returns { uploadUrl, publicUrl, requiredHeaders }.
+//   2. Bare fetch PUT to R2 with the file body. We use plain fetch (NOT
+//      api.put) to avoid attaching our Bearer token to a cross-origin
+//      R2 host — that would 1) fail SigV4 verification on R2's side and
+//      2) leak the token. Same rationale the product image / shopper
+//      attachment uploaders document inline.
+//   3. form.setValue(<field>, publicUrl) once the PUT succeeds.
+//
+// Tile state is per-slot — uploading / errored states don't affect the
+// other three tiles. The wizard reads back through form.watch() so the
+// per-step gate enables Next as soon as all four URLs are populated.
+//
+// The lifted `onUploadingChange` callback aggregates "any tile mid-PUT"
+// state up to the wizard so the Next button can stay disabled while the
+// vendor's last byte is on the wire.
+// ---------------------------------------------------------------------------
+
+const KYC_UPLOAD_ACCEPT = "image/jpeg,image/png,image/webp,application/pdf";
+const KYC_UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
+
+interface KycPresignResponse {
+  uploadUrl: string;
+  publicUrl: string;
+  key: string;
+  requiredHeaders: Record<string, string>;
+  expiresAt: number;
+}
+
+type KycUploadKind = "id_front" | "id_back" | "id_selfie" | "business_doc";
+
+function VerificationStep({
+  form,
+  onUploadingChange,
+}: StepProps & { onUploadingChange: (uploading: boolean) => void }): JSX.Element {
+  // Track per-tile in-flight state so we can roll up "any uploading?" to
+  // the parent. Keyed by `kind` so each tile has an independent toggle.
+  const [uploadingByKind, setUploadingByKind] = useState<Record<string, boolean>>({});
+
+  const setUploading = (kind: KycUploadKind, value: boolean) => {
+    setUploadingByKind((prev) => {
+      const next = { ...prev, [kind]: value };
+      // Notify parent in the same render cycle by computing aggregate
+      // here. We can't useEffect on `next` cleanly because state updates
+      // batch — push the aggregate now.
+      const anyUploading = Object.values(next).some(Boolean);
+      onUploadingChange(anyUploading);
+      return next;
+    });
+  };
+
+  // Tile descriptors — sourced from the const above with the field name
+  // patched in (the const declaration above can't reference the typed
+  // form fields without a forward declaration).
+  const tiles: ReadonlyArray<{
+    kind: KycUploadKind;
+    field: "idFrontUrl" | "idBackUrl" | "idSelfieUrl" | "businessDocUrl";
+    label: string;
+    hint: string;
+  }> = [
+    {
+      kind: "id_front",
+      field: "idFrontUrl",
+      label: "Government ID — front",
+      hint: "Passport, national ID, or driver's license. The whole document must be visible and readable.",
+    },
+    {
+      kind: "id_back",
+      field: "idBackUrl",
+      label: "Government ID — back",
+      hint: "Back side of the same ID. For passports, upload the photo page again.",
+    },
+    {
+      kind: "id_selfie",
+      field: "idSelfieUrl",
+      label: "ID-holding selfie",
+      hint: "A clear photo of you holding the same ID next to your face.",
+    },
+    {
+      kind: "business_doc",
+      field: "businessDocUrl",
+      label: "Business registration / license",
+      hint: "Certificate of incorporation, business license, or equivalent. PDF or image.",
+    },
+  ];
+
   return (
-    <div className="flex flex-col gap-4">
-      <h2 className="text-h3 font-semibold text-ink">Business verification</h2>
-      <p className="text-body-sm text-text-muted">
-        Document uploads — Certificate of Registration, Business License, Tax
-        Certificate, and similar supporting documents — are coming soon. After
-        you submit this form, our team will send you a secure link to upload
-        these documents for review.
-      </p>
-      <div className="rounded-sm border-l-4 border-amber bg-amber/10 px-4 py-3 text-body-sm text-text">
-        No fields are required on this step. Press Next to continue.
+    <div className="flex flex-col gap-5">
+      <div>
+        <h2 className="text-h3 font-semibold text-ink">Business verification</h2>
+        <p className="mt-1 text-body-sm text-text-muted">
+          Upload your government-issued ID, an ID-holding selfie, and your
+          business registration / license document. JPG, PNG, WebP, or PDF.
+          Max 10 MB per file. Files upload securely to USA Errands and are
+          only visible to our verification team.
+        </p>
       </div>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        {tiles.map((t) => (
+          <KycUploadTile
+            key={t.kind}
+            kind={t.kind}
+            label={t.label}
+            hint={t.hint}
+            value={form.watch(t.field) ?? ""}
+            onChange={(url) =>
+              form.setValue(t.field, url, { shouldDirty: true, shouldValidate: true })
+            }
+            onUploadingChange={(u) => setUploading(t.kind, u)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Single tile in the verification step. Owns its own picker, presign
+ * request, R2 PUT, and per-tile error/loading state. The parent owns
+ * the form value (so the wizard reads it back via form.watch and the
+ * step gate enables Next when all four are populated).
+ */
+function KycUploadTile({
+  kind,
+  label,
+  hint,
+  value,
+  onChange,
+  onUploadingChange,
+}: {
+  kind: KycUploadKind;
+  label: string;
+  hint: string;
+  value: string;
+  onChange: (url: string) => void;
+  onUploadingChange: (uploading: boolean) => void;
+}): JSX.Element {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const [status, setStatus] = useState<"idle" | "uploading" | "error">("idle");
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const allowed = new Set(KYC_UPLOAD_ACCEPT.split(","));
+
+  async function handlePick(e: React.ChangeEvent<HTMLInputElement>): Promise<void> {
+    const picked = e.target.files?.[0];
+    // Reset the input so re-selecting the same file fires onChange again.
+    e.target.value = "";
+    if (!picked) return;
+
+    if (!allowed.has(picked.type)) {
+      setStatus("error");
+      setErrorMsg("Unsupported file type. Use JPG, PNG, WebP, or PDF.");
+      return;
+    }
+    if (picked.size > KYC_UPLOAD_MAX_BYTES) {
+      setStatus("error");
+      setErrorMsg(
+        `File too large — max ${KYC_UPLOAD_MAX_BYTES / (1024 * 1024)} MB.`,
+      );
+      return;
+    }
+
+    setStatus("uploading");
+    setErrorMsg(null);
+    onUploadingChange(true);
+    try {
+      // Step 1 — presign. The server picks an unguessable R2 key under
+      // `kyc/<vendorId>/<kind>/<random>`; we get back the signed PUT URL,
+      // the headers we MUST include, and the public URL we'll save back.
+      const presigned = await api.post<KycPresignResponse>(
+        "/vendors/me/kyc/uploads/presign",
+        {
+          kind,
+          contentType: picked.type as
+            | "image/jpeg"
+            | "image/png"
+            | "image/webp"
+            | "application/pdf",
+          sizeBytes: picked.size,
+          filename: picked.name,
+        },
+      );
+
+      // Step 2 — bare fetch PUT to R2. NOT api.put — we don't want to
+      // attach our Bearer token to a cross-origin host (would fail SigV4
+      // and leak the token). Same rationale as ProductImageUploader.
+      const putRes = await fetch(presigned.uploadUrl, {
+        method: "PUT",
+        headers: presigned.requiredHeaders,
+        body: picked,
+      });
+      if (!putRes.ok) {
+        throw new Error(`R2 rejected the upload (HTTP ${putRes.status}).`);
+      }
+
+      onChange(presigned.publicUrl);
+      setStatus("idle");
+    } catch (err) {
+      setStatus("error");
+      const e =
+        err instanceof Error
+          ? (err as Error & { status?: number; code?: string; detail?: string })
+          : (err as { status?: number; code?: string; message?: string; detail?: string });
+      const status = (e as { status?: number }).status;
+      const code = (e as { code?: string }).code;
+      if (status === 503 || code === "r2_not_configured") {
+        setErrorMsg(
+          "Document uploads aren't configured for this environment. Contact support.",
+        );
+      } else if (status === 403) {
+        setErrorMsg("Only the vendor admin can upload KYC documents.");
+      } else {
+        const message =
+          (e as { message?: string }).message ?? (e as { detail?: string }).detail;
+        setErrorMsg(message ?? "Upload failed — please try again.");
+      }
+    } finally {
+      onUploadingChange(false);
+    }
+  }
+
+  function openPicker(): void {
+    if (status === "uploading") return;
+    inputRef.current?.click();
+  }
+
+  const uploaded = value.length > 0;
+
+  return (
+    <div className="flex flex-col gap-2 rounded-sm border border-line-strong bg-cream-soft p-4">
+      <div className="flex items-baseline justify-between gap-3">
+        <div className="font-mono text-mono-label uppercase tracking-[1.2px] text-text">
+          {label}
+        </div>
+        {uploaded ? (
+          <span className="font-mono text-[10px] uppercase tracking-[1.2px] text-success">
+            Uploaded
+          </span>
+        ) : (
+          <span className="font-mono text-[10px] uppercase tracking-[1.2px] text-text-muted">
+            Required
+          </span>
+        )}
+      </div>
+      <p className="text-caption text-text-muted">{hint}</p>
+
+      <input
+        ref={inputRef}
+        type="file"
+        accept={KYC_UPLOAD_ACCEPT}
+        className="sr-only"
+        onChange={handlePick}
+        disabled={status === "uploading"}
+        aria-label={`Upload ${label}`}
+      />
+
+      <div className="mt-1 flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={openPicker}
+          disabled={status === "uploading"}
+          className={
+            "inline-flex h-9 items-center gap-2 rounded-sm border border-line-strong bg-white px-3 font-mono text-mono-label uppercase tracking-[1.2px] text-text " +
+            (status === "uploading"
+              ? "cursor-not-allowed opacity-50"
+              : "cursor-pointer hover:border-ink")
+          }
+        >
+          {status === "uploading"
+            ? "Uploading…"
+            : uploaded
+              ? "Replace file"
+              : "Upload file"}
+        </button>
+        {uploaded ? (
+          <a
+            href={value}
+            target="_blank"
+            rel="noreferrer"
+            className="font-mono text-[11px] uppercase tracking-[1.2px] text-amber hover:text-amber-hi"
+          >
+            View uploaded ↗
+          </a>
+        ) : null}
+      </div>
+
+      {status === "error" && errorMsg ? (
+        <p className="text-caption text-error" role="alert">
+          {errorMsg}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -1308,19 +1759,7 @@ function InventoryStep({ form }: StepProps): JSX.Element {
           ))}
         </select>
       </Field>
-      <Field
-        label="Service intent *"
-        hint="Which USA Errands services will you use?"
-        error={form.formState.errors.serviceIntent?.message}
-        className="md:col-span-2"
-      >
-        <select aria-label="Service intent" className={selectClass} {...form.register("serviceIntent")}>
-          <option value="">Select…</option>
-          {SERVICE_INTENTS.map((v) => (
-            <option key={v.value} value={v.value}>{v.label}</option>
-          ))}
-        </select>
-      </Field>
+      {/* Service intent dropdown removed in migration 0031. */}
     </div>
   );
 }
@@ -1448,9 +1887,7 @@ const INVENTORY_VOLUME_LABEL: Record<string, string> = Object.fromEntries(
 const ORDER_VOLUME_LABEL: Record<string, string> = Object.fromEntries(
   ORDER_VOLUMES.map((b) => [b.value, b.label]),
 );
-const SERVICE_INTENT_LABEL: Record<string, string> = Object.fromEntries(
-  SERVICE_INTENTS.map((b) => [b.value, b.label]),
-);
+// SERVICE_INTENT_LABEL removed — see migration 0031.
 const HAZARD_LABEL: Record<string, string> = Object.fromEntries(
   HAZARDS.map((b) => [b.value, b.label]),
 );
@@ -1458,9 +1895,14 @@ const HAZARD_LABEL: Record<string, string> = Object.fromEntries(
 function ReviewStep({
   values,
   businessName,
+  form,
 }: {
   values: WizardInput;
   businessName: string;
+  // Review step also collects social handle inputs inline (the backend
+  // requires at least one before final submit). It needs the form
+  // instance so it can register inputs alongside the read-only summary.
+  form: UseFormReturn<WizardInput>;
 }): JSX.Element {
   const fmt = (v: string | undefined | null): string =>
     typeof v === "string" && v.trim().length > 0 ? v.trim() : "Not provided";
@@ -1537,6 +1979,25 @@ function ReviewStep({
         <ReviewRow label="Expiration date" value={fmt(values.idExpirationDate)} mono />
       </ReviewSection>
 
+      <ReviewSection title="Business verification">
+        <ReviewRow
+          label="ID front"
+          value={values.idFrontUrl ? "Uploaded" : "Not provided"}
+        />
+        <ReviewRow
+          label="ID back"
+          value={values.idBackUrl ? "Uploaded" : "Not provided"}
+        />
+        <ReviewRow
+          label="ID-holding selfie"
+          value={values.idSelfieUrl ? "Uploaded" : "Not provided"}
+        />
+        <ReviewRow
+          label="Business registration / license"
+          value={values.businessDocUrl ? "Uploaded" : "Not provided"}
+        />
+      </ReviewSection>
+
       <ReviewSection title="Inventory">
         <ReviewRow
           label="Products stored"
@@ -1551,10 +2012,7 @@ function ReviewStep({
           label="Monthly order volume"
           value={fmtEnum(values.monthlyOrderVolume, ORDER_VOLUME_LABEL)}
         />
-        <ReviewRow
-          label="Service intent"
-          value={fmtEnum(values.serviceIntent, SERVICE_INTENT_LABEL)}
-        />
+        {/* Service intent row removed — see migration 0031. */}
       </ReviewSection>
 
       <ReviewSection title="Shipping & operations">
@@ -1568,6 +2026,63 @@ function ReviewStep({
         />
         <ReviewRow label="Product hazards" value={fmtHazards(values.productHazards)} />
       </ReviewSection>
+
+      {/* Online presence — collected inline on the Review step so a
+          vendor who skipped /settings can still finish KYC without
+          leaving. Backend gates on at least one being filled
+          (see `submitKyc` `hasAnyHandle` check). */}
+      <div>
+        <div className="font-mono text-mono-label uppercase tracking-[1.4px] text-text-muted">
+          Online presence
+        </div>
+        <p className="mt-1 text-body-sm text-text-muted">
+          Provide at least one — a public profile or a working website. We
+          use it to verify you&apos;re a real business.
+        </p>
+        <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2">
+          <Field
+            label="Instagram handle"
+            error={form.formState.errors.instagramHandle?.message}
+          >
+            <Input
+              type="text"
+              placeholder="yourbrand"
+              autoComplete="off"
+              {...form.register("instagramHandle")}
+            />
+          </Field>
+          <Field
+            label="TikTok handle"
+            error={form.formState.errors.tiktokHandle?.message}
+          >
+            <Input
+              type="text"
+              placeholder="yourbrand"
+              autoComplete="off"
+              {...form.register("tiktokHandle")}
+            />
+          </Field>
+          <Field label="X handle" error={form.formState.errors.xHandle?.message}>
+            <Input
+              type="text"
+              placeholder="yourbrand"
+              autoComplete="off"
+              {...form.register("xHandle")}
+            />
+          </Field>
+          <Field
+            label="Website URL"
+            error={form.formState.errors.websiteUrl?.message}
+          >
+            <Input
+              type="url"
+              placeholder="https://example.com"
+              autoComplete="url"
+              {...form.register("websiteUrl")}
+            />
+          </Field>
+        </div>
+      </div>
 
       <p className="text-body-sm text-text-muted">
         By submitting you confirm the above information is accurate. Our team
