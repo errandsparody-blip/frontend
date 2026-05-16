@@ -25,14 +25,11 @@ function isoToFlag(code: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// No vendor-agreement checkbox on signup.
-//
-// Server-side, AuthService still stamps `agreementAcceptedAt = now()` +
-// `agreementVersion = <current>` onto every new Vendor row, so the
-// post-login AgreementVersionGuard sees the vendor as up-to-date and
-// never redirects them to /legal/vendor-agreement?reaccept=1. The form
-// therefore collects only the four core fields the API requires
-// (businessName, country, email, password).
+// Vendor-agreement consent is captured AT signup, via the checkbox above
+// the "Create account" button. AuthService stamps `agreementAcceptedAt` +
+// `agreementVersion` onto the new Vendor row in the same transaction —
+// so the post-login AgreementVersionGuard sees the vendor as up-to-date
+// and the user never bounces through /legal/vendor-agreement?reaccept=1.
 // ---------------------------------------------------------------------------
 type SignupFormInput = z.infer<typeof signupSchema>;
 
@@ -46,6 +43,10 @@ export default function SignupPage() {
       password: "",
       businessName: "",
       country: "",
+      // Cast: schema TYPE is `true`, initial VALUE is false. RHF needs a
+      // defined default for the controlled checkbox; the Zod resolver
+      // rejects `false` at submit-time with the "you must accept" error.
+      agreementAccepted: false as unknown as true,
     },
   });
   const {
@@ -147,9 +148,57 @@ export default function SignupPage() {
 
         <ErrorBanner error={bannerError} onAction={onAction} />
 
-        {/* Agreement checkbox removed — see header note. Vendors implicitly
-            accept by completing signup; the agreement text is still linked
-            from the marketing footer + the portal sidebar. */}
+        {/* Vendor-agreement consent — required tick. Checkbox value flows
+            through `signupSchema.agreementAccepted: z.literal(true)` to
+            the backend; AuthService stamps acceptance on the Vendor row
+            so the post-login flow never lands the vendor on
+            /legal/vendor-agreement?reaccept=1. */}
+        <div>
+          <label className="flex items-start gap-3 rounded-sm border border-line-strong bg-cream-soft p-4">
+            <input
+              type="checkbox"
+              className="mt-1 h-4 w-4 shrink-0 cursor-pointer accent-amber"
+              aria-invalid={!!errors.agreementAccepted}
+              aria-describedby={errors.agreementAccepted ? "agreement-error" : undefined}
+              {...register("agreementAccepted")}
+            />
+            <span className="text-body-sm text-text">
+              I have read and accept the{" "}
+              <Link
+                href="/legal/vendor-agreement"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-ink underline-offset-4 hover:underline"
+              >
+                USA Errands Vendor Agreement
+              </Link>
+              ,{" "}
+              <Link
+                href="/legal/terms"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-ink underline-offset-4 hover:underline"
+              >
+                Terms of Service
+              </Link>
+              , and{" "}
+              <Link
+                href="/legal/privacy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-ink underline-offset-4 hover:underline"
+              >
+                Privacy Policy
+              </Link>
+              .
+            </span>
+          </label>
+          {errors.agreementAccepted ? (
+            <span id="agreement-error" className="mt-2 block text-caption text-error">
+              {errors.agreementAccepted.message}
+            </span>
+          ) : null}
+        </div>
 
         <Button type="submit" variant="primary" size="lg" withArrow loading={isSubmitting}>
           {isSubmitting ? "Creating account" : "Create account"}

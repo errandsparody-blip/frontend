@@ -32,10 +32,15 @@ export const signupSchema = z.object({
   password: passwordSchema,
   businessName: z.string().min(2, "Business name is required.").max(120),
   country: z.string().length(2, "Use ISO country code (e.g., NG, US).").toUpperCase(),
-  // No agreementAccepted field — see the matching note in
-  // api/src/common/schemas/auth.schema.ts. AuthService still stamps the
-  // accepted-version + timestamp on the new Vendor row server-side so the
-  // post-login AgreementVersionGuard never fires for newly created vendors.
+  // Required tick — mirrors the backend literal check. The checkbox sits
+  // above the "Create account" button in the signup form. AuthService
+  // stamps acceptance onto the new Vendor row at create time so the
+  // post-login AgreementVersionGuard never fires for new vendors.
+  agreementAccepted: z.literal(true, {
+    errorMap: () => ({
+      message: "You must accept the Vendor Agreement to continue.",
+    }),
+  }),
 });
 export type SignupInput = z.infer<typeof signupSchema>;
 
