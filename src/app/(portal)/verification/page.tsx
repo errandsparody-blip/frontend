@@ -2073,13 +2073,44 @@ function ReviewStep({
           <Field
             label="Website URL"
             error={form.formState.errors.websiteUrl?.message}
+            hint="Just the domain is fine — we'll prepend https:// for you."
           >
-            <Input
-              type="url"
-              placeholder="https://example.com"
-              autoComplete="url"
-              {...form.register("websiteUrl")}
-            />
+            {/*
+              The `type="url"` was triggering the browser's native "Please
+              enter a URL." tooltip when a vendor typed a bare domain like
+              "example.com". We swap to `type="text"` + `inputMode="url"`
+              so mobile still shows the URL keyboard but the browser stops
+              second-guessing us, and the onBlur handler auto-prepends
+              `https://` to anything that doesn't already start with a
+              protocol — so the Zod URL regex passes too.
+
+              We bind to the `register` output but wrap its onBlur so RHF
+              also gets the value-set notification (otherwise the cached
+              form state stays stale until the next render).
+            */}
+            {(() => {
+              const reg = form.register("websiteUrl");
+              return (
+                <Input
+                  type="text"
+                  inputMode="url"
+                  placeholder="example.com"
+                  autoComplete="url"
+                  {...reg}
+                  onBlur={(e) => {
+                    const raw = e.target.value.trim();
+                    if (raw.length > 0 && !/^https?:\/\//i.test(raw)) {
+                      form.setValue("websiteUrl", `https://${raw}`, {
+                        shouldValidate: true,
+                        shouldDirty: true,
+                      });
+                    }
+                    // Let RHF run its own onBlur after we've patched the value.
+                    void reg.onBlur(e);
+                  }}
+                />
+              );
+            })()}
           </Field>
         </div>
       </div>
