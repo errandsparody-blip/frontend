@@ -119,7 +119,7 @@ export default function SecurityPage() {
               href="mailto:security@myusaerrands.com"
               className="text-amber underline-offset-2 hover:underline"
             >
-              security@myusaerrands.com
+              hello@myusaerrands.com
             </a>{" "}
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
