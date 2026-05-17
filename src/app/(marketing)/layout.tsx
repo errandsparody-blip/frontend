@@ -8,14 +8,14 @@ import { NavDropdown } from "@/components/marketing/nav-dropdown";
 // Items shown under the "About" hover dropdown in the desktop header.
 // Mirror this list in MobileNav so phones see the same surface area.
 // Each item is a top-level marketing destination — Personal Shopper has
-// its own product flow,  Fulfillment routes to the seller landing
+// its own product flow, 3PL Fulfillment routes to the seller landing
 // material, and Integrations sits under About now (folded out of the
 // top nav so the header isn't cluttered).
 const ABOUT_ITEMS = [
   {
     href: "/services",
     label: "All services",
-    description: "Personal shopping,  fulfillment, and forwarding in one place.",
+    description: "Personal shopping, 3PL fulfillment, and forwarding in one place.",
   },
   {
     href: "/shopper",
@@ -24,7 +24,7 @@ const ABOUT_ITEMS = [
   },
   // {
   //   href: "/how-it-works",
-  //   label: " fulfillment",
+  //   label: "3PL fulfillment",
   //   description: "Hold your inventory in our warehouse, ship to U.S. buyers in days.",
   // },
   // {

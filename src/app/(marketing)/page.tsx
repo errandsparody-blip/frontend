@@ -329,16 +329,16 @@ const SERVICES: ReadonlyArray<{
   cta: string;
   href: string;
 }> = [
-  // Ordering rule:  fulfillment is the MAIN service and must always
+  // Ordering rule: 3PL fulfillment is the MAIN service and must always
   // appear first across every public surface (services page, homepage
   // cards, nav). Personal shopping + integrations follow.
   {
     Icon: Package,
     tag: "For sellers",
-    title: " fulfillment",
+    title: "3PL fulfillment",
     body: "Hold inventory in our U.S. warehouse. We pick, pack, and ship every order in days — no U.S. business required.",
     cta: "Become a vendor",
-    href: "/services#",
+    href: "/services#3pl",
   },
   {
     Icon: ShoppingBag,

@@ -243,7 +243,7 @@ export default function FeeScheduleEditorPage(): JSX.Element {
     <div className="flex flex-col gap-6">
       <PageHeader
         eyebrow="[07] Configuration / Pricing"
-        title="Fee schedule ()"
+        title="Fee schedule (3PL)"
         description="Onboarding, storage, fulfillment, and returns rates for the multi-vendor fulfilment service. Saving writes a config audit row with the full before/after — every cent change is traceable."
       />
 

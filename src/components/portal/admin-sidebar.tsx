@@ -54,9 +54,9 @@ const NAV: NavItem[] = [
     icon: Bell,
     category: "__total__",
   },
-  { href: "/admin/config/fees", label: "Pricing ()", icon: Tag },
+  { href: "/admin/config/fees", label: "Pricing (3PL)", icon: Tag },
   // Shopper has its own commission + freight + tax editor — separate
-  // from the  fee schedule above. Dedicated entry so admins don't
+  // from the 3PL fee schedule above. Dedicated entry so admins don't
   // have to drill through the generic Config table to find it.
   { href: "/admin/config/shopper", label: "Pricing (Shopper)", icon: ShoppingBag },
   { href: "/admin/audit", label: "Audit log", icon: ScrollText },
