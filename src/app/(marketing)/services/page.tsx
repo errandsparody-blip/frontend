@@ -17,7 +17,7 @@ export default function ServicesPage() {
         <div className="mx-auto max-w-[84rem] px-8 py-24">
           <FadeUp>
             <div className="font-mono text-mono-eyebrow uppercase text-amber">
-              [01] Services
+              Services
             </div>
             <h1 className="mt-4 max-w-3xl text-display font-medium leading-[1.04] tracking-[-1.2px] text-ink">
               Two services. One mission.
@@ -40,7 +40,7 @@ export default function ServicesPage() {
           <FadeUp>
             <div className="flex items-center gap-3">
               <div className="font-mono text-mono-eyebrow uppercase text-amber">
-                [02] Fulfillment
+                Fulfillment
               </div>
               <span className="rounded-full bg-amber/15 px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-[1.4px] text-amber">
                 Main service
@@ -94,7 +94,7 @@ export default function ServicesPage() {
         <div className="mx-auto grid max-w-[84rem] gap-16 px-8 py-24 lg:grid-cols-[1fr_1fr] lg:items-center">
         <FadeUp delay={80}>
             <div className="font-mono text-mono-eyebrow uppercase text-amber">
-              [03] Personal shopping
+              Personal shopping
             </div>
             <h2 className="mt-3 text-h2 font-medium leading-tight tracking-[-0.5px] text-ink">
               Paste a URL. We buy it. You get it.

@@ -17,7 +17,7 @@ export default function AboutPage() {
         <div className="mx-auto max-w-[84rem] px-8 py-24">
           <FadeUp>
             <div className="font-mono text-mono-eyebrow uppercase text-amber">
-              [01] About
+              About
             </div>
             <h1 className="mt-4 max-w-3xl text-display font-medium leading-[1.04] tracking-[-1.2px] text-ink">
               A U.S. operations team for businesses and buyers who don&apos;t

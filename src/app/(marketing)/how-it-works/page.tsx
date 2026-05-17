@@ -182,7 +182,7 @@ export default function HowItWorksPage() {
       </section> */}
 
       {/* CTA */}
-      <section className="mx-auto max-w-[84rem] px-5 py-14 sm:px-8 sm:py-24">
+      {/* <section className="mx-auto max-w-[84rem] px-5 py-14 sm:px-8 sm:py-24">
         <div className="rounded-md border border-line bg-ink p-6 sm:p-12 text-text-inv">
           <div className="font-mono text-mono-eyebrow uppercase text-amber">[ 06 ] Get started</div>
           <h2 className="mt-3 max-w-2xl text-h1 sm:text-display font-medium leading-[1.05] tracking-[-0.4px] sm:tracking-[-0.8px]">
@@ -204,7 +204,7 @@ export default function HowItWorksPage() {
             </Link>
           </div>
         </div>
-      </section>
+      </section> */}
     </>
   );
 }
