@@ -13,7 +13,7 @@ import {
   Settings,
   Truck,
   Undo2,
-  Users,
+  X,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -25,6 +25,8 @@ import {
   type NotificationCategory,
 } from "@/lib/notifications";
 import { cn } from "@/lib/utils";
+
+import { useSidebar } from "./sidebar-context";
 
 interface NavItem {
   href: string;
@@ -73,6 +75,7 @@ interface VendorMeForSidebar {
 
 export function Sidebar(): JSX.Element {
   const pathname = usePathname();
+  const { open, close } = useSidebar();
 
   // The vendor profile is already cached by other portal pages — this query
   // hits the cache when warm and only fires on initial portal mount.
@@ -109,14 +112,55 @@ export function Sidebar(): JSX.Element {
   }
 
   return (
-    <aside className="flex h-screen w-60 shrink-0 flex-col border-r border-line bg-cream-soft">
-      <div className="border-b border-line px-6 py-5">
-        <Link href="/dashboard" className="block">
+    <>
+      {/* Backdrop — only paints when the drawer is open AND we're on
+          mobile (md:hidden so it never blocks clicks on desktop, where
+          the sidebar is part of the static grid). Click-through closes
+          the drawer; the aria-label gives keyboard/screen-reader users
+          a discoverable dismissal target. */}
+      <button
+        type="button"
+        aria-label="Close sidebar"
+        onClick={close}
+        className={cn(
+          "fixed inset-0 z-30 bg-ink/40 transition-opacity duration-200 ease-out md:hidden",
+          open ? "opacity-100" : "pointer-events-none opacity-0",
+        )}
+        tabIndex={open ? 0 : -1}
+      />
+
+      <aside
+        id="portal-sidebar"
+        // Mobile: off-canvas drawer (fixed, translate-x). Desktop:
+        // static rail (md:translate-x-0, md:static, md:z-auto). Width is
+        // capped at 80vw so on very narrow phones the drawer never
+        // covers the whole screen — there's always a visible strip of
+        // the dimmed page behind it as a "tap here to dismiss" hint.
+        // On desktop md+ we always restore pointer-events so the static
+        // rail is fully interactive regardless of the `open` state.
+        className={cn(
+          "fixed inset-y-0 left-0 z-40 flex h-screen w-[17rem] max-w-[80vw] shrink-0 flex-col border-r border-line bg-cream-soft transition-transform duration-200 ease-out md:pointer-events-auto md:static md:z-auto md:w-60 md:max-w-none md:translate-x-0",
+          open ? "translate-x-0 shadow-2" : "pointer-events-none -translate-x-full md:pointer-events-auto",
+        )}
+      >
+      <div className="flex items-center justify-between border-b border-line px-6 py-5">
+        <Link href="/dashboard" onClick={close} className="block">
           <div className="text-[16px] font-bold tracking-[0.5px] text-ink">USA ERRANDS</div>
           <div className="mt-0.5 font-mono text-[10px] uppercase tracking-[1.6px] text-amber">
             Vendor portal
           </div>
         </Link>
+        {/* Close button — only on mobile. The hamburger in the topbar
+            opens the drawer; this gives a symmetric close affordance
+            without forcing users to find the backdrop. */}
+        <button
+          type="button"
+          onClick={close}
+          aria-label="Close sidebar"
+          className="-mr-2 inline-flex h-9 w-9 items-center justify-center rounded-sm text-text hover:bg-ink/5 md:hidden"
+        >
+          <X className="h-5 w-5" aria-hidden />
+        </button>
       </div>
 
       <nav className="flex-1 overflow-y-auto px-3 py-4">
@@ -142,7 +186,10 @@ export function Sidebar(): JSX.Element {
             <Link
               key={item.href}
               href={item.disabled ? "#" : item.href}
-              onClick={() => handleNavClick(item)}
+              onClick={() => {
+                handleNavClick(item);
+                close();
+              }}
               className={cn(
                 "mb-0.5 flex items-center gap-3 rounded-sm px-3 py-2 text-body-sm font-medium transition-colors duration-fast ease-out",
                 disabledClass,
@@ -180,6 +227,7 @@ export function Sidebar(): JSX.Element {
 
       <div className="border-t border-line px-6 py-4 font-mono text-[10px] uppercase tracking-[1.4px] text-text-subtle">
       </div>
-    </aside>
+      </aside>
+    </>
   );
 }

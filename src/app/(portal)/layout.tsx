@@ -6,6 +6,7 @@ import { useEffect } from "react";
 import { NetworkStatusBanner } from "@/components/errors/network-status-banner";
 import { NotificationWatcher } from "@/components/portal/notification-watcher";
 import { Sidebar } from "@/components/portal/sidebar";
+import { SidebarProvider } from "@/components/portal/sidebar-context";
 import { Topbar } from "@/components/portal/topbar";
 import { ToastProvider } from "@/components/ui/toast";
 import { homeForRole, useAuth } from "@/lib/auth-context";
@@ -56,18 +57,24 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
     // can call useToast() to drop a toast. NotificationWatcher is a
     // headless component (renders null) that listens for new
     // notifications between polls and fires a toast on arrival.
+    // SidebarProvider owns the mobile-drawer open/close state shared
+    // between the hamburger button in <Topbar/> and the off-canvas
+    // <Sidebar/>; on desktop (md+) the sidebar is static and ignores
+    // that state entirely, so the provider is a no-op there.
     <ToastProvider>
-      <div className="flex h-screen overflow-hidden bg-cream">
-        <NetworkStatusBanner />
-        <NotificationWatcher />
-        <Sidebar />
-        <div className="flex flex-1 flex-col overflow-hidden">
-          <Topbar />
-          <main className="flex-1 overflow-auto bg-cream px-8 py-8">
-            <div className="mx-auto max-w-[84rem]">{children}</div>
-          </main>
+      <SidebarProvider>
+        <div className="flex h-screen overflow-hidden bg-cream">
+          <NetworkStatusBanner />
+          <NotificationWatcher />
+          <Sidebar />
+          <div className="flex flex-1 flex-col overflow-hidden">
+            <Topbar />
+            <main className="flex-1 overflow-auto bg-cream px-4 py-6 sm:px-6 md:px-8 md:py-8">
+              <div className="mx-auto max-w-[84rem]">{children}</div>
+            </main>
+          </div>
         </div>
-      </div>
+      </SidebarProvider>
     </ToastProvider>
   );
 }

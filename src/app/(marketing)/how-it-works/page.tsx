@@ -18,7 +18,7 @@ export default function HowItWorksPage() {
           <h1 className="mt-3 max-w-3xl text-display font-medium leading-[1.05] tracking-[-0.6px] text-ink sm:text-display-lg sm:tracking-[-1.2px]">
             You ship. We hold.
             <br />
-            <span className="text-amber">They get it tomorrow.</span>
+            <span className="text-amber">We fulfill.</span>
           </h1>
           <p className="mt-6 max-w-2xl text-body sm:mt-8 sm:text-body-lg text-text-muted">
             The path from international shelf to American front door, in four steps. No U.S. business
@@ -134,7 +134,7 @@ export default function HowItWorksPage() {
           so anyone reading the seller flow above also sees the buyer-direct
           option. Distinct visual treatment (amber-tinted card) so it doesn't
           read as another seller step. */}
-      <section className="mx-auto max-w-[84rem] px-5 py-14 sm:px-8 sm:py-20">
+      {/* <section className="mx-auto max-w-[84rem] px-5 py-14 sm:px-8 sm:py-20">
         <div className="rounded-md border border-amber/40 bg-amber/5 p-6 sm:p-12">
           <div className="grid gap-8 sm:gap-10 lg:grid-cols-[1fr_1fr] lg:items-start">
             <div>
@@ -179,7 +179,7 @@ export default function HowItWorksPage() {
             </ul>
           </div>
         </div>
-      </section>
+      </section> */}
 
       {/* CTA */}
       <section className="mx-auto max-w-[84rem] px-5 py-14 sm:px-8 sm:py-24">

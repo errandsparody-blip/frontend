@@ -141,7 +141,12 @@ export function NotificationBell({ seeAllHref }: NotificationBellProps): JSX.Ele
         <div
           role="dialog"
           aria-label="Recent notifications"
-          className="absolute right-0 top-[44px] z-40 w-[360px] overflow-hidden rounded-md border border-line bg-white shadow-lg"
+          // Cap width to the viewport with a 1rem safety margin so the
+          // dropdown never overflows the right edge on narrow phones —
+          // the absolute `right-0` anchor combined with the fixed 360px
+          // width used to push the panel past the viewport on ~320px
+          // devices. `min()` falls back to the smaller of the two values.
+          className="absolute right-0 top-[44px] z-40 w-[min(360px,calc(100vw-1rem))] overflow-hidden rounded-md border border-line bg-white shadow-lg"
         >
           <div className="flex items-center justify-between border-b border-line px-4 py-3">
             <div className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">

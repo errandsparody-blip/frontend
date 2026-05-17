@@ -92,32 +92,7 @@ export default function ServicesPage() {
           from the fulfillment section above. */}
       <section id="personal-shopping" className="border-b border-line bg-cream-soft">
         <div className="mx-auto grid max-w-[84rem] gap-16 px-8 py-24 lg:grid-cols-[1fr_1fr] lg:items-center">
-          <FadeUp>
-            <div className="rounded-md border border-line bg-white p-8">
-              <div className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
-                Sample flow
-              </div>
-              <ol className="mt-4 flex flex-col gap-5">
-                {SHOPPER_STEPS.map((s, i) => (
-                  <li key={s.label} className="flex gap-4">
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber font-mono text-mono-label text-text-inv">
-                      {i + 1}
-                    </span>
-                    <div>
-                      <div className="text-body font-medium text-ink">
-                        {s.label}
-                      </div>
-                      <p className="mt-1 text-body-sm text-text-muted">
-                        {s.body}
-                      </p>
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            </div>
-          </FadeUp>
-
-          <FadeUp delay={80}>
+        <FadeUp delay={80}>
             <div className="font-mono text-mono-eyebrow uppercase text-amber">
               [03] Personal shopping
             </div>
@@ -146,6 +121,32 @@ export default function ServicesPage() {
               
             </div>
           </FadeUp>
+          <FadeUp>
+            <div className="rounded-md border border-line bg-white p-8">
+              <div className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
+                Sample flow
+              </div>
+              <ol className="mt-4 flex flex-col gap-5">
+                {SHOPPER_STEPS.map((s, i) => (
+                  <li key={s.label} className="flex gap-4">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber font-mono text-mono-label text-text-inv">
+                      {i + 1}
+                    </span>
+                    <div>
+                      <div className="text-body font-medium text-ink">
+                        {s.label}
+                      </div>
+                      <p className="mt-1 text-body-sm text-text-muted">
+                        {s.body}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </FadeUp>
+
+          
         </div>
       </section>
 
