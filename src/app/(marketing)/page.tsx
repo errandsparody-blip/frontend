@@ -361,7 +361,7 @@ const SERVICES: ReadonlyArray<{
 const STEPS: ReadonlyArray<{ label: string; body: string }> = [
   {
     label: "Onboard",
-    body: "Sign up, submit KYC, and connect your storefront. Average path is four working days.",
+    body: "Sign up, submit KYC, and fund the wallet. Average path is four working days.",
   },
   {
     label: "Send a pallet",
