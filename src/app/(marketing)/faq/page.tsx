@@ -263,8 +263,14 @@ export default function FaqPage(): JSX.Element {
                   Didn&apos;t see your question?
                 </h2>
                 <p className="mt-3 max-w-lg text-body text-text-inv/80">
-                  We answer support within one working day. Vendor questions
-                  can also go through the portal once you&apos;re signed in.
+                  For any additional questions, please email us at{" "}
+                  <a
+                    href="mailto:hello@myusaerrands.com"
+                    className="text-amber underline-offset-4 hover:underline"
+                  >
+                    hello@myusaerrands.com
+                  </a>
+                  .
                 </p>
               </div>
               <div className="flex flex-wrap gap-3">

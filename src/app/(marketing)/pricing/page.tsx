@@ -447,28 +447,29 @@ export default function PricingPage() {
 
           <div className="mt-10 grid gap-6 lg:grid-cols-2">
             <Faq q="Do you take a percentage of my sales?">
-              No. We charge for physical work — receiving, storage, picking, packing, shipping. Your
-              revenue is yours.
+              No. Our fees cover physical fulfillment services only — receiving, storage, picking,
+              packing, and shipping. All sales revenue remains yours.
             </Faq>
-            <Faq q="What happens if my wallet hits zero?">
-              New orders fail with insufficient_funds — your inventory stays put. Storage past due flips
-              the wallet to STORAGE_OVERDUE; we email you 30 days before any action is taken.
+            <Faq q="What happens if my wallet balance is depleted?">
+              New orders are paused until the balance is restored, and your inventory remains stored
+              with us. Should charges remain outstanding, we will contact you in advance of any
+              further action.
             </Faq>
-            <Faq q="Do you handle customs?">
-              You ship DDP (delivery duty paid) into our warehouse. Once inside the U.S., we treat it as
-              domestic. We don&apos;t act as importer of record.
+            <Faq q="Do you handle customs clearance?">
+              Inbound shipments must be sent on a delivery duty paid (DDP) basis. Once goods arrive at
+              our warehouse, they are treated as domestic shipments. USA Errands does not act as the
+              importer of record.
             </Faq>
-            <Faq q="Can I get money back from the wallet?">
-              Yes. Email support; we move funds back to your originating Stripe / Wise / Payoneer
-              account. Rare, takes 2–5 business days.
+            <Faq q="Can I withdraw funds from my wallet?">
+              Yes. Please contact us at hello@myusaerrands.com to request a withdrawal. Funds are
+              returned to the original payment method.
             </Faq>
-            <Faq q="What carriers do you ship with?">
-              USPS, UPS, FedEx by default — all surfaced as quote options at order create. We can plug in
-              regional carriers on request.
+            <Faq q="Which carriers are supported?">
+              Domestic shipments are dispatched via USPS, UPS, and FedEx by default, with rate options
+              surfaced at order creation. Additional regional carriers can be enabled upon request.
             </Faq>
-            <Faq q="Is there a long-term contract?">
-              No. You can pull your inventory anytime. We charge the outbound onboarding-equivalent fee
-              to reverse the receiving.
+            <Faq q="Is a long-term contract required?">
+              No. Inventory may be withdrawn at any time, subject to a standard outbound handling fee.
             </Faq>
           </div>
         </div>

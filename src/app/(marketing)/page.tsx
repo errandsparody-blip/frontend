@@ -278,8 +278,8 @@ export default function HomePage() {
                   Ready to ship from the U.S. without being in the U.S.?
                 </h2>
                 <p className="mt-3 max-w-lg text-body text-text-inv/80">
-                  Create an account in two minutes. Onboarding is four
-                  days, end-to-end.
+                  Account registration takes approximately two minutes.
+                  End-to-end onboarding is completed within four business days.
                 </p>
               </div>
               <div className="flex flex-wrap gap-3">

@@ -53,20 +53,20 @@ export default function SecurityPage() {
 
         <div className="mt-10 grid gap-4 sm:gap-6 md:grid-cols-2">
           <Promise
-            title="Your data is yours alone"
-            body="Every query is scoped to your vendor id at the service, controller, database trigger, and CI test-suite levels. Cross-tenant reads return 404 — we never confirm another vendor's existence."
+            title="Strict tenant isolation"
+            body="Every query is scoped to your vendor identifier across the service, controller, database trigger, and continuous-integration test layers. Cross-tenant requests return a 404 response; the existence of other vendor accounts is never disclosed."
           />
           <Promise
-            title="Your money is provable"
-            body="Wallets, ledgers, and audit logs are append-only at the database level. Sum of ledger entries equals wallet balance, reconciled nightly. No row is ever modified or deleted, even by us."
+            title="Provable financial integrity"
+            body="Wallets, ledgers, and audit logs are enforced as append-only at the database layer. The sum of ledger entries reconciles to the wallet balance on a nightly basis. No record is ever modified or deleted, including by USA Errands personnel."
           />
           <Promise
-            title="Encryption + secrets done right"
-            body="Argon2id for passwords. AES-256-GCM for MFA secrets. SHA-256 hashed at rest for tokens. HIBP check on every signup. Helmet + strict CSP + HSTS preload on every response."
+            title="Encryption and secrets management"
+            body="Passwords are hashed with Argon2id. Multi-factor authentication secrets are encrypted with AES-256-GCM. Session tokens are stored as SHA-256 hashes. Every registration is screened against the Have I Been Pwned breach corpus, and all responses are protected by Helmet, a strict Content Security Policy, and HSTS preload."
           />
           <Promise
-            title="Mandatory MFA + step-up"
-            body="TOTP (RFC 6238) required at first login. Refresh tokens rotate on use; replay revokes the entire session family. Step-up re-auth above $500 with exponential lockout on failed login."
+            title="Mandatory multi-factor authentication"
+            body="Time-based one-time passwords (RFC 6238) are required at initial login. Refresh tokens rotate on each use, and any replay attempt revokes the entire session family. Transactions above $500 require step-up re-authentication, and repeated failed login attempts trigger an exponential lockout."
           />
         </div>
       </section>
@@ -107,7 +107,7 @@ export default function SecurityPage() {
       </section> */}
 
       {/* CLOSING — disclosure + CTA combined */}
-      {/* <section className="mx-auto max-w-[84rem] px-5 py-14 sm:px-8 sm:py-24">
+      <section className="mx-auto max-w-[84rem] px-5 py-14 sm:px-8 sm:py-24">
         <div className="rounded-md border border-line bg-ink p-6 text-text-inv sm:p-12">
           <div className="font-mono text-mono-eyebrow uppercase text-amber">Disclosure + start</div>
           <h2 className="mt-3 max-w-2xl text-h1 sm:text-display font-medium leading-[1.05] tracking-[-0.4px] sm:tracking-[-0.8px]">
@@ -121,7 +121,6 @@ export default function SecurityPage() {
             >
               security@myusaerrands.com
             </a>{" "}
-            — triage within one business day, patch on a P0 ≤ 24h / P1 ≤ 1 week SLA.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Link href="/signup">
@@ -136,7 +135,7 @@ export default function SecurityPage() {
             </Link>
           </div>
         </div>
-      </section> */}
+      </section>
     </>
   );
 }
