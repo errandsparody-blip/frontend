@@ -53,22 +53,18 @@ export default function SecurityPage() {
 
         <div className="mt-10 grid gap-4 sm:gap-6 md:grid-cols-2">
           <Promise
-            n="01"
             title="Your data is yours alone"
             body="Every query is scoped to your vendor id at the service, controller, database trigger, and CI test-suite levels. Cross-tenant reads return 404 — we never confirm another vendor's existence."
           />
           <Promise
-            n="02"
             title="Your money is provable"
             body="Wallets, ledgers, and audit logs are append-only at the database level. Sum of ledger entries equals wallet balance, reconciled nightly. No row is ever modified or deleted, even by us."
           />
           <Promise
-            n="03"
             title="Encryption + secrets done right"
             body="Argon2id for passwords. AES-256-GCM for MFA secrets. SHA-256 hashed at rest for tokens. HIBP check on every signup. Helmet + strict CSP + HSTS preload on every response."
           />
           <Promise
-            n="04"
             title="Mandatory MFA + step-up"
             body="TOTP (RFC 6238) required at first login. Refresh tokens rotate on use; replay revokes the entire session family. Step-up re-auth above $500 with exponential lockout on failed login."
           />
@@ -115,7 +111,7 @@ export default function SecurityPage() {
       </section>
 
       {/* CLOSING — disclosure + CTA combined */}
-      <section className="mx-auto max-w-[84rem] px-5 py-14 sm:px-8 sm:py-24">
+      {/* <section className="mx-auto max-w-[84rem] px-5 py-14 sm:px-8 sm:py-24">
         <div className="rounded-md border border-line bg-ink p-6 text-text-inv sm:p-12">
           <div className="font-mono text-mono-eyebrow uppercase text-amber">Disclosure + start</div>
           <h2 className="mt-3 max-w-2xl text-h1 sm:text-display font-medium leading-[1.05] tracking-[-0.4px] sm:tracking-[-0.8px]">
@@ -144,7 +140,7 @@ export default function SecurityPage() {
             </Link>
           </div>
         </div>
-      </section>
+      </section> */}
     </>
   );
 }
@@ -153,11 +149,10 @@ export default function SecurityPage() {
 // Tiny presentational helpers — kept inline so the file stays self-contained.
 // ===========================================================================
 
-function Promise({ n, title, body }: { n: string; title: string; body: string }) {
+function Promise({ title, body }: { title: string; body: string }) {
   return (
     <article className="rounded-md border border-line bg-white p-6 sm:p-7">
-      <div className="font-mono text-mono-eyebrow uppercase text-amber">[ {n} ]</div>
-      <h3 className="mt-2 text-h2 sm:text-h1 font-semibold tracking-[-0.2px] text-ink">{title}</h3>
+      <h3 className="text-h2 sm:text-h1 font-semibold tracking-[-0.2px] text-ink">{title}</h3>
       <p className="mt-3 text-body sm:text-body-lg text-text-muted">{body}</p>
     </article>
   );

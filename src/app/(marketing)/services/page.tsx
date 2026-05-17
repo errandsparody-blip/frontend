@@ -135,12 +135,13 @@ export default function ServicesPage() {
               <div className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
                 Sample flow
               </div>
-              <ol className="mt-4 flex flex-col gap-5">
-                {SHOPPER_STEPS.map((s, i) => (
+              <ul className="mt-4 flex flex-col gap-5">
+                {SHOPPER_STEPS.map((s) => (
                   <li key={s.label} className="flex gap-4">
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber font-mono text-mono-label text-text-inv">
-                      {i + 1}
-                    </span>
+                    <span
+                      aria-hidden
+                      className="mt-2 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-amber"
+                    />
                     <div>
                       <div className="text-body font-medium text-ink">
                         {s.label}
@@ -151,7 +152,7 @@ export default function ServicesPage() {
                     </div>
                   </li>
                 ))}
-              </ol>
+              </ul>
             </div>
           </FadeUp>
 

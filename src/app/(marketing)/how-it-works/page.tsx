@@ -42,7 +42,6 @@ export default function HowItWorksPage() {
       {/* THE FOUR STEPS */}
       <section className="mx-auto max-w-[84rem] px-5 py-12 sm:px-8 sm:py-24">
         <Step
-          n="01"
           title="Onboard your account"
           duration="~10 minutes"
           body="Sign up, verify your business through Stripe Identity, and accept the vendor agreement. Your wallet is provisioned the moment you sign up — fund it once and we draw against it as costs land."
@@ -62,7 +61,6 @@ export default function HowItWorksPage() {
         </Step>
 
         <Step
-          n="02"
           title="Send us your inventory"
           duration="2–7 days, depending on origin"
           body="Pre-declare every shipment with a Pre-Shipment Notice (PSN). Pay the onboarding fee at submit; we lock in the SKU layout before the box leaves your warehouse. Operators receive against your PSN line-by-line."
@@ -80,7 +78,6 @@ export default function HowItWorksPage() {
         </Step>
 
         <Step
-          n="03"
           title="We hold it. You sell it."
           duration="Ongoing"
           body="Storage billed monthly per SKU bucket per tier. Stock counts update in real time as orders ship. Low-balance alerts fire 30 days before storage drains your wallet — never a surprise overdraft."
@@ -92,7 +89,6 @@ export default function HowItWorksPage() {
         </Step>
 
         <Step
-          n="04"
           title="One click ships every order"
           duration="Same day in, next day out"
           body="Submit an order via the dashboard or our API. Stock + funds are reserved atomically — insufficient anything rolls back the whole submit. We pick, pack, weigh, and hand to the carrier; you watch the timeline."
@@ -213,14 +209,12 @@ export default function HowItWorksPage() {
 // Step block — eyebrow + heading + body + bullets, paired with a visual.
 // ===========================================================================
 function Step({
-  n,
   title,
   duration,
   body,
   bullets,
   children,
 }: {
-  n: string;
   title: string;
   duration: string;
   body: string;
@@ -235,8 +229,7 @@ function Step({
   return (
     <article className="grid gap-8 border-b border-line py-10 sm:gap-12 sm:py-16 lg:grid-cols-[1fr_1fr] lg:gap-16 [&:last-of-type]:border-b-0">
       <div>
-        <div className="font-mono text-mono-eyebrow uppercase text-amber">[ {n} ] {title}</div>
-        <h3 className="mt-3 text-h2 sm:text-h1 font-semibold tracking-[-0.4px] text-ink">{title}</h3>
+        <h3 className="text-h2 sm:text-h1 font-semibold tracking-[-0.4px] text-ink">{title}</h3>
         <div className="mt-2 font-mono text-mono-label uppercase text-text-subtle">{duration}</div>
         <p className="mt-4 max-w-md text-body sm:mt-5 sm:text-body-lg text-text-muted">{body}</p>
         {visibleBullets.length > 0 ? (

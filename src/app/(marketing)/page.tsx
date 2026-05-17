@@ -187,9 +187,6 @@ export default function HomePage() {
             {STEPS.map((s, i) => (
               <FadeUp key={s.label} delay={i * 90}>
                 <div className="flex h-full flex-col gap-3 rounded-md border border-line bg-white p-6">
-                  <div className="font-mono text-mono-label uppercase tracking-[1.2px] text-amber">
-                    {String(i + 1).padStart(2, "0")}
-                  </div>
                   <div className="text-h3 font-medium text-ink">{s.label}</div>
                   <p className="text-body-sm text-text-muted">{s.body}</p>
                 </div>

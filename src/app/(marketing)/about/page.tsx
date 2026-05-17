@@ -195,8 +195,8 @@ export default function AboutPage() {
                   Want to see what we actually do day-to-day?
                 </h2>
                 <p className="mt-3 max-w-lg text-body text-text-inv/80">
-                  Two services, each with their own page. Pick the one that
-                  matches what you came here for.
+                  Each of our two services has a dedicated page. Please
+                  select the one most relevant to your requirements.
                 </p>
               </div>
               <div className="flex flex-wrap gap-3">
