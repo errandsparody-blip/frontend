@@ -1,12 +1,11 @@
-import { Mail, MapPin, Phone, ShieldCheck, Zap } from "lucide-react";
-import Link from "next/link";
+import { Mail, MapPin, Phone } from "lucide-react";
 
 import { FadeUp } from "@/components/marketing/fade-up";
 
 export const metadata = {
   title: "Contact — USA Errands",
   description:
-    "Talk to USA Errands. Sales, support, partnerships, and the integrations + security resources sellers ask for most.",
+    "Talk to USA Errands. Sales, support, partnerships, and the security resources sellers ask for most.",
 };
 
 export default function ContactPage() {
@@ -69,26 +68,6 @@ export default function ContactPage() {
         </div>
       </section>
 
-      {/* INTEGRATIONS + SECURITY (folded out of the top nav) */}
-      <section className="border-b border-line">
-        <div className="mx-auto max-w-[84rem] px-8 py-24">
-          <FadeUp>
-            <div className="font-mono text-mono-eyebrow uppercase text-amber">
-              [04] More resources
-            </div>
-            <h2 className="mt-3 max-w-3xl text-h2 font-medium leading-tight tracking-[-0.5px] text-ink">
-              Looking for integration docs or security details?
-            </h2>
-            <p className="mt-4 max-w-2xl text-body text-text-muted">
-              They live on their own pages so the top of the marketing site
-              stays uncluttered. Both are linked here so buyers and sellers
-              with technical questions can dive in.
-            </p>
-          </FadeUp>
-
-        
-        </div>
-      </section>
     </>
   );
 }
@@ -102,7 +81,7 @@ const INBOXES: ReadonlyArray<{
   {
     label: "Sales",
     title: "Onboarding a vendor",
-    body: "Pallet sizes, volume estimates, integration questions, contract pricing. We reply within one business day.",
+    body: "Pallet sizes, volume estimates, contract pricing. We reply within one business day.",
     email: "",
   },
   {
@@ -113,8 +92,8 @@ const INBOXES: ReadonlyArray<{
   },
   {
     label: "Partnerships",
-    title: "Integrations + payouts",
-    body: "Built a storefront, a carrier route, or a payout corridor you think we should connect to. Pitch us.",
+    title: "Payouts + carriers",
+    body: "Built a carrier route or a payout corridor you think we should connect to. Pitch us.",
     email: "",
   },
 ];

@@ -8,30 +8,19 @@ import { NavDropdown } from "@/components/marketing/nav-dropdown";
 // Items shown under the "About" hover dropdown in the desktop header.
 // Mirror this list in MobileNav so phones see the same surface area.
 // Each item is a top-level marketing destination — Personal Shopper has
-// its own product flow, 3PL Fulfillment routes to the seller landing
-// material, and Integrations sits under About now (folded out of the
-// top nav so the header isn't cluttered).
+// its own product flow and Fulfillment routes to the seller landing
+// material.
 const ABOUT_ITEMS = [
   {
     href: "/services",
     label: "All services",
-    description: "Personal shopping, 3PL fulfillment, and forwarding in one place.",
+    description: "Personal shopping, fulfillment, and forwarding in one place.",
   },
   {
     href: "/shopper",
     label: "Personal shopping",
     description: "Buy anything from any U.S. store. We handle the rest.",
   },
-  // {
-  //   href: "/how-it-works",
-  //   label: "3PL fulfillment",
-  //   description: "Hold your inventory in our warehouse, ship to U.S. buyers in days.",
-  // },
-  // {
-  //   href: "/integrations",
-  //   label: "Integrations",
-  //   description: "Shopify, WooCommerce, and the storefronts we connect to.",
-  // },
   {
     href: "/security",
     label: "Security & compliance",
@@ -138,7 +127,6 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
             <FooterCol heading="Sellers">
               <FooterLink href="/how-it-works">How it works</FooterLink>
               <FooterLink href="/pricing">Pricing</FooterLink>
-              {/* <FooterLink href="/integrations">Integrations</FooterLink> */}
               <FooterLink href="/signup">Get started</FooterLink>
             </FooterCol>
             <FooterCol heading="Buyers">

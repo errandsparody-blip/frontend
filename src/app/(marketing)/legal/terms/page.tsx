@@ -12,7 +12,7 @@ import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "Terms of Service · USA Errands",
-  description: "The terms governing the USA Errands platform — vendor 3PL services, the Personal Shopper service, and use of the website.",
+  description: "The terms governing the USA Errands platform — vendor fulfillment services, the Personal Shopper service, and use of the website.",
 };
 
 const LAST_UPDATED = "2026-05-09";
@@ -27,9 +27,9 @@ export default function TermsPage(): JSX.Element {
             Terms of Service
           </h1>
           <p className="mt-3 max-w-prose text-body text-text-muted">
-            These terms govern your use of the USA Errands website, the vendor 3PL platform, and
-            the Personal Shopper service. By creating an account or placing an order you agree to
-            them.
+            These terms govern your use of the USA Errands website, the vendor fulfillment
+            platform, and the Personal Shopper service. By creating an account or placing an order
+            you agree to them.
           </p>
           <div className="mt-2 font-mono text-mono-label uppercase text-text-muted">
             Last updated · {LAST_UPDATED}
@@ -40,8 +40,8 @@ export default function TermsPage(): JSX.Element {
           <h2>1. Who we are</h2>
           <p>
             USA Errands (&quot;USA Errands&quot;, &quot;we&quot;, &quot;us&quot;) operates a U.S.-based
-            logistics platform combining (a) third-party logistics services for international
-            sellers (&quot;3PL&quot;) and (b) a Personal Shopper service that procures U.S. retail
+            logistics platform combining (a) fulfillment services for international sellers
+            (&quot;Fulfillment&quot;) and (b) a Personal Shopper service that procures U.S. retail
             items on behalf of buyers anywhere in the world.
           </p>
           <p>
@@ -64,7 +64,7 @@ export default function TermsPage(): JSX.Element {
             actions that risk our platform, our partners, or other users.
           </p>
 
-          <h2>3. The 3PL service</h2>
+          <h2>3. The fulfillment service</h2>
           <p>
             Vendors send inventory to our warehouse, we receive and store it, and we pick, pack
             and ship orders on the vendor&apos;s behalf. Pricing is published at{" "}

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 export const metadata = {
   title: "Services — USA Errands",
   description:
-    "Two products. 3PL fulfillment for sellers outside the U.S. — our main service. Personal shopping for buyers anywhere. One U.S. warehouse, one checkout.",
+    "Two products. Fulfillment for sellers outside the U.S. — our main service. Personal shopping for buyers anywhere. One U.S. warehouse, one checkout.",
 };
 
 export default function ServicesPage() {
@@ -20,7 +20,7 @@ export default function ServicesPage() {
               [01] Services
             </div>
             <h1 className="mt-4 max-w-3xl text-display font-medium leading-[1.04] tracking-[-1.2px] text-ink">
-              Two products. One warehouse. Zero forwarders.
+              Two services. One mission.
             </h1>
             <p className="mt-6 max-w-2xl text-body-lg text-text-muted">
               Whether you&apos;re buying from a U.S. store or selling into the
@@ -31,16 +31,16 @@ export default function ServicesPage() {
         </div>
       </section>
 
-      {/* 3PL FULFILLMENT — the main business, surfaced first. Text
+      {/* FULFILLMENT — the main business, surfaced first. Text
           column on the LEFT (where the eye lands), feature card on the
           RIGHT. The amber "Main service" tag in the eyebrow reinforces
           ordering for anyone scanning the page. */}
-      <section id="3pl" className="border-b border-line">
+      <section id="fulfillment" className="border-b border-line">
         <div className="mx-auto grid max-w-[84rem] gap-16 px-8 py-24 lg:grid-cols-[1fr_1fr] lg:items-center">
           <FadeUp>
             <div className="flex items-center gap-3">
               <div className="font-mono text-mono-eyebrow uppercase text-amber">
-                [02] 3PL fulfillment
+                [02] Fulfillment
               </div>
               <span className="rounded-full bg-amber/15 px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-[1.4px] text-amber">
                 Main service
@@ -71,7 +71,7 @@ export default function ServicesPage() {
           <FadeUp delay={80}>
             <div className="rounded-md border border-line bg-white p-8">
               <div className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
-                What the 3PL gives you
+                What the fulfillment service gives you
               </div>
               <ul className="mt-4 flex flex-col gap-4 text-body">
                 {THREEPL_FEATURES.map((f) => (
@@ -89,7 +89,7 @@ export default function ServicesPage() {
       {/* PERSONAL SHOPPING — the secondary product. Alternating layout
           (feature card on the LEFT, text on the RIGHT) so the page has
           a visual rhythm. Background tinted cream-soft to differentiate
-          from the 3PL section above. */}
+          from the fulfillment section above. */}
       <section id="personal-shopping" className="border-b border-line bg-cream-soft">
         <div className="mx-auto grid max-w-[84rem] gap-16 px-8 py-24 lg:grid-cols-[1fr_1fr] lg:items-center">
           <FadeUp>
@@ -149,26 +149,6 @@ export default function ServicesPage() {
         </div>
       </section>
 
-      {/* INTEGRATIONS */}
-      <section id="integrations" className="border-b border-line">
-        <div className="mx-auto max-w-[84rem] px-8 py-24">
-          <FadeUp>
-            <div className="font-mono text-mono-eyebrow uppercase text-amber">
-              [04] Integrations
-            </div>
-            <h2 className="mt-3 max-w-3xl text-h2 font-medium leading-tight tracking-[-0.5px] text-ink">
-              Plug us into the store you already run.
-            </h2>
-            <p className="mt-4 max-w-2xl text-body text-text-muted">
-              We&apos;re built to disappear behind your storefront. Connect
-              Shopify or WooCommerce in a few clicks and orders flow into
-              our pick queue automatically. Custom stack? The API is open.
-            </p>
-          </FadeUp>
-
-         
-        </div>
-      </section>
     </>
   );
 }

@@ -95,7 +95,7 @@ export default function HowItWorksPage() {
           n="04"
           title="One click ships every order"
           duration="Same day in, next day out"
-          body="Submit an order via the dashboard or your e-commerce integration. Stock + funds are reserved atomically — insufficient anything rolls back the whole submit. We pick, pack, weigh, and hand to the carrier; you watch the timeline."
+          body="Submit an order via the dashboard or our API. Stock + funds are reserved atomically — insufficient anything rolls back the whole submit. We pick, pack, weigh, and hand to the carrier; you watch the timeline."
           bullets={[
             
           ]}

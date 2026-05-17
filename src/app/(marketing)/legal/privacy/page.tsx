@@ -10,7 +10,7 @@ import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "Privacy Policy · USA Errands",
-  description: "How USA Errands collects, uses, stores and shares personal information across the vendor 3PL platform and the Personal Shopper service.",
+  description: "How USA Errands collects, uses, stores and shares personal information across the vendor fulfillment platform and the Personal Shopper service.",
 };
 
 const LAST_UPDATED = "2026-05-09";

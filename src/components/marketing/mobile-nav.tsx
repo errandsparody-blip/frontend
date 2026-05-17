@@ -5,8 +5,8 @@
  *
  * Visible only below the `md` breakpoint (the desktop nav handles ≥ md).
  * Exposes every link the desktop nav has (How it works, Pricing, Shop
- * for me, Integrations, Security) plus Log in, so vendors and buyers
- * on phones can actually reach those pages.
+ * for me, Security) plus Log in, so vendors and buyers on phones can
+ * actually reach those pages.
  *
  * Behaviour:
  *   - Clicking the hamburger toggles the drawer.
@@ -34,9 +34,9 @@ import { homeForRole, useAuth } from "@/lib/auth-context";
 // Same surface area as the desktop nav, flattened so phone users get
 // a single scroll list instead of a nested dropdown. Order mirrors the
 // desktop bar: About → Services → How it works → Pricing → Contact →
-// Shop for me (CTA). Integrations + Security have moved off the top
-// nav and live under About; they appear at the bottom of the drawer
-// so they're still reachable.
+// Shop for me (CTA). Security has moved off the top nav and lives
+// under About; it appears at the bottom of the drawer so it's still
+// reachable.
 const NAV_LINKS: ReadonlyArray<{ href: string; label: string; accent?: boolean }> = [
   { href: "/about", label: "About" },
   { href: "/services", label: "Services" },
