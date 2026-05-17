@@ -72,17 +72,13 @@ export default function SecurityPage() {
       </section>
 
       {/* PRACTICAL FACTS — compressed compliance summary, no spec-tile wall */}
-      <section className="border-y border-line bg-cream-soft">
+      {/* <section className="border-y border-line bg-cream-soft">
         <div className="mx-auto max-w-[84rem] px-5 py-14 sm:px-8 sm:py-20">
           <div className="font-mono text-mono-eyebrow uppercase text-amber">Practical facts</div>
           <h2 className="mt-3 max-w-2xl text-h1 sm:text-display font-medium leading-[1.05] tracking-[-0.4px] sm:tracking-[-0.8px] text-ink">
             What we hold. What we don&apos;t.
           </h2>
 
-          {/*
-            Compact bullet list rather than 9 separate spec tiles. Reads
-            quickly on mobile and conveys the same facts.
-          */}
           <dl className="mt-8 grid gap-x-10 gap-y-5 text-body text-text sm:mt-10 sm:grid-cols-2 sm:text-body-lg">
             <Fact label="Card data">
               Never touches our servers. Stripe Elements + PaymentIntents only.
@@ -108,7 +104,7 @@ export default function SecurityPage() {
             </Fact>
           </dl>
         </div>
-      </section>
+      </section> */}
 
       {/* CLOSING — disclosure + CTA combined */}
       {/* <section className="mx-auto max-w-[84rem] px-5 py-14 sm:px-8 sm:py-24">
