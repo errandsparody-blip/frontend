@@ -37,7 +37,7 @@ export default function AboutPage() {
         <div className="mx-auto grid max-w-[84rem] gap-16 px-8 py-24 lg:grid-cols-[1fr_1fr]">
           <FadeUp>
             <div className="font-mono text-mono-eyebrow uppercase text-amber">
-              [02] Why we exist
+              Why we exist
             </div>
             <h2 className="mt-3 text-h2 font-medium leading-tight tracking-[-0.5px] text-ink">
               Finding customers isn&apos;t the problem. Running the
@@ -74,7 +74,7 @@ export default function AboutPage() {
         <div className="mx-auto max-w-[84rem] px-8 py-24">
           <FadeUp>
             <div className="font-mono text-mono-eyebrow uppercase text-amber">
-              [03] What we do
+              What we do
             </div>
             <h2 className="mt-3 max-w-3xl text-h2 font-medium leading-tight tracking-[-0.5px] text-ink">
               Two services. One reliable U.S. partner.
@@ -132,7 +132,7 @@ export default function AboutPage() {
         <div className="mx-auto max-w-[84rem] px-8 py-24">
           <FadeUp>
             <div className="font-mono text-mono-eyebrow uppercase text-amber">
-              [04] How we work
+              How we work
             </div>
             <h2 className="mt-3 max-w-3xl text-h2 font-medium leading-tight tracking-[-0.5px] text-ink">
               A small operation by choice.
@@ -170,7 +170,7 @@ export default function AboutPage() {
         <div className="mx-auto max-w-[84rem] px-8 py-24">
           <FadeUp>
             <div className="font-mono text-mono-eyebrow uppercase text-amber">
-              [05] Our goal
+              Our goal
             </div>
             <h2 className="mt-3 max-w-3xl text-h2 font-medium leading-tight tracking-[-0.5px] text-ink">
               The point of all this.

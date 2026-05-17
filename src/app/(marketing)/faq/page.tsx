@@ -44,7 +44,7 @@ interface FAQGroup {
 const FAQ_GROUPS: ReadonlyArray<FAQGroup> = [
   {
     id: "account-onboarding",
-    eyebrow: "[01] Account & onboarding",
+    eyebrow: "Account & onboarding",
     title: "Getting on the platform",
     blurb:
       "The first four working days set the pattern for everything else. Here's exactly how you go from signing up to receiving your first shipment.",
@@ -65,7 +65,7 @@ const FAQ_GROUPS: ReadonlyArray<FAQGroup> = [
   },
   {
     id: "storage-inventory",
-    eyebrow: "[02] Storage & inventory",
+    eyebrow: "Storage & inventory",
     title: "How we store your boxes",
     blurb:
       "Storage is the bulk of what you'll pay us every month. We bill it transparently, by box-tier, and we'll proactively help you reclassify when a tier change saves you money.",
@@ -86,7 +86,7 @@ const FAQ_GROUPS: ReadonlyArray<FAQGroup> = [
   },
   {
     id: "fulfillment-shipping",
-    eyebrow: "[03] Fulfillment & shipping",
+    eyebrow: "Fulfillment & shipping",
     title: "Picking, packing, and shipping orders",
     blurb:
       "Once an order is in our pick queue, the next milestone is a tracking number landing in your inbox. Here's what's between those two moments.",
@@ -104,7 +104,7 @@ const FAQ_GROUPS: ReadonlyArray<FAQGroup> = [
   },
   {
     id: "returns",
-    eyebrow: "[04] Returns",
+    eyebrow: "Returns",
     title: "Returns, inspections, and refunds",
     blurb:
       "Returns are opt-in. If you turn them on, here's exactly how a buyer's package gets back into your sellable stock — or doesn't.",
@@ -122,7 +122,7 @@ const FAQ_GROUPS: ReadonlyArray<FAQGroup> = [
   },
   {
     id: "payments",
-    eyebrow: "[05] Payments & wallet",
+    eyebrow: "Payments & wallet",
     title: "Funding, billing, and refunds",
     blurb:
       "The wallet is the single source of truth for every dollar that flows between you and us. Every fee, refund, and reconciliation has a ledger entry you can audit.",
@@ -143,7 +143,7 @@ const FAQ_GROUPS: ReadonlyArray<FAQGroup> = [
   },
   {
     id: "trust-operations",
-    eyebrow: "[06] Trust & operations",
+    eyebrow: "Trust & operations",
     title: "Security, compliance, and what-ifs",
     blurb:
       "The rare-but-important questions. The full canonical answers live in the Vendor Agreement — these are the quick versions so you don't have to scroll.",

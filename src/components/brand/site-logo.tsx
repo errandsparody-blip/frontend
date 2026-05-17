@@ -73,7 +73,7 @@ interface SiteLogoProps {
   markClassName?: string;
   /** Set true to hide the wordmark and only render the mark. */
   markOnly?: boolean;
-  /** Show the "PERSONAL SHOPPER · 3PL" eyebrow under the wordmark. */
+  /** Show the "PERSONAL SHOPPER · FULFILLMENT" eyebrow under the wordmark. */
   showTagline?: boolean;
 }
 
@@ -81,7 +81,7 @@ interface SiteLogoProps {
  * Full lockup — Arrow Box mark + "USA Errands" title-case wordmark.
  * Mirrors brand concept 07 (the picked direction). Used in marketing
  * header, admin sidebar, signin/signup chrome. Pass `showTagline` to
- * surface "PERSONAL SHOPPER · 3PL" beneath the wordmark on contexts
+ * surface "PERSONAL SHOPPER · FULFILLMENT" beneath the wordmark on contexts
  * that have room for it (footer, signup hero).
  */
 export function SiteLogo({
@@ -107,7 +107,7 @@ export function SiteLogo({
             <span
               className={`mt-1 font-mono text-[10px] uppercase tracking-[2px] ${taglineColour}`}
             >
-              PERSONAL SHOPPER · 3PL
+              PERSONAL SHOPPER · FULFILLMENT
             </span>
           ) : null}
         </span>

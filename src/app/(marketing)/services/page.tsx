@@ -1,3 +1,12 @@
+import {
+  BadgeDollarSign,
+  Boxes,
+  Building2,
+  HeartHandshake,
+  Truck,
+  Warehouse,
+  type LucideIcon,
+} from "lucide-react";
 import Link from "next/link";
 
 import { FadeUp } from "@/components/marketing/fade-up";
@@ -146,7 +155,40 @@ export default function ServicesPage() {
             </div>
           </FadeUp>
 
-          
+
+        </div>
+      </section>
+
+      {/* WHY VENDORS CHOOSE US — closing trust band on the dark ink
+          background. Mirrors the home CTA palette so the page ends on
+          the same brand note. */}
+      <section className="bg-ink">
+        <div className="mx-auto max-w-[84rem] px-8 py-24 text-text-inv">
+          <FadeUp>
+            <div className="text-center">
+              <div className="font-mono text-mono-eyebrow uppercase tracking-[1.4px] text-amber">
+                Why vendors choose USA Errands
+              </div>
+              <h2 className="mx-auto mt-4 max-w-3xl text-h2 font-medium leading-tight tracking-[-0.5px]">
+                Built for international vendors. Backed by support.
+              </h2>
+            </div>
+          </FadeUp>
+
+          <FadeUp delay={80}>
+            <ul className="mt-16 grid grid-cols-2 gap-x-6 gap-y-12 sm:grid-cols-3 lg:grid-cols-6">
+              {VENDOR_PROOF.map(({ icon: Icon, title }) => (
+                <li key={title} className="flex flex-col items-center text-center">
+                  <span className="flex h-12 w-12 items-center justify-center rounded-md border border-white/15 text-amber">
+                    <Icon className="h-5 w-5" aria-hidden />
+                  </span>
+                  <div className="mt-4 text-body-sm font-medium leading-snug">
+                    {title}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </FadeUp>
         </div>
       </section>
 
@@ -183,6 +225,15 @@ const SHOPPER_STEPS: ReadonlyArray<{ label: string; body: string }> = [
     label: "We ship to you",
     body: "Final invoice = shipping cost only. We ship to anywhere your address forwarder can't.",
   },
+];
+
+const VENDOR_PROOF: ReadonlyArray<{ icon: LucideIcon; title: string }> = [
+  { icon: Warehouse, title: "U.S. Based Warehouse" },
+  { icon: BadgeDollarSign, title: "Affordable & Transparent" },
+  { icon: Truck, title: "Fast & Reliable Shipping" },
+  { icon: Boxes, title: "Inventory Visibility" },
+  { icon: HeartHandshake, title: "Human Support That Cares" },
+  { icon: Building2, title: "Designed for SMEs" },
 ];
 
 const THREEPL_FEATURES: ReadonlyArray<{ title: string; body: string }> = [

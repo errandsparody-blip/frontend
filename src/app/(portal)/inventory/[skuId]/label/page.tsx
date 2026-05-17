@@ -21,7 +21,7 @@ interface PublicSku {
  * Printable SKU labels — Avery 5160 layout (industry standard).
  *
  * Why 5160? It's the de facto vendor-printed SKU label format used
- * across Amazon FBA, Avery, and most 3PL inbound flows:
+ * across Amazon FBA, Avery, and most fulfillment inbound flows:
  *
  *   - 1" × 2⅝" per label (25.4 × 66.7 mm)
  *   - 30 labels per US Letter sheet (3 columns × 10 rows)

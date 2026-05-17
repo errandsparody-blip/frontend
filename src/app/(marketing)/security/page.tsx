@@ -31,7 +31,7 @@ export default function SecurityPage() {
       {/* HERO */}
       <section className="border-b border-line bg-cream">
         <div className="mx-auto max-w-[84rem] px-5 py-16 sm:px-8 sm:py-24 lg:py-32">
-          <div className="font-mono text-mono-eyebrow uppercase text-amber">[ 05 ] Security</div>
+          <div className="font-mono text-mono-eyebrow uppercase text-amber">Security</div>
           <h1 className="mt-3 max-w-3xl text-display font-medium leading-[1.05] tracking-[-0.6px] text-ink sm:text-display-lg sm:tracking-[-1.2px]">
             Built for vendor money.
             <br />
@@ -46,7 +46,7 @@ export default function SecurityPage() {
 
       {/* FOUR PROMISES — replaces the old Four-Pillars + Threat-Model + Tech-Summary stack */}
       <section className="mx-auto max-w-[84rem] px-5 py-14 sm:px-8 sm:py-20">
-        <div className="font-mono text-mono-eyebrow uppercase text-amber">[ 06 ] What we promise</div>
+        <div className="font-mono text-mono-eyebrow uppercase text-amber">What we promise</div>
         <h2 className="mt-3 max-w-2xl text-h1 sm:text-display font-medium leading-[1.05] tracking-[-0.4px] sm:tracking-[-0.8px] text-ink">
           Four guarantees, in plain English.
         </h2>
@@ -78,7 +78,7 @@ export default function SecurityPage() {
       {/* PRACTICAL FACTS — compressed compliance summary, no spec-tile wall */}
       <section className="border-y border-line bg-cream-soft">
         <div className="mx-auto max-w-[84rem] px-5 py-14 sm:px-8 sm:py-20">
-          <div className="font-mono text-mono-eyebrow uppercase text-amber">[ 07 ] Practical facts</div>
+          <div className="font-mono text-mono-eyebrow uppercase text-amber">Practical facts</div>
           <h2 className="mt-3 max-w-2xl text-h1 sm:text-display font-medium leading-[1.05] tracking-[-0.4px] sm:tracking-[-0.8px] text-ink">
             What we hold. What we don&apos;t.
           </h2>
@@ -117,7 +117,7 @@ export default function SecurityPage() {
       {/* CLOSING — disclosure + CTA combined */}
       <section className="mx-auto max-w-[84rem] px-5 py-14 sm:px-8 sm:py-24">
         <div className="rounded-md border border-line bg-ink p-6 text-text-inv sm:p-12">
-          <div className="font-mono text-mono-eyebrow uppercase text-amber">[ 08 ] Disclosure + start</div>
+          <div className="font-mono text-mono-eyebrow uppercase text-amber">Disclosure + start</div>
           <h2 className="mt-3 max-w-2xl text-h1 sm:text-display font-medium leading-[1.05] tracking-[-0.4px] sm:tracking-[-0.8px]">
             Found something? Tell us.
           </h2>

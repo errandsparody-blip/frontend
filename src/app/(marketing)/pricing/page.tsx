@@ -223,7 +223,7 @@ export default function PricingPage() {
       {/* PALLET STORAGE */}
       {/* <section className="border-y border-line bg-cream-soft">
         <div className="mx-auto max-w-[84rem] px-8 py-20">
-          <div className="font-mono text-mono-eyebrow uppercase text-amber">[ 05 ] Pallet storage</div>
+          <div className="font-mono text-mono-eyebrow uppercase text-amber">Pallet storage</div>
           <h2 className="mt-3 max-w-3xl text-display font-medium leading-[1.05] tracking-[-0.8px] text-ink">
             Standard U.S. pallet — billed per pallet-slot.
           </h2>
@@ -337,7 +337,7 @@ export default function PricingPage() {
         <div className="mx-auto max-w-[84rem] px-8 py-20">
           <div className="grid gap-12 lg:grid-cols-[1fr_1.2fr] lg:gap-16">
             <div>
-              <div className="font-mono text-mono-eyebrow uppercase text-amber">[ 06 ] Fulfillment</div>
+              <div className="font-mono text-mono-eyebrow uppercase text-amber">Fulfillment</div>
               <h2 className="mt-3 text-display font-medium leading-[1.05] tracking-[-0.8px] text-ink">
                 Pick, pack, ship. Pay per order, not per plan.
               </h2>
@@ -380,7 +380,7 @@ export default function PricingPage() {
 
       {/* WORKED EXAMPLE */}
       {/* <section className="mx-auto max-w-[84rem] px-8 py-20">
-        <div className="font-mono text-mono-eyebrow uppercase text-amber">[ 07 ] Worked example</div>
+        <div className="font-mono text-mono-eyebrow uppercase text-amber">Worked example</div>
         <h2 className="mt-3 max-w-3xl text-display font-medium leading-[1.05] tracking-[-0.8px] text-ink">
           A small apparel vendor&apos;s first month.
         </h2>
@@ -440,7 +440,7 @@ export default function PricingPage() {
       {/* FAQ */}
       <section className="border-y border-line bg-cream-soft">
         <div className="mx-auto max-w-[84rem] px-8 py-20">
-          <div className="font-mono text-mono-eyebrow uppercase text-amber">[ 08 ] FAQ</div>
+          <div className="font-mono text-mono-eyebrow uppercase text-amber">FAQ</div>
           <h2 className="mt-3 text-display font-medium leading-[1.05] tracking-[-0.8px] text-ink">
             Common questions.
           </h2>
@@ -485,7 +485,7 @@ export default function PricingPage() {
       {/* CTA */}
       <section className="mx-auto max-w-[84rem] px-8 py-24">
         <div className="rounded-md border border-line bg-ink p-12 text-text-inv">
-          <div className="font-mono text-mono-eyebrow uppercase text-amber">[ 09 ] Get started</div>
+          <div className="font-mono text-mono-eyebrow uppercase text-amber">Get started</div>
           <h2 className="mt-3 max-w-2xl text-display font-medium leading-[1.05] tracking-[-0.8px]">
             Get a wallet, fund it, ship a PSN.
           </h2>

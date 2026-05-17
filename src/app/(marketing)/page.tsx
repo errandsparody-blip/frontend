@@ -214,7 +214,7 @@ export default function HomePage() {
           <FadeUp>
             <div>
               <div className="font-mono text-mono-eyebrow uppercase text-amber">
-                [04] FAQ
+                FAQ
               </div>
               <h2 className="mt-3 text-h2 font-medium leading-tight tracking-[-0.5px] text-ink">
                 The questions everyone asks first.

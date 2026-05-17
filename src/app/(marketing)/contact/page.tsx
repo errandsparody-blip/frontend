@@ -16,7 +16,7 @@ export default function ContactPage() {
         <div className="mx-auto max-w-[84rem] px-8 py-24">
           <FadeUp>
             <div className="font-mono text-mono-eyebrow uppercase text-amber">
-              [01] Contact
+              Contact
             </div>
             <h1 className="mt-4 max-w-3xl text-display font-medium leading-[1.04] tracking-[-1.2px] text-ink">
               Real humans. Same-day replies.
@@ -38,7 +38,7 @@ export default function ContactPage() {
         <div className="mx-auto grid max-w-[84rem] gap-12 px-8 py-24 lg:grid-cols-[1fr_1fr]">
           <FadeUp>
             <div className="font-mono text-mono-eyebrow uppercase text-amber">
-              [03] The address
+              The address
             </div>
             
           </FadeUp>
