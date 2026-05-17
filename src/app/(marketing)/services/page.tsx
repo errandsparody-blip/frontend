@@ -1,12 +1,3 @@
-import {
-  BadgeDollarSign,
-  Boxes,
-  Building2,
-  HeartHandshake,
-  Truck,
-  Warehouse,
-  type LucideIcon,
-} from "lucide-react";
 import Link from "next/link";
 
 import { FadeUp } from "@/components/marketing/fade-up";
@@ -26,7 +17,7 @@ export default function ServicesPage() {
         <div className="mx-auto max-w-[84rem] px-8 py-24">
           <FadeUp>
             <div className="font-mono text-mono-eyebrow uppercase text-amber">
-              Services
+              [01] Services
             </div>
             <h1 className="mt-4 max-w-3xl text-display font-medium leading-[1.04] tracking-[-1.2px] text-ink">
               Two services. One mission.
@@ -49,7 +40,7 @@ export default function ServicesPage() {
           <FadeUp>
             <div className="flex items-center gap-3">
               <div className="font-mono text-mono-eyebrow uppercase text-amber">
-                Fulfillment
+                Storage & Fulfillment
               </div>
               <span className="rounded-full bg-amber/15 px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-[1.4px] text-amber">
                 Main service
@@ -59,7 +50,7 @@ export default function ServicesPage() {
               Ship a pallet. Sell from a U.S. address.
             </h2>
             <p className="mt-4 text-body text-text-muted">
-              Send us inventory once. We stock it, label it, and ship every
+              Send us inventory, We stock it, label it, and ship every
               order from a U.S. warehouse — locally, in days, with full
               tracking.
             </p>
@@ -103,7 +94,7 @@ export default function ServicesPage() {
         <div className="mx-auto grid max-w-[84rem] gap-16 px-8 py-24 lg:grid-cols-[1fr_1fr] lg:items-center">
         <FadeUp delay={80}>
             <div className="font-mono text-mono-eyebrow uppercase text-amber">
-              Personal shopping
+              [03] Personal shopping
             </div>
             <h2 className="mt-3 text-h2 font-medium leading-tight tracking-[-0.5px] text-ink">
               Paste a URL. We buy it. You get it.
@@ -135,13 +126,12 @@ export default function ServicesPage() {
               <div className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
                 Sample flow
               </div>
-              <ul className="mt-4 flex flex-col gap-5">
-                {SHOPPER_STEPS.map((s) => (
+              <ol className="mt-4 flex flex-col gap-5">
+                {SHOPPER_STEPS.map((s, i) => (
                   <li key={s.label} className="flex gap-4">
-                    <span
-                      aria-hidden
-                      className="mt-2 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-amber"
-                    />
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber font-mono text-mono-label text-text-inv">
+                      {i + 1}
+                    </span>
                     <div>
                       <div className="text-body font-medium text-ink">
                         {s.label}
@@ -152,46 +142,14 @@ export default function ServicesPage() {
                     </div>
                   </li>
                 ))}
-              </ul>
+              </ol>
             </div>
           </FadeUp>
 
-
+          
         </div>
       </section>
 
-      {/* WHY VENDORS CHOOSE US — closing trust band on the dark ink
-          background. Mirrors the home CTA palette so the page ends on
-          the same brand note. */}
-      <section className="bg-ink">
-        <div className="mx-auto max-w-[84rem] px-8 py-24 text-text-inv">
-          <FadeUp>
-            <div className="text-center">
-              <div className="font-mono text-mono-eyebrow uppercase tracking-[1.4px] text-amber">
-                Why vendors choose USA Errands
-              </div>
-              <h2 className="mx-auto mt-4 max-w-3xl text-h2 font-medium leading-tight tracking-[-0.5px]">
-                Built for international vendors. Backed by support.
-              </h2>
-            </div>
-          </FadeUp>
-
-          <FadeUp delay={80}>
-            <ul className="mt-16 grid grid-cols-2 gap-x-6 gap-y-12 sm:grid-cols-3 lg:grid-cols-6">
-              {VENDOR_PROOF.map(({ icon: Icon, title }) => (
-                <li key={title} className="flex flex-col items-center text-center">
-                  <span className="flex h-12 w-12 items-center justify-center rounded-md border border-white/15 text-amber">
-                    <Icon className="h-5 w-5" aria-hidden />
-                  </span>
-                  <div className="mt-4 text-body-sm font-medium leading-snug">
-                    {title}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </FadeUp>
-        </div>
-      </section>
 
     </>
   );
@@ -226,15 +184,6 @@ const SHOPPER_STEPS: ReadonlyArray<{ label: string; body: string }> = [
     label: "We ship to you",
     body: "Final invoice = shipping cost only. We ship to anywhere your address forwarder can't.",
   },
-];
-
-const VENDOR_PROOF: ReadonlyArray<{ icon: LucideIcon; title: string }> = [
-  { icon: Warehouse, title: "U.S. Based Warehouse" },
-  { icon: BadgeDollarSign, title: "Affordable & Transparent" },
-  { icon: Truck, title: "Fast & Reliable Shipping" },
-  { icon: Boxes, title: "Inventory Visibility" },
-  { icon: HeartHandshake, title: "Human Support That Cares" },
-  { icon: Building2, title: "Designed for SMEs" },
 ];
 
 const THREEPL_FEATURES: ReadonlyArray<{ title: string; body: string }> = [
