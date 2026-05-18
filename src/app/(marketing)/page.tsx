@@ -1,28 +1,23 @@
 import { Package, ShoppingBag } from "lucide-react";
 import Link from "next/link";
 
+import { AtlasBackdrop } from "@/components/marketing/atlas-backdrop";
 import { FadeUp } from "@/components/marketing/fade-up";
-// Hero swap point — flip the import + the JSX tag below to toggle
-// between hero options. All three respect prefers-reduced-motion
-// and are self-contained:
-//   - LiveOpsHero      — three animated UI cards (product-proof).
-//   - IllustrationHero — bespoke editorial SVG of warehouse → doorstep.
-//   - NetworkHero      — ambient national-shipping-network map (current).
-import { NetworkHero } from "@/components/marketing/network-hero";
+import { OpsConsole } from "@/components/marketing/ops-console";
 import { Button } from "@/components/ui/button";
 
 export default function HomePage() {
   return (
     <>
-      {/* HERO — left rail carries the message; right rail is a
-          live, layered product composition (LiveOpsHero) showing a
-          dashboard tile, an order timeline, and a wallet receipt
-          quietly animating. Replaces the previous static parcel
-          photo: gives visitors product-proof above the fold instead
-          of stock imagery, and gives the page continuous gentle
-          motion that doesn't compete with the headline. */}
-      <section className="relative overflow-hidden bg-constellation">
-        <div className="mx-auto grid max-w-[84rem] gap-12 px-5 py-16 sm:px-8 sm:py-20 lg:grid-cols-[1fr_1fr] lg:items-center lg:py-24">
+      {/* HERO — full-bleed shipping-network atlas behind, headline
+          on the left, product-screenshot-style OpsConsole on the
+          right. The AtlasBackdrop sits at the section level so the
+          map pulses extend behind both columns; a cream scrim on
+          the left third keeps the headline readable regardless of
+          which city dots fall behind it. */}
+      <section className="relative overflow-hidden bg-cream">
+        <AtlasBackdrop />
+        <div className="relative z-10 mx-auto grid max-w-[84rem] gap-12 px-5 py-16 sm:px-8 sm:py-20 lg:grid-cols-[1fr_1fr] lg:items-center lg:py-24">
           <FadeUp>
             <div>
               <div className="font-mono text-mono-eyebrow uppercase text-amber">
@@ -65,7 +60,7 @@ export default function HomePage() {
           </FadeUp>
 
           <FadeUp delay={120}>
-            <NetworkHero />
+            <OpsConsole />
           </FadeUp>
         </div>
       </section>
