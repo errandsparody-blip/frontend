@@ -62,10 +62,12 @@ export function OpsConsole(): JSX.Element {
         <Header />
 
         <div className="grid gap-3 px-4 py-4 sm:gap-4 sm:px-5 sm:py-5">
-          {/* Top row — two small panels side by side on sm+; stacked
-              on phones so the numbers stay readable. */}
-          <div className="grid gap-3 sm:grid-cols-[1fr_1.4fr] sm:gap-4">
-            <DashboardPanel />
+          {/* Top row — pallet-stocking visual + wallet ledger. The
+              visual replaces the earlier "today shipped" stat: a
+              static counter doesn't show product life, a pallet
+              being stocked does. */}
+          <div className="grid gap-3 sm:grid-cols-[1fr_1.3fr] sm:gap-4">
+            <WarehousePanel />
             <WalletPanel />
           </div>
           {/* Full-width order timeline panel — the centerpiece. */}
@@ -122,9 +124,196 @@ function Header(): JSX.Element {
 }
 
 // ---------------------------------------------------------------------------
-// Dashboard panel — "Today" + sparkline
+// Warehouse panel — live pallet-stocking visualization.
+//
+// Replaces the previous "Today shipped" stat. Cycles through five
+// stages on a loop:
+//
+//   stage 0: empty pallet on the floor
+//   stage 1: first box drops in from above
+//   stage 2: second box stacks on top
+//   stage 3: third box completes the stack
+//   stage 4: brief "+1 PALLET" success beat, then reset
+//
+// Each box uses a translate-Y + opacity transition with a slight
+// overshoot easing so the drop has weight without bouncing
+// cartoonishly. Reduced motion freezes the stack fully built.
 // ---------------------------------------------------------------------------
 
+const WAREHOUSE_TICK_MS = 1050;
+const WAREHOUSE_STAGES = 5;
+
+function WarehousePanel(): JSX.Element {
+  const reduced = useReducedMotion();
+  // Stage walks 0..4 then loops. 0 = empty pallet; 1-3 = stacking
+  // boxes; 4 = stocked beat with the success badge visible.
+  const [stage, setStage] = useState(reduced ? 3 : 0);
+
+  useEffect(() => {
+    if (reduced) return;
+    const t = setInterval(() => {
+      setStage((s) => (s + 1) % WAREHOUSE_STAGES);
+    }, WAREHOUSE_TICK_MS);
+    return () => clearInterval(t);
+  }, [reduced]);
+
+  // Three boxes, bottom (i=0) to top (i=2). Each box has its final
+  // resting y in the SVG. The SVG is 120×120 with the pallet at
+  // y=95..105, and each box is 23 tall sitting on the previous.
+  const boxes: ReadonlyArray<{ y: number; psn: string }> = [
+    { y: 72, psn: "PSN-01" }, // bottom box, sits on pallet
+    { y: 49, psn: "PSN-02" }, // middle
+    { y: 26, psn: "PSN-03" }, // top
+  ];
+  const stocked = stage >= 3;
+  const showBadge = stage === 4;
+
+  return (
+    <div className="relative rounded-md border border-line bg-white p-4">
+      <div className="flex items-center justify-between">
+        <span className="font-mono text-[10px] uppercase tracking-[1.4px] text-text-muted">
+          Inbound · Bay 3
+        </span>
+        <span
+          className={cn(
+            "font-mono text-[9px] uppercase tracking-[1.2px] transition-colors duration-300",
+            stocked ? "text-success" : "text-amber",
+          )}
+        >
+          {stocked ? "stocked" : "stocking"}
+        </span>
+      </div>
+
+      <div className="relative mt-2 flex h-[126px] items-end justify-center overflow-hidden">
+        <svg viewBox="0 0 120 120" className="h-full w-auto" aria-hidden>
+          {/* Floor shadow — soft ellipse under the pallet to anchor
+              the stack to the surface. */}
+          <ellipse cx="60" cy="113" rx="48" ry="3" fill="#1a1a1a" opacity="0.08" />
+
+          {/* Boxes — render bottom-to-top so each new box paints on
+              top of the previous edges where they touch. */}
+          {boxes.map((box, i) => {
+            const shown = stage > i;
+            return (
+              <g
+                key={box.psn}
+                style={{
+                  opacity: shown ? 1 : 0,
+                  transform: shown ? "translateY(0)" : "translateY(-32px)",
+                  transition:
+                    "opacity 380ms ease-out, transform 620ms cubic-bezier(0.34, 1.4, 0.64, 1)",
+                  transformOrigin: "center",
+                  transformBox: "fill-box",
+                }}
+              >
+                <rect
+                  x="22"
+                  y={box.y}
+                  width="76"
+                  height="23"
+                  rx="1.6"
+                  fill="#fbeac0"
+                  stroke="#1a1a1a"
+                  strokeWidth="1"
+                />
+                {/* Tape cross — horizontal + vertical hairlines. */}
+                <line
+                  x1="22"
+                  y1={box.y + 11.5}
+                  x2="98"
+                  y2={box.y + 11.5}
+                  stroke="#1a1a1a"
+                  strokeOpacity="0.4"
+                  strokeWidth="0.7"
+                />
+                <line
+                  x1="60"
+                  y1={box.y}
+                  x2="60"
+                  y2={box.y + 23}
+                  stroke="#1a1a1a"
+                  strokeOpacity="0.4"
+                  strokeWidth="0.7"
+                />
+                {/* Mono label centred on the box face. */}
+                <text
+                  x="60"
+                  y={box.y + 15}
+                  textAnchor="middle"
+                  fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
+                  fontSize="6"
+                  fontWeight="700"
+                  letterSpacing="0.6"
+                  fill="#1a1a1a"
+                  opacity="0.55"
+                >
+                  {box.psn}
+                </text>
+              </g>
+            );
+          })}
+
+          {/* Wooden pallet — the load surface. Three forks at the
+              base for the classic look without going photoreal. */}
+          <g>
+            <rect
+              x="10"
+              y="95"
+              width="100"
+              height="8"
+              fill="#c4ad88"
+              stroke="#1a1a1a"
+              strokeWidth="0.9"
+            />
+            {/* Pallet slat shadow lines for texture. */}
+            <line x1="34" y1="95" x2="34" y2="103" stroke="#1a1a1a" strokeOpacity="0.35" strokeWidth="0.5" />
+            <line x1="60" y1="95" x2="60" y2="103" stroke="#1a1a1a" strokeOpacity="0.35" strokeWidth="0.5" />
+            <line x1="86" y1="95" x2="86" y2="103" stroke="#1a1a1a" strokeOpacity="0.35" strokeWidth="0.5" />
+            {/* Three forks (gaps for forklift tines). */}
+            <rect x="14" y="103" width="14" height="4" fill="#a8916d" />
+            <rect x="53" y="103" width="14" height="4" fill="#a8916d" />
+            <rect x="92" y="103" width="14" height="4" fill="#a8916d" />
+          </g>
+        </svg>
+
+        {/* Stocked success badge — slides in from right when stage
+            hits 4 ("+1 pallet" beat), holds for one tick, then
+            resets with the stack. */}
+        <span
+          className={cn(
+            "pointer-events-none absolute right-0 top-0 inline-flex items-center gap-1 rounded-full bg-success/12 px-2 py-0.5 transition-all duration-500",
+            showBadge ? "translate-x-0 opacity-100" : "translate-x-2 opacity-0",
+          )}
+        >
+          <svg viewBox="0 0 8 8" className="h-2 w-2 text-success">
+            <path
+              d="M1.5 4l1.6 1.6L6.5 2.2"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              fill="none"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          <span className="font-mono text-[8px] font-semibold uppercase tracking-[1.2px] text-success">
+            +1 pallet
+          </span>
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Dashboard panel — "Today" + sparkline.
+//
+// Currently unused (replaced by WarehousePanel above). Kept around
+// so reverting is a one-line swap if the box-stack visual doesn't
+// land. Marked `_dashboardPanelLegacy` so lint doesn't flag it as
+// unused-but-defined.
+// ---------------------------------------------------------------------------
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function DashboardPanel(): JSX.Element {
   const reduced = useReducedMotion();
   const [count, setCount] = useState(147);

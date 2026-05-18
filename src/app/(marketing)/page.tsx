@@ -15,9 +15,9 @@ export default function HomePage() {
           map pulses extend behind both columns; a cream scrim on
           the left third keeps the headline readable regardless of
           which city dots fall behind it. */}
-      <section className="relative overflow-hidden bg-cream">
+      <section className="relative overflow-hidden bg-cream lg:min-h-[760px]">
         <AtlasBackdrop />
-        <div className="relative z-10 mx-auto grid max-w-[84rem] gap-12 px-5 py-16 sm:px-8 sm:py-20 lg:grid-cols-[1fr_1fr] lg:items-center lg:py-24">
+        <div className="relative z-10 mx-auto grid max-w-[84rem] gap-12 px-5 py-16 sm:px-8 sm:py-20 lg:grid-cols-[1fr_1fr] lg:items-center lg:py-28">
           <FadeUp>
             <div>
               <div className="font-mono text-mono-eyebrow uppercase text-amber">

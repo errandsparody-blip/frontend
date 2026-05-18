@@ -46,28 +46,32 @@ interface City {
   labelDy?: number;
 }
 
-// Houston is the real warehouse — the hub of the network. Other
-// city dots are major delivery destinations radiating from it.
-// Miami is now a destination (formerly the hub) so the map still
-// shows a Florida endpoint, just routed FROM Texas.
+// Houston is the real warehouse — the hub of the network. Cities
+// are positioned so the hub sits in the LOWER-CENTRE of the canvas
+// (clearly visible below the card on desktop) and destinations
+// radiate UP and OUT. Routes that head toward the right pass
+// through the card area — the dashed lines still read past the
+// card edges, and the pulses are visible at both ends of the
+// route. This keeps the network legible even where the foreground
+// composition overlaps it.
 const HUB: City = {
   name: "HOUSTON",
-  cx: 820,
-  cy: 490,
+  cx: 720,
+  cy: 620,
   durationSec: 0,
   delaySec: 0,
   labelDy: 32,
 };
 
 const CITIES: ReadonlyArray<City> = [
-  { name: "SEATTLE",     cx: 220,  cy: 140, durationSec: 5.8, delaySec: 0.0,  labelDy: -14 },
-  { name: "LOS ANGELES", cx: 260,  cy: 380, durationSec: 5.0, delaySec: 1.4,  labelDx: 10, labelDy: 22 },
-  { name: "DENVER",      cx: 560,  cy: 310, durationSec: 3.6, delaySec: 2.7,  labelDy: 22 },
-  { name: "CHICAGO",     cx: 920,  cy: 270, durationSec: 3.4, delaySec: 0.8,  labelDy: -14 },
-  { name: "ATLANTA",     cx: 1060, cy: 440, durationSec: 3.2, delaySec: 1.9,  labelDx: -12, labelDy: 22 },
-  { name: "MIAMI",       cx: 1180, cy: 540, durationSec: 4.6, delaySec: 3.2,  labelDy: 22 },
-  { name: "NEW YORK",    cx: 1340, cy: 240, durationSec: 4.8, delaySec: 2.3,  labelDy: -14 },
-  { name: "BOSTON",      cx: 1430, cy: 195, durationSec: 5.2, delaySec: 3.6,  labelDy: -14 },
+  { name: "SEATTLE",     cx: 180,  cy: 130, durationSec: 6.4, delaySec: 0.0,  labelDy: -14 },
+  { name: "LOS ANGELES", cx: 220,  cy: 360, durationSec: 5.4, delaySec: 1.5,  labelDx: 10, labelDy: 22 },
+  { name: "DENVER",      cx: 470,  cy: 280, durationSec: 4.0, delaySec: 2.8,  labelDy: 22 },
+  { name: "CHICAGO",     cx: 820,  cy: 230, durationSec: 3.6, delaySec: 0.9,  labelDy: -14 },
+  { name: "ATLANTA",     cx: 980,  cy: 470, durationSec: 3.6, delaySec: 2.0,  labelDx: -12, labelDy: 22 },
+  { name: "MIAMI",       cx: 1140, cy: 580, durationSec: 4.8, delaySec: 3.3,  labelDy: 22 },
+  { name: "NEW YORK",    cx: 1300, cy: 220, durationSec: 5.0, delaySec: 2.4,  labelDy: -14 },
+  { name: "BOSTON",      cx: 1420, cy: 180, durationSec: 5.4, delaySec: 3.7,  labelDy: -14 },
 ] as const;
 
 // ---------------------------------------------------------------------------
@@ -198,18 +202,19 @@ export function AtlasBackdrop(): JSX.Element {
         </text>
       </svg>
 
-      {/* Cream scrim from the left edge — ensures the headline +
-          body copy in the left column always have clean contrast,
-          regardless of which city the dots fall behind. Fades
-          to transparent by the time the right column starts.
-          Mobile: same scrim, just covers more of the SVG since
-          the text takes the whole width on small viewports. */}
+      {/* Cream scrim from the left edge — softer than before so
+          the atlas reads through the headline column instead of
+          being almost completely washed out. Just enough scrim to
+          keep the body copy contrast comfortable; the network
+          dots and pulses peek through. */}
       <div
-        className="absolute inset-y-0 left-0 w-full bg-gradient-to-r from-cream via-cream/70 to-transparent md:from-cream md:via-cream/60 md:w-[55%]"
+        className="absolute inset-y-0 left-0 w-full bg-gradient-to-r from-cream/85 via-cream/45 to-transparent md:from-cream/85 md:via-cream/30 md:w-[46%]"
       />
-      {/* Soft bottom fade so the section→stats-bar handoff doesn't
-          end with a hard line of pulsing dots at the edge. */}
-      <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-cream to-transparent" />
+      {/* Very subtle bottom fade — lighter than before so the
+          Houston hub (now sitting in the lower portion of the
+          canvas) reads cleanly all the way to the section edge
+          where it's most likely to be visible. */}
+      <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-cream/70 to-transparent" />
     </div>
   );
 }
