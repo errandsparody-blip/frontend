@@ -2,12 +2,13 @@ import { Package, ShoppingBag } from "lucide-react";
 import Link from "next/link";
 
 import { FadeUp } from "@/components/marketing/fade-up";
-// Hero swap point — flip these two imports to toggle the right-rail
-// composition. Both components ship the same 4:3 aspect ratio, both
-// respect prefers-reduced-motion, and both are self-contained:
+// Hero swap point — flip the import + the JSX tag below to toggle
+// between hero options. All three respect prefers-reduced-motion
+// and are self-contained:
 //   - LiveOpsHero      — three animated UI cards (product-proof).
 //   - IllustrationHero — bespoke editorial SVG of warehouse → doorstep.
-import { IllustrationHero } from "@/components/marketing/illustration-hero";
+//   - NetworkHero      — ambient national-shipping-network map (current).
+import { NetworkHero } from "@/components/marketing/network-hero";
 import { Button } from "@/components/ui/button";
 
 export default function HomePage() {
@@ -64,7 +65,7 @@ export default function HomePage() {
           </FadeUp>
 
           <FadeUp delay={120}>
-            <IllustrationHero />
+            <NetworkHero />
           </FadeUp>
         </div>
       </section>
