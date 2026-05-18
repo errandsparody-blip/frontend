@@ -2,37 +2,21 @@ import { Package, ShoppingBag } from "lucide-react";
 import Link from "next/link";
 
 import { FadeUp } from "@/components/marketing/fade-up";
+import { LiveOpsHero } from "@/components/marketing/live-ops-hero";
 import { Button } from "@/components/ui/button";
-
-// Hero photo — Erik Mclean, "a person holding a cardboard box in their
-// hand," free under the Unsplash License. Tagged "package delivery",
-// "cardboard", "package" — exactly the brief.
-//
-// Source page: https://unsplash.com/photos/ICaUOZ0PL70
-// Photographer: https://unsplash.com/@introspectivedsgn
-// Image URL was verified against the actual Unsplash page (not blindly
-// guessed). The `1680281707970-fa96c99f2ada` slug is the real photo id.
-//
-// `auto=format` lets Unsplash serve AVIF / WebP per Accept header;
-// `fit=crop&w=1400&q=80` keeps the served bytes reasonable for retina
-// without blowing past a 2× hero size.
-//
-// SWAP TO A DIFFERENT PHOTO. Find one on Unsplash, copy the
-// `photo-XXXXXXXXX-yyyyyyyyyyyy` slug from the rendered image URL on
-// the photo's page, and paste it below. Or drop a custom photo into
-// `usa-errands-web/public/hero.jpg` and change the URL to `/hero.jpg`.
-const HERO_IMAGE_URL =
-  "https://images.unsplash.com/photo-1680281707970-fa96c99f2ada?auto=format&fit=crop&w=1400&q=80";
 
 export default function HomePage() {
   return (
     <>
-      {/* HERO — image-led, two-column. Left rail carries the message;
-          right rail is a single editorial photo. The amber accent line
-          at the corner of the image keeps the design-system fingerprint
-          on screen without overlaying text on the photo. */}
+      {/* HERO — left rail carries the message; right rail is a
+          live, layered product composition (LiveOpsHero) showing a
+          dashboard tile, an order timeline, and a wallet receipt
+          quietly animating. Replaces the previous static parcel
+          photo: gives visitors product-proof above the fold instead
+          of stock imagery, and gives the page continuous gentle
+          motion that doesn't compete with the headline. */}
       <section className="relative overflow-hidden bg-constellation">
-        <div className="mx-auto grid max-w-[84rem] gap-12 px-8 py-24 lg:grid-cols-[1fr_1fr] lg:items-center">
+        <div className="mx-auto grid max-w-[84rem] gap-12 px-5 py-16 sm:px-8 sm:py-20 lg:grid-cols-[1fr_1fr] lg:items-center lg:py-24">
           <FadeUp>
             <div>
               <div className="font-mono text-mono-eyebrow uppercase text-amber">
@@ -75,43 +59,7 @@ export default function HomePage() {
           </FadeUp>
 
           <FadeUp delay={120}>
-            <div className="relative">
-              {/* Hero container — fixed 4:3 aspect ratio so the
-                  layout doesn't shift while the photo loads. We sit
-                  shorter than a portrait crop so the photo doesn't
-                  dominate the fold and the headline column stays
-                  weighted as the lead. Bordered + shadowed to match
-                  the design-system card chrome. */}
-              <div className="relative aspect-[4/3] overflow-hidden rounded-md border border-line bg-cream-soft shadow-2">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={HERO_IMAGE_URL}
-                  alt="A person holding a cardboard parcel — Erik Mclean / Unsplash."
-                  className="h-full w-full object-cover"
-                  loading="eager"
-                  decoding="async"
-                />
-                {/* Subtle bottom gradient + tagline overlay. Sits on
-                    the photo so the eye lands on something readable
-                    even when the image itself is busy. */}
-                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink/70 via-ink/30 to-transparent p-6">
-                  <div className="font-mono text-mono-label uppercase tracking-[1.4px] text-amber">
-                    Two products · One warehouse
-                  </div>
-                  <div className="mt-1 text-h3 font-medium text-text-inv">
-                    The country you&apos;re in stops mattering.
-                  </div>
-                </div>
-              </div>
-              {/* Amber tape — design-system accent strip in the top-left
-                  corner. Mirrors the same amber strip on the SiteMark
-                  logo so the brand fingerprint shows up even without
-                  the wordmark. */}
-              <div
-                aria-hidden
-                className="absolute -left-3 top-10 h-1.5 w-24 -rotate-6 bg-amber shadow-2"
-              />
-            </div>
+            <LiveOpsHero />
           </FadeUp>
         </div>
       </section>

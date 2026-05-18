@@ -48,6 +48,22 @@ body {
 }
 
 /* =============================================================================
+ * Keyframes — referenced by Tailwind arbitrary `animate-[...]` utilities.
+ * Keep names short and stable; components opt in via class strings such as
+ * `animate-[fadeIn_400ms_ease-out]`.
+ * ============================================================================= */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* =============================================================================
  * Constellation background utility (use on hero / marketing sections).
  * ============================================================================= */
 .bg-constellation {
