@@ -2,7 +2,12 @@ import { Package, ShoppingBag } from "lucide-react";
 import Link from "next/link";
 
 import { FadeUp } from "@/components/marketing/fade-up";
-import { LiveOpsHero } from "@/components/marketing/live-ops-hero";
+// Hero swap point — flip these two imports to toggle the right-rail
+// composition. Both components ship the same 4:3 aspect ratio, both
+// respect prefers-reduced-motion, and both are self-contained:
+//   - LiveOpsHero      — three animated UI cards (product-proof).
+//   - IllustrationHero — bespoke editorial SVG of warehouse → doorstep.
+import { IllustrationHero } from "@/components/marketing/illustration-hero";
 import { Button } from "@/components/ui/button";
 
 export default function HomePage() {
@@ -59,7 +64,7 @@ export default function HomePage() {
           </FadeUp>
 
           <FadeUp delay={120}>
-            <LiveOpsHero />
+            <IllustrationHero />
           </FadeUp>
         </div>
       </section>

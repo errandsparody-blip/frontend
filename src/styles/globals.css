@@ -63,6 +63,36 @@ body {
   }
 }
 
+/* Drives the package icon along the arc path in IllustrationHero.
+ * The icon's `offset-path` is set inline; this keyframe just walks
+ * `offset-distance` from one end of the path to the other on a loop. */
+@keyframes package-travel {
+  from {
+    offset-distance: 0%;
+  }
+  to {
+    offset-distance: 100%;
+  }
+}
+
+/* "Delivered" pulse for the green checkmark in IllustrationHero.
+ * Subtle scale + opacity fade so the eye registers arrival without a
+ * gimmicky bounce. */
+@keyframes delivered-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.18;
+  }
+  60% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+
 /* =============================================================================
  * Constellation background utility (use on hero / marketing sections).
  * ============================================================================= */
