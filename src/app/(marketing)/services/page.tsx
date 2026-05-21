@@ -51,7 +51,7 @@ export default function ServicesPage() {
             </h2>
             <p className="mt-4 text-body text-text-muted">
               Send us inventory, We stock it, label it, and ship every
-              order from a U.S. warehouse — locally, in days, with full
+              order from a U.S. warehouse — locally, in hours, with full
               tracking.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
