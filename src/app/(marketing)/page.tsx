@@ -1,4 +1,4 @@
-import { Package, ShoppingBag } from "lucide-react";
+import { type Package, ShoppingBag } from "lucide-react";
 import Link from "next/link";
 
 import { AtlasBackdrop } from "@/components/marketing/atlas-backdrop";

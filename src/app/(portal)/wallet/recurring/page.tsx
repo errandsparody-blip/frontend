@@ -35,6 +35,13 @@ interface RecurringStorage {
   monthlyEstimateCents: number;
   negotiatedTierSkuCount: number;
   activeSkuCount: number;
+  /**
+   * Migration 0034 — SKUs that have stock but are skipping the upcoming
+   * cron because their first cycle was prepaid via the intake fee at
+   * PSN submit. Shown to the vendor so they understand why newly-added
+   * inventory doesn't push up the next bill.
+   */
+  coveredAtIntakeSkuCount: number;
   nextChargeAt: string;
   perTier: Array<{
     tier: string;
@@ -181,6 +188,17 @@ export default function RecurringStoragePage(): JSX.Element {
               ? ` · ${data.negotiatedTierSkuCount} negotiated`
               : ""}
           </div>
+          {/* Migration 0034 — when the vendor has SKUs whose first cycle
+              is prepaid at intake, surface that here so they understand
+              the upcoming bill DOESN'T include their just-added boxes.
+              This is the line that prevents the "$50 → $72 due in 7
+              days" confusion when adding inventory mid-month. */}
+          {data.coveredAtIntakeSkuCount > 0 ? (
+            <div className="mt-2 rounded-sm border-l-2 border-amber bg-amber/5 px-2 py-1.5 font-mono text-[10px] uppercase tracking-[1.2px] text-amber">
+              + {data.coveredAtIntakeSkuCount} SKU
+              {data.coveredAtIntakeSkuCount === 1 ? "" : "s"} · first cycle paid at intake
+            </div>
+          ) : null}
         </div>
 
         <div className="rounded-md border border-line bg-white p-5">
