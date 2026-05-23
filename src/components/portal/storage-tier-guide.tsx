@@ -381,6 +381,25 @@ function PalletPolicyBlock(): JSX.Element {
           {PALLET_POLICY_NOTES.receivingFeesNote}
         </p>
       </div>
+
+      {/* Migration 0033 — surface the "add to existing pallet" option in
+          the same modal that explains pallet policy, so vendors who
+          already have a pallet see the cheaper path the next time they
+          ship. Worded around the saving (no second pallet line, no
+          per-box first-month storage) and the operational requirement
+          (confirm capacity + tier with admin first). */}
+      <div className="mt-3 rounded-sm border-l-4 border-amber bg-amber/10 px-4 py-3">
+        <div className="font-mono text-mono-label uppercase tracking-[1.4px] text-amber">
+          Already have a pallet here?
+        </div>
+        <p className="mt-1 text-body-sm text-text">
+          Pick &quot;Add to existing pallet&quot; on the PSN form to top up a
+          pallet you already pay for. You&apos;ll be charged the per-box
+          receiving fee only — your existing pallet&apos;s $45/month covers
+          storage for the new boxes too. Boxes must match the pallet&apos;s
+          tier exactly; confirm the free capacity with admin before submitting.
+        </p>
+      </div>
     </section>
   );
 }

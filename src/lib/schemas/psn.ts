@@ -7,6 +7,12 @@ import { z } from "zod";
 const tierSchema = z.enum(["SMALL", "MEDIUM", "LARGE", "X_LARGE", "PALLET"]);
 export type StorageTier = z.infer<typeof tierSchema>;
 
+// Migration 0033 — explicit shipping mode. Mirror of the backend enum at
+// usa-errands-api/src/common/schemas/psn.schema.ts. Defaults to LOOSE so
+// any code path that omits the field keeps the pre-migration behaviour.
+export const shippingModeSchema = z.enum(["LOOSE", "PALLET", "ADD_TO_PALLET"]);
+export type ShippingMode = z.infer<typeof shippingModeSchema>;
+
 export const psnLineInputSchema = z.object({
   productId: z.string().uuid(),
   declaredQty: z.coerce.number().int().positive().max(100_000),
@@ -20,6 +26,7 @@ export const createPsnSchema = z.object({
   expectedArrivalDate: z.coerce.date().optional(),
   carrier: z.string().min(2).max(60).optional(),
   masterTracking: z.string().min(3).max(80).optional(),
+  shippingMode: shippingModeSchema.default("LOOSE"),
   declaredBoxCounts: declaredBoxCountsSchema.refine(
     (obj) => Object.values(obj).some((v) => (v ?? 0) > 0),
     { message: "Declare at least one box." },
@@ -56,6 +63,9 @@ export interface ActiveHold {
 export interface PublicPsn {
   id: string;
   status: PsnStatus;
+  // Migration 0033 — surfaced so the vendor PSN detail view and the
+  // admin receive page can render mode-specific copy + badges.
+  shippingMode: ShippingMode;
   expectedArrivalDate: string | null;
   carrier: string | null;
   masterTracking: string | null;

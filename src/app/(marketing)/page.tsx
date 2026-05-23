@@ -278,22 +278,22 @@ const SERVICES: ReadonlyArray<{
   // Ordering rule: Fulfillment is the MAIN service and must always
   // appear first across every public surface (services page, homepage
   // cards, nav). Personal shopping follows.
-  {
-    Icon: Package,
-    tag: "For sellers",
-    title: "Fulfillment",
-    body: "Hold inventory in our U.S. warehouse. We pick, pack, and ship every order in days — no U.S. business required.",
-    cta: "Become a vendor",
-    href: "/services#fulfillment",
-  },
-  {
-    Icon: ShoppingBag,
-    tag: "For buyers",
-    title: "Personal shopping",
-    body: "Paste any U.S. store URL. We buy it for you, consolidate, and ship to anywhere your address forwarder can't.",
-    cta: "Open a request",
-    href: "/shopper",
-  },
+  // {
+  //   Icon: Package,
+  //   tag: "For sellers",
+  //   title: "Fulfillment",
+  //   body: "Hold inventory in our U.S. warehouse. We pick, pack, and ship every order in hours — no U.S. business required.",
+  //   cta: "Become a vendor",
+  //   href: "/services#fulfillment",
+  // },
+  // {
+  //   Icon: ShoppingBag,
+  //   tag: "For buyers",
+  //   title: "Personal shopping",
+  //   body: "Paste any U.S. store URL. We buy it for you, consolidate, and ship to anywhere your address forwarder can't.",
+  //   cta: "Open a request",
+  //   href: "/shopper",
+  // },
 ];
 
 const STEPS: ReadonlyArray<{ label: string; body: string }> = [

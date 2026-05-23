@@ -471,6 +471,18 @@ export default function PricingPage() {
             <Faq q="Is a long-term contract required?">
               No. Inventory may be withdrawn at any time, subject to a standard outbound handling fee.
             </Faq>
+            {/* Migration 0033 — surface the add-to-pallet billing model to
+                prospective vendors so they understand the saving before
+                they sign up. Worded around the most common case (medium
+                boxes) so the math reads at a glance. */}
+            <Faq q="Can I add more boxes to a pallet I already pay for?">
+              Yes. If you already have a pallet at our warehouse, you can ship in
+              more boxes of the same tier as long as the pallet has free space.
+              You only pay the per-box receiving fee — no new pallet line, no
+              extra monthly storage — because your existing pallet&apos;s $45/month
+              already covers it. Confirm the free capacity and the pallet&apos;s
+              box tier with admin before submitting the PSN.
+            </Faq>
           </div>
         </div>
       </section>

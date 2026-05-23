@@ -34,6 +34,10 @@ interface AdminPsn {
     | "HOLD"
     | "REJECTED"
     | "RETURN_REQUESTED";
+  // Migration 0033 — shipping mode is surfaced so the operator can route
+  // ADD_TO_PALLET PSNs to the right physical pallet (boxes get placed on
+  // the vendor's existing pallet, not landed loose).
+  shippingMode: "LOOSE" | "PALLET" | "ADD_TO_PALLET";
   carrier: string | null;
   masterTracking: string | null;
   submittedAt: string | null;
@@ -303,11 +307,37 @@ export default function ReceivePsnPage() {
         title={`Receiving — ${psn.vendor.businessName}`}
         description={`Carrier: ${psn.carrier ?? "—"} · Tracking: ${psn.masterTracking ?? "—"}`}
         actions={
-          <StatusPill tone={psn.status === "AWAITING_RECEIPT" ? "info" : psn.status === "RECEIVED" ? "success" : "warning"}>
-            {psn.status.replace(/_/g, " ")}
-          </StatusPill>
+          <div className="flex flex-wrap items-center gap-2">
+            <ShippingModeBadge mode={psn.shippingMode} />
+            <StatusPill tone={psn.status === "AWAITING_RECEIPT" ? "info" : psn.status === "RECEIVED" ? "success" : "warning"}>
+              {psn.status.replace(/_/g, " ")}
+            </StatusPill>
+          </div>
         }
       />
+
+      {/* Mode-specific operator banner. ADD_TO_PALLET gets the loudest
+          treatment because it's the only mode where the operator has to
+          physically route boxes to a specific pallet on the floor — and
+          where mismatched tier / over-capacity is a vendor-side mistake
+          that has to be caught here, before SKUs land. */}
+      {psn.shippingMode === "ADD_TO_PALLET" ? (
+        <div
+          role="alert"
+          className="rounded-md border-l-4 border-amber bg-amber/10 px-5 py-4"
+        >
+          <div className="font-mono text-mono-label uppercase tracking-[1.4px] text-amber">
+            Add-to-pallet shipment
+          </div>
+          <p className="mt-1 text-body-sm text-text">
+            Boxes on this PSN are top-ups for an existing pallet of{" "}
+            <strong>{psn.vendor.businessName}</strong>. Confirm the target pallet
+            with the vendor over the PSN chat before placement. Reject the PSN if
+            the boxes don&apos;t match the pallet&apos;s tier, exceed its remaining
+            capacity, or arrive in non-standard packaging.
+          </p>
+        </div>
+      ) : null}
 
       <ErrorBanner error={bannerError} onAction={onAction} />
 
@@ -715,6 +745,36 @@ export default function ReceivePsnPage() {
         </section>
       ) : null}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Shipping-mode badge — sits next to the status pill in the page header so
+// the operator's first look at a PSN tells them whether to land boxes on
+// a fresh pallet (PALLET), into loose receiving (LOOSE), or onto an
+// already-billed pallet (ADD_TO_PALLET). The colour ramp matches the
+// vendor-side tile so a returning operator builds the same mental model.
+// ---------------------------------------------------------------------------
+
+function ShippingModeBadge({
+  mode,
+}: {
+  mode: "LOOSE" | "PALLET" | "ADD_TO_PALLET";
+}): JSX.Element {
+  const config = {
+    LOOSE: { label: "LOOSE", className: "border-line-strong bg-cream-soft text-text" },
+    PALLET: { label: "PALLET", className: "border-line-strong bg-cream-soft text-ink" },
+    ADD_TO_PALLET: { label: "ADD-TO-PALLET", className: "border-amber bg-amber/15 text-amber" },
+  }[mode];
+  return (
+    <span
+      className={
+        "inline-flex items-center rounded-full border px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-[1.4px] " +
+        config.className
+      }
+    >
+      {config.label}
+    </span>
   );
 }
 

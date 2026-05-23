@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Layers, Package, Plus, Trash2 } from "lucide-react";
+import { AlertTriangle, Layers, Package, PackagePlus, Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Controller, useFieldArray, useForm } from "react-hook-form";
@@ -66,6 +66,10 @@ export default function NewPsnPage() {
   const form = useForm<CreatePsnInput>({
     resolver: zodResolver(createPsnSchema),
     defaultValues: {
+      // Migration 0033 — explicit shipping mode on the wire. LOOSE matches
+      // the historical implicit default for any client that didn't carry
+      // the field.
+      shippingMode: "LOOSE",
       declaredBoxCounts: { SMALL: 0, MEDIUM: 0, LARGE: 0, X_LARGE: 0, PALLET: 0 },
       lines: [],
       notes: "",
@@ -86,15 +90,21 @@ export default function NewPsnPage() {
   const declaredBoxCounts = watch("declaredBoxCounts");
 
   // ---------------------------------------------------------------------------
-  // Shipping mode — loose boxes vs palletised. Local-only state; the wire
-  // payload stays as `declaredBoxCounts` so the backend doesn't need to
-  // learn a new shape. When the vendor flips to pallet mode we keep a
-  // separate `pallets` array and aggregate it into declaredBoxCounts:
-  //   { SMALL: sum_of_small_boxes_across_pallets, …, PALLET: pallet_count }
-  // That preserves the existing fee-preview math AND lets the warehouse
-  // know how many pallets to expect at receive.
+  // Shipping mode — loose boxes, new pallet shipment, or top-up of an
+  // existing pallet. Mirrors the backend ShippingMode enum (migration 0033).
+  // Local string is uppercase to match the wire format directly; submit
+  // includes `shippingMode` on the payload alongside `declaredBoxCounts`.
+  //
+  // Aggregation:
+  //   LOOSE          — declaredBoxCounts is the source of truth, one row
+  //                    per tier from the simple per-tier input row.
+  //   PALLET         — separate `pallets` array aggregates into
+  //                    declaredBoxCounts (sum per tier + PALLET = count).
+  //   ADD_TO_PALLET  — single uniform tier + single box count, written
+  //                    straight into declaredBoxCounts[tier]. PALLET tier
+  //                    stays zero (no new pallet is being created).
   // ---------------------------------------------------------------------------
-  type ShippingMode = "loose" | "pallet";
+  type ShippingMode = "LOOSE" | "PALLET" | "ADD_TO_PALLET";
   type PalletBoxTier = "SMALL" | "MEDIUM" | "LARGE" | "X_LARGE";
   interface PalletSpec {
     id: string;
@@ -103,14 +113,20 @@ export default function NewPsnPage() {
   }
   const PALLET_BOX_TIERS: PalletBoxTier[] = ["SMALL", "MEDIUM", "LARGE", "X_LARGE"];
 
-  const [shippingMode, setShippingMode] = useState<ShippingMode>("loose");
+  const [shippingMode, setShippingMode] = useState<ShippingMode>("LOOSE");
   const [pallets, setPallets] = useState<PalletSpec[]>([]);
+
+  // ADD_TO_PALLET mode — single uniform tier + single box count. Kept in
+  // local state because the form's declaredBoxCounts is per-tier and we
+  // want the tier selector to be a radio rather than a number input row.
+  const [addToPalletTier, setAddToPalletTier] = useState<PalletBoxTier>("MEDIUM");
+  const [addToPalletBoxes, setAddToPalletBoxes] = useState<number>(0);
 
   // When pallets change OR the mode flips, push the aggregate counts back
   // into the form's declaredBoxCounts so the existing preview/submit math
   // (which reads from declaredBoxCounts) keeps working unchanged.
   useEffect(() => {
-    if (shippingMode !== "pallet") return;
+    if (shippingMode !== "PALLET") return;
     const agg: Record<StorageTier, number> = {
       SMALL: 0,
       MEDIUM: 0,
@@ -131,20 +147,44 @@ export default function NewPsnPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pallets, shippingMode]);
 
+  // ADD_TO_PALLET — aggregate the single tier + count straight into
+  // declaredBoxCounts (PALLET stays zero; the backend rejects a non-zero
+  // PALLET tier in this mode with `psn_invalid_shipping_declaration`).
+  useEffect(() => {
+    if (shippingMode !== "ADD_TO_PALLET") return;
+    const n = Math.max(0, Math.floor(Number(addToPalletBoxes) || 0));
+    const agg: Record<StorageTier, number> = {
+      SMALL: 0,
+      MEDIUM: 0,
+      LARGE: 0,
+      X_LARGE: 0,
+      PALLET: 0,
+    };
+    agg[addToPalletTier] = n;
+    setValue("declaredBoxCounts", agg, { shouldDirty: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shippingMode, addToPalletTier, addToPalletBoxes]);
+
   // When the vendor flips between modes, reset declaredBoxCounts so we
   // don't carry stale numbers across. The user gets a clean slate to
   // enter the box mix or pallet plan from scratch.
   function flipShippingMode(next: ShippingMode): void {
     if (next === shippingMode) return;
     setShippingMode(next);
+    setValue("shippingMode", next, { shouldDirty: true });
     setValue(
       "declaredBoxCounts",
       { SMALL: 0, MEDIUM: 0, LARGE: 0, X_LARGE: 0, PALLET: 0 },
       { shouldDirty: true },
     );
-    if (next === "pallet" && pallets.length === 0) {
+    if (next === "PALLET" && pallets.length === 0) {
       // Bootstrap with one empty pallet so the vendor sees the picker.
       setPallets([{ id: crypto.randomUUID(), tier: "SMALL", boxCount: 0 }]);
+    }
+    if (next === "ADD_TO_PALLET") {
+      // Reset add-to-pallet inputs on entry so the vendor doesn't carry
+      // a stale tier/count from a previous attempt.
+      setAddToPalletBoxes(0);
     }
   }
 
@@ -200,18 +240,16 @@ export default function NewPsnPage() {
   }, [pallets]);
 
   // Live preview total. Mirrors the backend's computeOnboardingFeeCents():
-  //   - Loose mode (PALLET = 0): per-box stocking + first-month storage
-  //     (the entry's `totalCents`).
-  //   - Pallet mode (PALLET > 0): per-box stocking ONLY (no first-month
-  //     storage — the pallet's $45/mo covers storage going forward), plus
-  //     the pallet's monthly-storage rate × pallet count as the pallet's
-  //     first-month line at submit.
+  //   - LOOSE:          per-box stocking + first-month storage (totalCents)
+  //   - PALLET:         per-box stocking + pallet's $45/mo first-month line
+  //   - ADD_TO_PALLET:  per-box stocking only (existing pallet's $45/mo
+  //                     covers storage; no new pallet line)
   // Falls back to null when the live schedule hasn't loaded so the UI
   // doesn't show a guessed estimate.
   const onboardingFees = feesQ.data?.onboarding;
   const previewIsLive = !!onboardingFees;
-  const palletDeclared = Number(declaredBoxCounts?.PALLET ?? 0);
-  const isPalletMode = palletDeclared > 0;
+  const isPalletMode = shippingMode === "PALLET";
+  const isAddToPalletMode = shippingMode === "ADD_TO_PALLET";
   // Pallet monthly storage rate. The /v1/fees/onboarding endpoint doesn't
   // surface monthly storage rates — we read it from FALLBACK_TIERS, which
   // mirrors prisma/seed.ts. KEEP IN SYNC if pallet pricing changes.
@@ -221,17 +259,35 @@ export default function NewPsnPage() {
         const count = Number(declaredBoxCounts?.[tier] ?? 0);
         if (count <= 0) return acc;
         if (tier === "PALLET") {
-          // Pallet's first-month storage charge at submit, only in pallet mode.
+          // Pallet's first-month storage line — only in PALLET mode.
+          // ADD_TO_PALLET never declares PALLET (the backend rejects it
+          // with `psn_invalid_shipping_declaration`); LOOSE doesn't have
+          // a pallet line. Either way we skip it.
           return isPalletMode ? acc + palletMonthlyCents * count : acc;
         }
         const entry = onboardingFees[tier];
         if (!entry || ("negotiated" in entry && entry.negotiated)) return acc;
-        // Pallet mode: stocking only (the pallet's monthly covers storage).
-        // Loose mode: full stocking + first-month per box.
-        const perBox = isPalletMode ? entry.stockingCents : entry.totalCents;
+        // PALLET / ADD_TO_PALLET: stocking only (an existing or new pallet
+        // covers storage). LOOSE: full stocking + first-month per box.
+        const perBox =
+          isPalletMode || isAddToPalletMode ? entry.stockingCents : entry.totalCents;
         return acc + perBox * count;
       }, 0)
     : null;
+  // ADD_TO_PALLET savings hint — what the vendor would have paid in LOOSE
+  // mode for the same boxes, so we can show the delta on the preview.
+  // Only meaningful in ADD_TO_PALLET mode; null otherwise.
+  const looseEquivalentCents =
+    isAddToPalletMode && onboardingFees
+      ? TIERS.reduce((acc, tier) => {
+          if (tier === "PALLET") return acc;
+          const count = Number(declaredBoxCounts?.[tier] ?? 0);
+          if (count <= 0) return acc;
+          const entry = onboardingFees[tier];
+          if (!entry || ("negotiated" in entry && entry.negotiated)) return acc;
+          return acc + entry.totalCents * count;
+        }, 0)
+      : null;
   // A non-PALLET tier is "negotiated" if the live schedule says so. PALLET
   // is no longer auto-negotiated — it has a real $45/mo rate now.
   const hasNegotiatedDeclared = TIERS.some((t) => {
@@ -368,26 +424,33 @@ export default function NewPsnPage() {
             billed at the static pallet storage rate going forward.
           </p>
 
-          <div role="radiogroup" aria-label="Shipping mode" className="grid gap-3 md:grid-cols-2">
+          <div role="radiogroup" aria-label="Shipping mode" className="grid gap-3 md:grid-cols-3">
             <ModeCard
-              active={shippingMode === "loose"}
+              active={shippingMode === "LOOSE"}
               icon={Package}
               title="Loose boxes"
               body="Individual cartons declared per tier. Receiving fees + first-month storage charged at PSN submit per box."
-              onSelect={() => flipShippingMode("loose")}
+              onSelect={() => flipShippingMode("LOOSE")}
             />
             <ModeCard
-              active={shippingMode === "pallet"}
+              active={shippingMode === "PALLET"}
               icon={Layers}
               title="Pallet shipment"
-              body="One pallet = one bulk unit. Each pallet carries a single uniform box tier (e.g. all Small or all Medium — never mixed). Per-box receiving fees apply, then $45/month per pallet from the next billing cycle."
-              onSelect={() => flipShippingMode("pallet")}
+              body="One pallet = one bulk unit. Each pallet carries a single uniform box tier (never mixed). Per-box receiving fees apply, then $45/month per pallet from the next billing cycle."
+              onSelect={() => flipShippingMode("PALLET")}
+            />
+            <ModeCard
+              active={shippingMode === "ADD_TO_PALLET"}
+              icon={PackagePlus}
+              title="Add to existing pallet"
+              body="Top up a pallet you already have at our warehouse. Pay receiving fees only — your existing pallet's $45/month covers storage. Confirm space + tier with admin before submitting."
+              onSelect={() => flipShippingMode("ADD_TO_PALLET")}
             />
           </div>
 
-          {shippingMode === "loose" ? (
+          {shippingMode === "LOOSE" ? (
             // Loose-box inputs — four tiers (PALLET stays out of this row;
-            // pallets live in the other mode).
+            // pallets live in the other modes).
             <div className="mt-6 grid gap-5 md:grid-cols-4">
               {PALLET_BOX_TIERS.map((tier) => (
                 <Field key={tier} label={tier.replace("_", "-")}>
@@ -399,6 +462,94 @@ export default function NewPsnPage() {
                   />
                 </Field>
               ))}
+            </div>
+          ) : shippingMode === "ADD_TO_PALLET" ? (
+            // ADD_TO_PALLET — single uniform tier + single box count.
+            // Yellow disclaimer card up top is the only thing standing
+            // between a vendor and a bad declaration in V1 (we don't yet
+            // have a Pallet entity to enforce capacity / tier match
+            // automatically), so it's loud on purpose.
+            <div className="mt-6 flex flex-col gap-5">
+              <div
+                role="alert"
+                className="flex gap-3 rounded-md border-l-4 border-amber bg-amber/10 px-5 py-4"
+              >
+                <AlertTriangle
+                  aria-hidden
+                  className="mt-0.5 h-5 w-5 shrink-0 text-amber"
+                />
+                <div className="text-body-sm leading-relaxed text-text">
+                  <strong className="block text-ink">
+                    Confirm with admin before submitting.
+                  </strong>
+                  <span>
+                    Open the PSN chat (or email support) to confirm{" "}
+                    <strong>how many slots are free</strong> on your existing pallet
+                    and <strong>the tier of boxes</strong> on it. Boxes you ship
+                    must match that tier exactly — mismatched tiers or extra
+                    boxes will be rejected at receive (charged as a new pallet,
+                    quarantined, or returned at your cost). Your existing
+                    pallet&apos;s ${(palletMonthlyCents / 100).toFixed(0)}/month
+                    covers storage for everything that fits.
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid gap-5 md:grid-cols-[1fr_180px]">
+                <div>
+                  <div className="mb-2 font-mono text-[10px] uppercase tracking-[1.4px] text-text-muted">
+                    Box tier (must match your existing pallet)
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    {PALLET_BOX_TIERS.map((t) => {
+                      const checked = addToPalletTier === t;
+                      return (
+                        <label
+                          key={t}
+                          className={
+                            "flex cursor-pointer flex-col gap-1 rounded-sm border px-3 py-2 text-body-sm transition-colors " +
+                            (checked
+                              ? "border-amber bg-amber/10 text-ink"
+                              : "border-line bg-white text-text hover:border-line-strong")
+                          }
+                        >
+                          <input
+                            type="radio"
+                            name="add-to-pallet-tier"
+                            value={t}
+                            checked={checked}
+                            onChange={() => setAddToPalletTier(t)}
+                            className="sr-only"
+                          />
+                          <span className="font-medium">
+                            {t.replace("_", "-")}
+                          </span>
+                          <span className="font-mono text-[10px] uppercase tracking-[1.2px] text-text-muted">
+                            up to {FALLBACK_PALLET_POLICY.maxBoxesPerPallet[t]} boxes
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <Field
+                  label="Box count"
+                  hint="Confirmed free slots only"
+                >
+                  <Input
+                    type="number"
+                    min={0}
+                    step={1}
+                    value={addToPalletBoxes}
+                    onChange={(e) =>
+                      setAddToPalletBoxes(
+                        Math.max(0, Math.floor(Number(e.target.value) || 0)),
+                      )
+                    }
+                  />
+                </Field>
+              </div>
             </div>
           ) : (
             // Pallet-builder mode. Each pallet card picks its uniform
@@ -533,9 +684,11 @@ export default function NewPsnPage() {
 
           <div className="mt-6 flex items-baseline justify-between border-t border-line pt-4">
             <span className="font-mono text-mono-label uppercase text-text-muted">
-              {shippingMode === "pallet"
-                ? "Receiving & setup (per-box) at submit"
-                : "Estimated onboarding fee"}
+              {shippingMode === "PALLET"
+                ? "Receiving & setup (per-box) + pallet at submit"
+                : shippingMode === "ADD_TO_PALLET"
+                  ? "Receiving fee (stocking only) at submit"
+                  : "Estimated onboarding fee"}
             </span>
             <span className="font-mono text-h2 tabular-nums">
               {previewIsLive && previewFeeCents !== null ? (
@@ -559,12 +712,27 @@ export default function NewPsnPage() {
               )}
             </span>
           </div>
-          {shippingMode === "pallet" && palletSummary.validPallets > 0 ? (
+          {shippingMode === "PALLET" && palletSummary.validPallets > 0 ? (
             <p className="mt-2 text-caption text-text-muted">
               Pallet mode: stocking fees apply per box on every pallet; per-box
               storage is replaced by the pallet&apos;s ${(palletMonthlyCents / 100).toFixed(0)}/month
               rate (charged for the first month at submit, then monthly on the
               1st going forward).
+            </p>
+          ) : null}
+          {isAddToPalletMode &&
+          previewFeeCents !== null &&
+          looseEquivalentCents !== null &&
+          looseEquivalentCents > previewFeeCents &&
+          addToPalletBoxes > 0 ? (
+            <p className="mt-2 text-caption text-text-muted">
+              Add-to-pallet: stocking fee only — no new pallet line, no per-box
+              first-month storage. Your existing pallet&apos;s ${(palletMonthlyCents / 100).toFixed(0)}/month
+              continues to cover storage.{" "}
+              <span className="text-success">
+                Saves ${((looseEquivalentCents - previewFeeCents) / 100).toFixed(2)}{" "}
+                vs. shipping these boxes loose.
+              </span>
             </p>
           ) : null}
           {errors.declaredBoxCounts ? (
@@ -577,7 +745,7 @@ export default function NewPsnPage() {
               uniform-tier rule is already enforced per-pallet by the UI,
               so this reminder mostly serves to surface the max-box
               counts for each tier. */}
-          {shippingMode === "pallet" && palletSummary.validPallets > 0 ? (
+          {shippingMode === "PALLET" && palletSummary.validPallets > 0 ? (
             <PalletPolicyReminder
               declared={declaredBoxCounts ?? {
                 SMALL: 0,
