@@ -235,15 +235,15 @@ export default function RecurringStoragePage(): JSX.Element {
             {formatCents(data.monthlyTotalCents)}
           </div>
           <div className="mt-1 font-mono text-[11px] uppercase tracking-[1.2px] text-text-subtle">
-            {data.activeSkuCount} active SKU{data.activeSkuCount === 1 ? "" : "s"}
+            {data.activeSkuCount} active box{data.activeSkuCount === 1 ? "" : "es"}
             {data.negotiatedTierSkuCount > 0
               ? ` · ${data.negotiatedTierSkuCount} on a custom rate`
               : ""}
           </div>
           {data.coveredAtIntakeSkuCount > 0 ? (
             <div className="mt-2 rounded-sm border-l-2 border-amber bg-amber/5 px-2 py-1.5 font-mono text-[10px] uppercase tracking-[1.2px] text-amber">
-              {data.coveredAtIntakeSkuCount} SKU
-              {data.coveredAtIntakeSkuCount === 1 ? "" : "s"} · first 30 days already covered
+              {data.coveredAtIntakeSkuCount} box
+              {data.coveredAtIntakeSkuCount === 1 ? "" : "es"} · first 30 days already covered
             </div>
           ) : null}
         </div>
@@ -435,8 +435,8 @@ export default function RecurringStoragePage(): JSX.Element {
           <DataTable className="mt-4">
             <THead>
               <Th>Box size</Th>
-              <Th align="right">Active SKUs</Th>
-              <Th align="right">Rate per SKU</Th>
+              <Th align="right">Active boxes</Th>
+              <Th align="right">Rate per box</Th>
               <Th align="right">Monthly subtotal</Th>
             </THead>
             <TBody>
@@ -480,15 +480,15 @@ export default function RecurringStoragePage(): JSX.Element {
           </span>
         </header>
         <p className="mt-1 text-body-sm text-text-muted">
-          Each shipment&apos;s monthly cost is calculated from the inventory
-          it delivered. When a restock adds to an existing SKU, the cost is
-          split between the original shipment and the restock in proportion
-          to how many units each one contributed.
+          Each shipment&apos;s monthly cost is the total rate of the physical
+          boxes it delivered. Boxes still inside their first 30-day grace
+          period are listed here at their full rate, but their cost will not
+          appear on the next charge until that period ends.
         </p>
         {data.perPsn.length === 0 ? (
           <EmptyState
             title="No shipments are contributing to storage yet"
-            description="Once we receive your first shipment and your SKUs are in stock, the per-shipment breakdown will appear here."
+            description="Once we receive your first shipment and your boxes are in our warehouse, the per-shipment breakdown will appear here."
           />
         ) : (
           <DataTable className="mt-4">
@@ -496,7 +496,7 @@ export default function RecurringStoragePage(): JSX.Element {
               <Th>PSN</Th>
               <Th>Status</Th>
               <Th>Received</Th>
-              <Th>Contributing SKUs</Th>
+              <Th>Boxes</Th>
               <Th>Starts billing</Th>
               <Th align="right">Monthly cost</Th>
               <Th align="right">{" "}</Th>
@@ -534,8 +534,8 @@ export default function RecurringStoragePage(): JSX.Element {
                     </Td>
                     <Td>
                       <div className="font-medium text-ink">
-                        {row.contributingSkuCount} SKU
-                        {row.contributingSkuCount === 1 ? "" : "s"}
+                        {row.contributingSkuCount} box
+                        {row.contributingSkuCount === 1 ? "" : "es"}
                       </div>
                       <div className="font-mono text-[11px] text-text-muted">
                         {Object.entries(row.contributingTierCounts)
