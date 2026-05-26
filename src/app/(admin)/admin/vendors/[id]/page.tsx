@@ -34,6 +34,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
+import { AdminRecurringStorage } from "@/components/admin/admin-recurring-storage";
 import { ErrorBanner } from "@/components/errors/error-banner";
 import { BackButton } from "@/components/portal/back-button";
 import { Button } from "@/components/ui/button";
@@ -645,63 +646,16 @@ export default function AdminVendorDetailPage() {
                 </section>
               ) : null}
 
-              {/* Recurring storage breakdown */}
-              <section className="rounded-md border border-line bg-white p-6">
-                <header className="flex flex-wrap items-baseline justify-between gap-3">
-                  <h2 className="text-h3 font-semibold text-ink">Recurring storage</h2>
-                  <span className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
-                    Charged on the 1st each month
-                  </span>
-                </header>
-                <p className="mt-1 text-body-sm text-text-muted">
-                  Estimate based on active SKUs by tier × current monthly storage
-                  rates. Pallet rows are negotiated and excluded from the total.
-                </p>
-                {o.recurringStorage.perTier.length === 0 ? (
-                  <p className="mt-4 font-mono text-mono-label uppercase text-text-muted">
-                    No active inventory.
-                  </p>
-                ) : (
-                  <DataTable className="mt-4">
-                    <THead>
-                      <Th>Tier</Th>
-                      <Th align="right">Active SKUs</Th>
-                      <Th align="right">Rate / SKU</Th>
-                      <Th align="right">Monthly subtotal</Th>
-                    </THead>
-                    <TBody>
-                      {o.recurringStorage.perTier.map((row) => (
-                        <TR key={row.tier}>
-                          <Td mono>{row.tier.replace("_", "-")}</Td>
-                          <Td num>{row.skuCount}</Td>
-                          <Td num>
-                            {row.rateCents != null ? formatCents(row.rateCents) : "Negotiable"}
-                          </Td>
-                          <Td num strong>
-                            {row.subtotalCents != null
-                              ? formatCents(row.subtotalCents)
-                              : "Negotiable"}
-                          </Td>
-                        </TR>
-                      ))}
-                      <TR className="bg-cream-soft">
-                        <Td mono strong>
-                          Monthly total
-                        </Td>
-                        <Td num strong>
-                          {o.inventory.activeSkus}
-                        </Td>
-                        <Td num className="text-text-muted">
-                          —
-                        </Td>
-                        <Td num strong>
-                          {formatCents(o.recurringStorage.monthlyEstimateCents)}
-                        </Td>
-                      </TR>
-                    </TBody>
-                  </DataTable>
-                )}
-              </section>
+              {/* Recurring storage — full per-box breakdown mirroring
+                  what the vendor sees on /wallet/recurring, plus the
+                  Mark empty / Remove / Restore controls on every box
+                  for staff consolidation. Sourced from
+                  /v1/admin/vendors/:id/recurring-storage and
+                  /v1/admin/vendors/:id/storage-boxes — the old
+                  SKU-based summary that lived here was removed in
+                  migration 0035 because billing now happens per box. */}
+              <AdminRecurringStorage vendorId={params.id} />
+
 
               {/* Spend breakdown by ledger type */}
               <section className="rounded-md border border-line bg-white p-6">
