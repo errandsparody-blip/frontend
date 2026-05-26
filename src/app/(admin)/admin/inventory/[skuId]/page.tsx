@@ -13,6 +13,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
@@ -127,7 +128,21 @@ export default function AdminInventoryDetailPage(): JSX.Element {
         eyebrow={`[03] Inventory / ${s.id}`}
         title={s.productName}
         description={`${s.vendorBusinessName} · ${s.productCode} · ${s.variant}`}
-        actions={<BackButton fallback="/admin/inventory" label="← Back to inventory" />}
+        actions={
+          <div className="flex items-center gap-4">
+            {/* Print label jumps straight to the Avery 5160 sheet for
+                this SKU. Same component the vendor uses, so labels
+                printed here are interchangeable with vendor-printed
+                ones on scanners. */}
+            <Link
+              href={`/admin/inventory/${encodeURIComponent(s.id)}/label`}
+              className="font-mono text-mono-label uppercase tracking-[1.2px] text-text hover:text-amber"
+            >
+              Print label →
+            </Link>
+            <BackButton fallback="/admin/inventory" label="← Back to inventory" />
+          </div>
+        }
       />
 
       {/* Product visual + stats. The image sits in its own column on the

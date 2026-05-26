@@ -275,12 +275,25 @@ export default function AdminInventoryPage(): JSX.Element {
                   </StatusPill>
                 </Td>
                 <Td align="right">
-                  <Link
-                    href={`/admin/inventory/${encodeURIComponent(s.id)}`}
-                    className="font-mono text-[11px] uppercase tracking-[1.2px] text-amber hover:text-amber-hi"
-                  >
-                    Open →
-                  </Link>
+                  {/* Two operator actions on the same row. "Open" goes
+                      to the SKU detail (counts, movements, manual
+                      adjust). "Print label" jumps straight to the
+                      Avery 5160 sheet — same component the vendor uses,
+                      so labels printed admin-side scan identically. */}
+                  <div className="flex items-center justify-end gap-3">
+                    <Link
+                      href={`/admin/inventory/${encodeURIComponent(s.id)}/label`}
+                      className="font-mono text-[11px] uppercase tracking-[1.2px] text-text-muted hover:text-ink"
+                    >
+                      Print label →
+                    </Link>
+                    <Link
+                      href={`/admin/inventory/${encodeURIComponent(s.id)}`}
+                      className="font-mono text-[11px] uppercase tracking-[1.2px] text-amber hover:text-amber-hi"
+                    >
+                      Open →
+                    </Link>
+                  </div>
                 </Td>
               </TR>
             ))}
