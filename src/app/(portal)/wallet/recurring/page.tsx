@@ -32,30 +32,42 @@ import { normalizeError } from "@/lib/errors";
 
 interface RecurringStorage {
   vendorId: string;
+  /**
+   * Steady-state cost across ALL active inventory at each item's
+   * tier rate. Answers "what does my storage cost per month overall?".
+   */
+  monthlyTotalCents: number;
+  /**
+   * The very next charge amount — the sum of rates for the items
+   * whose billing day has come due.
+   */
+  nextChargeAmountCents: number;
+  /** Back-compat alias for nextChargeAmountCents — preferred new name above. */
   monthlyEstimateCents: number;
   negotiatedTierSkuCount: number;
   activeSkuCount: number;
   /**
-   * Migration 0034 — SKUs that have stock but are skipping the upcoming
-   * cron because their first cycle was prepaid via the intake fee at
-   * PSN submit. Shown to the vendor so they understand why newly-added
-   * inventory doesn't push up the next bill.
+   * Items still inside their 30-day receiving-fee grace period. Shown
+   * to the vendor so they understand why their newest inventory does
+   * not push up the next charge.
    */
   coveredAtIntakeSkuCount: number;
   nextChargeAt: string;
   /**
-   * Migration 0034 — next ~3 monthly debits projected forward. First
-   * entry mirrors monthlyEstimateCents/nextChargeAt; later entries grow
-   * (or stay flat) as deferred SKUs join the cycle. Drives the
-   * "Upcoming charges" timeline so vendors can see, mid-month, how
-   * adding inventory pushes the bill out by one cycle without
-   * inflating the upcoming one.
+   * One group per upcoming billing date, each itemised by box size.
+   * Renders as a stack of cards: "On Jun 24, 2026 you will be charged
+   * $36 — 2× small box, 1× large box". The vendor sees exactly what
+   * is being billed and when each box first joins the schedule.
    */
   upcomingCharges: Array<{
-    chargeAt: string;
-    amountCents: number;
-    newSkuCount: number;
-    totalSkuCount: number;
+    startsBilling: string;
+    totalCents: number;
+    lines: Array<{
+      tier: string;
+      quantity: number;
+      rateCents: number | null;
+      subtotalCents: number | null;
+    }>;
   }>;
   perTier: Array<{
     tier: string;
@@ -120,6 +132,24 @@ function daysUntil(iso: string): number {
   return Math.ceil(ms / (1000 * 60 * 60 * 24));
 }
 
+/** Human-readable label for a storage tier — "small box", "pallet", etc. */
+function tierLabel(tier: string): string {
+  switch (tier) {
+    case "SMALL":
+      return "small box";
+    case "MEDIUM":
+      return "medium box";
+    case "LARGE":
+      return "large box";
+    case "X_LARGE":
+      return "extra-large box";
+    case "PALLET":
+      return "pallet";
+    default:
+      return tier.toLowerCase().replace(/_/g, " ");
+  }
+}
+
 const PSN_TONE: Record<string, "success" | "warning" | "error"> = {
   RECEIVED: "success",
   PARTIALLY_RECEIVED: "warning",
@@ -169,16 +199,21 @@ export default function RecurringStoragePage(): JSX.Element {
   const data = recurringQ.data;
   const wallet = walletQ.data;
   const daysLeft = daysUntil(data.nextChargeAt);
-  const willCover = wallet ? wallet.balanceCents >= data.monthlyEstimateCents : null;
+  // Wallet shortfall is judged against the very next charge (the
+  // amount that will actually be debited), not the steady-state
+  // monthly total. The vendor only needs enough funds for what is
+  // coming due on the next billing day.
+  const nextChargeCents = data.nextChargeAmountCents;
+  const willCover = wallet ? wallet.balanceCents >= nextChargeCents : null;
   const showWalletShortfallWarning =
-    wallet && data.monthlyEstimateCents > 0 && wallet.balanceCents < data.monthlyEstimateCents;
+    wallet && nextChargeCents > 0 && wallet.balanceCents < nextChargeCents;
 
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
         eyebrow="[05] Wallet / Recurring storage"
-        title="Monthly storage charges"
-        description="What you will be charged for storage on the 1st of each month, based on the inventory we are currently holding for you. This page updates as soon as we receive a new shipment."
+        title="Storage charges"
+        description="What you pay to keep your inventory in our warehouse. Each item is billed once every 30 days, anchored to the day it was received. Your first 30 days are already covered by the receiving fee you paid when the shipment arrived."
         actions={
           <Link
             href="/wallet"
@@ -189,14 +224,15 @@ export default function RecurringStoragePage(): JSX.Element {
         }
       />
 
-      {/* Headline summary — three cards. Estimate, next charge date, wallet vs charge. */}
+      {/* Headline summary — three cards. Steady-state monthly cost,
+          next charge, wallet balance vs that charge. */}
       <section className="grid gap-3 md:grid-cols-3">
         <div className="rounded-md border border-line bg-white p-5">
           <div className="flex items-center gap-2 font-mono text-mono-label uppercase text-text-muted">
-            <Repeat className="h-3.5 w-3.5" aria-hidden /> Next monthly charge
+            <Repeat className="h-3.5 w-3.5" aria-hidden /> Storage per month
           </div>
           <div className="mt-2 text-display-lg font-medium tabular-nums text-ink">
-            {formatCents(data.monthlyEstimateCents)}
+            {formatCents(data.monthlyTotalCents)}
           </div>
           <div className="mt-1 font-mono text-[11px] uppercase tracking-[1.2px] text-text-subtle">
             {data.activeSkuCount} active SKU{data.activeSkuCount === 1 ? "" : "s"}
@@ -204,31 +240,28 @@ export default function RecurringStoragePage(): JSX.Element {
               ? ` · ${data.negotiatedTierSkuCount} on a custom rate`
               : ""}
           </div>
-          {/* Migration 0034 — when the vendor has SKUs whose first month
-              of storage is already covered by the receiving fee, surface
-              that here so they understand the upcoming charge does NOT
-              include their just-added inventory. This is the line that
-              prevents the "$50 → $72 in 7 days" confusion when boxes
-              are added mid-month. */}
           {data.coveredAtIntakeSkuCount > 0 ? (
             <div className="mt-2 rounded-sm border-l-2 border-amber bg-amber/5 px-2 py-1.5 font-mono text-[10px] uppercase tracking-[1.2px] text-amber">
-              + {data.coveredAtIntakeSkuCount} SKU
-              {data.coveredAtIntakeSkuCount === 1 ? "" : "s"} · first month already covered
+              {data.coveredAtIntakeSkuCount} SKU
+              {data.coveredAtIntakeSkuCount === 1 ? "" : "s"} · first 30 days already covered
             </div>
           ) : null}
         </div>
 
         <div className="rounded-md border border-line bg-white p-5">
           <div className="flex items-center gap-2 font-mono text-mono-label uppercase text-text-muted">
-            <CalendarClock className="h-3.5 w-3.5" aria-hidden /> Charge date
+            <CalendarClock className="h-3.5 w-3.5" aria-hidden /> Next charge
           </div>
           <div className="mt-2 text-h1 font-medium text-ink">
-            {formatDate(data.nextChargeAt)}
+            {formatCents(data.nextChargeAmountCents)}
           </div>
           <div className="mt-1 font-mono text-[11px] uppercase tracking-[1.2px] text-text-subtle">
-            {daysLeft > 0
-              ? `${daysLeft} day${daysLeft === 1 ? "" : "s"} from now`
-              : "Today"}
+            {formatDate(data.nextChargeAt)} ·{" "}
+            {daysLeft > 1
+              ? `${daysLeft} days from now`
+              : daysLeft === 1
+              ? "tomorrow"
+              : "today"}
           </div>
         </div>
 
@@ -254,7 +287,7 @@ export default function RecurringStoragePage(): JSX.Element {
             </span>
             {wallet ? (
               <span className="font-mono text-[11px] uppercase tracking-[1.2px] text-text-muted">
-                /{formatCents(data.monthlyEstimateCents)}
+                /{formatCents(nextChargeCents)}
               </span>
             ) : null}
           </div>
@@ -277,59 +310,75 @@ export default function RecurringStoragePage(): JSX.Element {
         </div>
       </section>
 
-      {/* Upcoming charges timeline — migration 0034 surfaces the next
-          three monthly debits so vendors can see how a mid-month PSN
-          pushes the bill into a LATER cycle rather than inflating the
-          one due in a few days. This is the answer to the recurring
-          confusion "I just added boxes but my June 1 bill didn't move
-          — when does my new inventory start contributing?". */}
+      {/* Upcoming charges — one card per billing date, itemised by box
+          size. Replaces the old per-month timeline so a vendor with
+          inventory received on different days sees each cohort
+          clearly: "On Jun 24 you pay $36 for 2 small + 1 large; on
+          Jul 14 you start paying an extra $14 when the medium box
+          comes off its grace period." */}
       {data.upcomingCharges.length > 0 ? (
         <section className="rounded-md border border-line bg-white p-6">
           <header className="flex flex-wrap items-baseline justify-between gap-3">
             <h2 className="text-h3 font-semibold text-ink">Upcoming charges</h2>
             <span className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
-              Your next three monthly charges
+              What you pay, and when each box first appears
             </span>
           </header>
           <p className="mt-1 text-body-sm text-text-muted">
-            We charge for storage on the 1st of each month. The first month is
-            already covered by the receiving fee you paid at intake, so new
-            boxes you ship in don&apos;t show up on your bill until the month
-            after they arrive — that&apos;s why the amount goes up between the
-            rows below.
+            Each card below is a billing date and the boxes being charged
+            on that day. Items received recently sit in a later card because
+            their first 30 days are already covered by the receiving fee
+            you paid when the shipment arrived.
           </p>
-          <ul className="mt-4 divide-y divide-line">
-            {data.upcomingCharges.map((tick, idx) => {
-              const prior = idx > 0 ? data.upcomingCharges[idx - 1] : null;
-              const delta = prior ? tick.amountCents - prior.amountCents : 0;
-              return (
-                <li
-                  key={tick.chargeAt}
-                  className="flex flex-wrap items-baseline justify-between gap-4 py-3"
-                >
-                  <div className="flex flex-wrap items-baseline gap-3">
-                    <span className="font-medium text-ink">
-                      {formatDate(tick.chargeAt)}
-                    </span>
-                    <span className="font-mono text-[11px] uppercase tracking-[1.2px] text-text-subtle">
-                      {tick.totalSkuCount} SKU{tick.totalSkuCount === 1 ? "" : "s"}
-                      {tick.newSkuCount > 0 ? ` · ${tick.newSkuCount} joining` : ""}
-                    </span>
+          <div className="mt-4 flex flex-col gap-3">
+            {data.upcomingCharges.map((group) => (
+              <div
+                key={group.startsBilling}
+                className="rounded-md border border-line bg-cream-soft p-4"
+              >
+                <div className="flex flex-wrap items-baseline justify-between gap-3 border-b border-line pb-3">
+                  <div>
+                    <div className="font-medium text-ink">
+                      {formatDate(group.startsBilling)}
+                    </div>
+                    <div className="mt-0.5 font-mono text-[11px] uppercase tracking-[1.2px] text-text-subtle">
+                      {(() => {
+                        const days = daysUntil(group.startsBilling);
+                        if (days <= 0) return "Due today";
+                        if (days === 1) return "Due tomorrow";
+                        return `In ${days} days`;
+                      })()}
+                    </div>
                   </div>
-                  <div className="flex items-baseline gap-3">
-                    {delta > 0 ? (
-                      <span className="font-mono text-[11px] uppercase tracking-[1.2px] text-amber">
-                        +{formatCents(delta)} vs prior
+                  <span className="text-h3 font-medium tabular-nums text-ink">
+                    {formatCents(group.totalCents)}
+                  </span>
+                </div>
+                <ul className="mt-3 flex flex-col gap-2">
+                  {group.lines.map((line) => (
+                    <li
+                      key={line.tier}
+                      className="flex items-baseline justify-between gap-3 text-body-sm"
+                    >
+                      <span className="text-text">
+                        {line.quantity} × {tierLabel(line.tier)}
+                        <span className="ml-2 font-mono text-[11px] uppercase tracking-[1.2px] text-text-subtle">
+                          {line.rateCents != null
+                            ? `${formatCents(line.rateCents)} each`
+                            : "custom rate"}
+                        </span>
                       </span>
-                    ) : null}
-                    <span className="text-h3 font-medium tabular-nums text-ink">
-                      {formatCents(tick.amountCents)}
-                    </span>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+                      <span className="font-medium tabular-nums text-text">
+                        {line.subtotalCents != null
+                          ? formatCents(line.subtotalCents)
+                          : "—"}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
         </section>
       ) : null}
 
@@ -344,11 +393,11 @@ export default function RecurringStoragePage(): JSX.Element {
           </div>
           <p className="mt-1 text-body-sm text-text">
             On {formatDate(data.nextChargeAt)} we will charge{" "}
-            <strong>{formatCents(data.monthlyEstimateCents)}</strong> from your wallet,
+            <strong>{formatCents(nextChargeCents)}</strong> from your wallet,
             which currently holds <strong>{formatCents(wallet?.balanceCents ?? 0)}</strong>.
-            Please add funds before the 1st. If the charge fails, your account
-            will be marked overdue and we will pause shipping new orders until
-            the balance is settled.
+            Please add funds before then. If the charge fails, your account will
+            be marked overdue and we will pause shipping new orders until the
+            balance is settled.
           </p>
           <div className="mt-3">
             <Link
@@ -366,13 +415,16 @@ export default function RecurringStoragePage(): JSX.Element {
         <header className="flex flex-wrap items-baseline justify-between gap-3">
           <h2 className="text-h3 font-semibold text-ink">By storage tier</h2>
           <span className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
-            Breakdown by storage size
+            All active inventory by size
           </span>
         </header>
         <p className="mt-1 text-body-sm text-text-muted">
-          How your monthly charge breaks down by storage size. The Pallet tier
-          is priced per quote, so any pallet inventory is listed here but is
-          not included in the monthly total.
+          Every box we are currently holding for you, grouped by storage
+          size. The monthly total is the ongoing cost of keeping this
+          inventory in our warehouse — items still inside their first
+          30 days are included here at their full rate even though the
+          first charge is covered by the receiving fee. Pallet inventory
+          is priced per quote and is listed but not included in the total.
         </p>
         {data.perTier.length === 0 ? (
           <EmptyState
@@ -382,30 +434,28 @@ export default function RecurringStoragePage(): JSX.Element {
         ) : (
           <DataTable className="mt-4">
             <THead>
-              <Th>Tier</Th>
+              <Th>Box size</Th>
               <Th align="right">Active SKUs</Th>
-              <Th align="right">Rate / SKU</Th>
+              <Th align="right">Rate per SKU</Th>
               <Th align="right">Monthly subtotal</Th>
             </THead>
             <TBody>
               {data.perTier.map((row) => (
                 <TR key={row.tier}>
-                  <Td mono>{row.tier.replace("_", "-")}</Td>
+                  <Td>{tierLabel(row.tier)}</Td>
                   <Td num>{row.skuCount}</Td>
                   <Td num>
-                    {row.rateCents != null ? formatCents(row.rateCents) : "Negotiable"}
+                    {row.rateCents != null ? formatCents(row.rateCents) : "Custom"}
                   </Td>
                   <Td num strong>
                     {row.subtotalCents != null
                       ? formatCents(row.subtotalCents)
-                      : "Negotiable"}
+                      : "Custom"}
                   </Td>
                 </TR>
               ))}
               <TR className="bg-cream-soft">
-                <Td mono strong>
-                  Monthly total
-                </Td>
+                <Td strong>Monthly total</Td>
                 <Td num strong>
                   {data.activeSkuCount}
                 </Td>
@@ -413,7 +463,7 @@ export default function RecurringStoragePage(): JSX.Element {
                   —
                 </Td>
                 <Td num strong>
-                  {formatCents(data.monthlyEstimateCents)}
+                  {formatCents(data.monthlyTotalCents)}
                 </Td>
               </TR>
             </TBody>
