@@ -281,7 +281,7 @@ const SERVICES: ReadonlyArray<{
   {
     Icon: Package,
     tag: "For sellers",
-    title: "Fulfillment",
+    title: "Storage & Fulfillment",
     body: "Hold inventory in our U.S. warehouse. We pick, pack, and ship every order in hours — no U.S. business required.",
     cta: "Become a vendor",
     href: "/services#fulfillment",
