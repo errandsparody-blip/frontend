@@ -476,7 +476,7 @@ function LineBuilder({
           disabled={loading}
           className="h-11 rounded-sm border border-line-strong bg-white px-3 font-sans text-body text-text outline-none focus:border-ink"
         >
-          <option value="">{loading ? "Loading inventory…" : "Pick an SKU"}</option>
+          <option value="">{loading ? "Loading inventory…" : "Pick a product"}</option>
           {skus
             .filter((s) => !lines.find((l) => l.skuId === s.id))
             .map((s) => (

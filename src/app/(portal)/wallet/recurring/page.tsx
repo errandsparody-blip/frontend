@@ -178,7 +178,7 @@ export default function RecurringStoragePage(): JSX.Element {
       <PageHeader
         eyebrow="[05] Wallet / Recurring storage"
         title="Monthly storage charges"
-        description="Your storage bill on the 1st of each month, driven by the SKU buckets currently in our warehouse. Updates the moment a PSN is received."
+        description="What you will be charged for storage on the 1st of each month, based on the inventory we are currently holding for you. This page updates as soon as we receive a new shipment."
         actions={
           <Link
             href="/wallet"
@@ -201,18 +201,19 @@ export default function RecurringStoragePage(): JSX.Element {
           <div className="mt-1 font-mono text-[11px] uppercase tracking-[1.2px] text-text-subtle">
             {data.activeSkuCount} active SKU{data.activeSkuCount === 1 ? "" : "s"}
             {data.negotiatedTierSkuCount > 0
-              ? ` · ${data.negotiatedTierSkuCount} negotiated`
+              ? ` · ${data.negotiatedTierSkuCount} on a custom rate`
               : ""}
           </div>
-          {/* Migration 0034 — when the vendor has SKUs whose first cycle
-              is prepaid at intake, surface that here so they understand
-              the upcoming bill DOESN'T include their just-added boxes.
-              This is the line that prevents the "$50 → $72 due in 7
-              days" confusion when adding inventory mid-month. */}
+          {/* Migration 0034 — when the vendor has SKUs whose first month
+              of storage is already covered by the receiving fee, surface
+              that here so they understand the upcoming charge does NOT
+              include their just-added inventory. This is the line that
+              prevents the "$50 → $72 in 7 days" confusion when boxes
+              are added mid-month. */}
           {data.coveredAtIntakeSkuCount > 0 ? (
             <div className="mt-2 rounded-sm border-l-2 border-amber bg-amber/5 px-2 py-1.5 font-mono text-[10px] uppercase tracking-[1.2px] text-amber">
               + {data.coveredAtIntakeSkuCount} SKU
-              {data.coveredAtIntakeSkuCount === 1 ? "" : "s"} · first cycle paid at intake
+              {data.coveredAtIntakeSkuCount === 1 ? "" : "s"} · first month already covered
             </div>
           ) : null}
         </div>
@@ -226,8 +227,8 @@ export default function RecurringStoragePage(): JSX.Element {
           </div>
           <div className="mt-1 font-mono text-[11px] uppercase tracking-[1.2px] text-text-subtle">
             {daysLeft > 0
-              ? `${daysLeft} day${daysLeft === 1 ? "" : "s"} from now · 02:00 UTC`
-              : "Today · 02:00 UTC"}
+              ? `${daysLeft} day${daysLeft === 1 ? "" : "s"} from now`
+              : "Today"}
           </div>
         </div>
 
@@ -287,13 +288,15 @@ export default function RecurringStoragePage(): JSX.Element {
           <header className="flex flex-wrap items-baseline justify-between gap-3">
             <h2 className="text-h3 font-semibold text-ink">Upcoming charges</h2>
             <span className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
-              The next three monthly debits
+              Your next three monthly charges
             </span>
           </header>
           <p className="mt-1 text-body-sm text-text-muted">
-            Each row is a cron tick on the 1st of the month at 02:00 UTC. SKUs
-            whose first cycle was prepaid at intake join the bill on a later
-            tick — that&apos;s what produces the step-up between months below.
+            We charge for storage on the 1st of each month. The first month is
+            already covered by the receiving fee you paid at intake, so new
+            boxes you ship in don&apos;t show up on your bill until the month
+            after they arrive — that&apos;s why the amount goes up between the
+            rows below.
           </p>
           <ul className="mt-4 divide-y divide-line">
             {data.upcomingCharges.map((tick, idx) => {
@@ -337,17 +340,15 @@ export default function RecurringStoragePage(): JSX.Element {
           className="rounded-md border-l-4 border-error bg-error/10 px-5 py-4"
         >
           <div className="font-mono text-mono-label uppercase tracking-[1.4px] text-error">
-            Wallet won&apos;t cover next charge
+            Your wallet will not cover the next charge
           </div>
           <p className="mt-1 text-body-sm text-text">
-            On {formatDate(data.nextChargeAt)} we&apos;ll attempt to debit{" "}
+            On {formatDate(data.nextChargeAt)} we will charge{" "}
             <strong>{formatCents(data.monthlyEstimateCents)}</strong> from your wallet,
-            currently holding <strong>{formatCents(wallet?.balanceCents ?? 0)}</strong>.
-            Top up before the 1st to avoid your account flipping to{" "}
-            <span className="font-mono text-[11px] uppercase tracking-[1.2px]">
-              STORAGE OVERDUE
-            </span>
-            , which pauses fulfillment.
+            which currently holds <strong>{formatCents(wallet?.balanceCents ?? 0)}</strong>.
+            Please add funds before the 1st. If the charge fails, your account
+            will be marked overdue and we will pause shipping new orders until
+            the balance is settled.
           </p>
           <div className="mt-3">
             <Link
@@ -365,18 +366,18 @@ export default function RecurringStoragePage(): JSX.Element {
         <header className="flex flex-wrap items-baseline justify-between gap-3">
           <h2 className="text-h3 font-semibold text-ink">By storage tier</h2>
           <span className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
-            One row per tier × rate
+            Breakdown by storage size
           </span>
         </header>
         <p className="mt-1 text-body-sm text-text-muted">
-          Each row is a tier × the count of SKU buckets currently sitting in
-          that tier. The Pallet tier is priced per-quote — those slots are
-          shown but excluded from the monthly total.
+          How your monthly charge breaks down by storage size. The Pallet tier
+          is priced per quote, so any pallet inventory is listed here but is
+          not included in the monthly total.
         </p>
         {data.perTier.length === 0 ? (
           <EmptyState
-            title="No active inventory yet"
-            description="Once your first PSN is received, the storage estimate appears here. Submit a Pre-Shipment Notice to get started."
+            title="No inventory yet"
+            description="Once we receive your first shipment, your storage estimate will appear here. Submit a Pre-Shipment Notice to get started."
           />
         ) : (
           <DataTable className="mt-4">
@@ -425,18 +426,19 @@ export default function RecurringStoragePage(): JSX.Element {
         <header className="flex flex-wrap items-baseline justify-between gap-3">
           <h2 className="text-h3 font-semibold text-ink">By Pre-Shipment Notice</h2>
           <span className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
-            What each PSN is costing you per month
+            What each shipment costs per month
           </span>
         </header>
         <p className="mt-1 text-body-sm text-text-muted">
-          We attribute each PSN&apos;s monthly cost based on the inventory it
-          brought into the warehouse. When restocks land in the same SKU
-          bucket, the cost splits proportionally by accepted quantity.
+          Each shipment&apos;s monthly cost is calculated from the inventory
+          it delivered. When a restock adds to an existing SKU, the cost is
+          split between the original shipment and the restock in proportion
+          to how many units each one contributed.
         </p>
         {data.perPsn.length === 0 ? (
           <EmptyState
-            title="No PSNs are contributing storage yet"
-            description="As soon as a PSN is received and its SKUs have stock, the per-PSN cost appears here."
+            title="No shipments are contributing to storage yet"
+            description="Once we receive your first shipment and your SKUs are in stock, the per-shipment breakdown will appear here."
           />
         ) : (
           <DataTable className="mt-4">
@@ -445,7 +447,7 @@ export default function RecurringStoragePage(): JSX.Element {
               <Th>Status</Th>
               <Th>Received</Th>
               <Th>Contributing SKUs</Th>
-              <Th>First bills</Th>
+              <Th>Starts billing</Th>
               <Th align="right">Monthly cost</Th>
               <Th align="right">{" "}</Th>
             </THead>
@@ -502,7 +504,7 @@ export default function RecurringStoragePage(): JSX.Element {
                       </div>
                       {isDeferred ? (
                         <div className="mt-0.5 font-mono text-[10px] uppercase tracking-[1.2px] text-amber">
-                          first cycle paid at intake
+                          first month already covered
                         </div>
                       ) : null}
                     </Td>
@@ -540,12 +542,12 @@ export default function RecurringStoragePage(): JSX.Element {
           </Link>
         </header>
         <p className="mt-1 text-body-sm text-text-muted">
-          The latest twelve monthly storage debits from your ledger. Use the
-          statements page for itemized PDFs.
+          Your last twelve monthly storage charges. For a full breakdown of
+          every transaction, see your statements.
         </p>
         {data.history.length === 0 ? (
           <p className="mt-4 font-mono text-mono-label uppercase text-text-muted">
-            No storage charges yet — your first will land on the 1st of next month.
+            No storage charges yet — your first will be on the 1st of next month.
           </p>
         ) : (
           <DataTable className="mt-4">
@@ -577,12 +579,12 @@ export default function RecurringStoragePage(): JSX.Element {
 
       {/* Footer note */}
       <p className="text-caption text-text-muted">
-        Estimates use the live monthly storage rates from{" "}
+        Estimates use the current monthly storage rates published on the{" "}
         <Link href="/pricing" className="underline-offset-4 hover:underline">
-          pricing
+          pricing page
         </Link>
-        . The actual debit on the 1st is computed at billing time, so a PSN
-        received between now and then will be included.
+        . The actual charge is calculated on the 1st, so any shipment we
+        receive before then will be included.
       </p>
     </div>
   );
