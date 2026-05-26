@@ -43,6 +43,20 @@ interface RecurringStorage {
    */
   coveredAtIntakeSkuCount: number;
   nextChargeAt: string;
+  /**
+   * Migration 0034 — next ~3 monthly debits projected forward. First
+   * entry mirrors monthlyEstimateCents/nextChargeAt; later entries grow
+   * (or stay flat) as deferred SKUs join the cycle. Drives the
+   * "Upcoming charges" timeline so vendors can see, mid-month, how
+   * adding inventory pushes the bill out by one cycle without
+   * inflating the upcoming one.
+   */
+  upcomingCharges: Array<{
+    chargeAt: string;
+    amountCents: number;
+    newSkuCount: number;
+    totalSkuCount: number;
+  }>;
   perTier: Array<{
     tier: string;
     skuCount: number;
@@ -59,6 +73,8 @@ interface RecurringStorage {
     contributingSkuCount: number;
     contributingTierCounts: Record<string, number>;
     monthlyEstimateCents: number;
+    /** Earliest nextBillingDate among this PSN's SKUs — "this PSN starts billing on". */
+    firstBillingDate: string | null;
   }>;
   history: Array<{
     id: string;
@@ -260,6 +276,60 @@ export default function RecurringStoragePage(): JSX.Element {
         </div>
       </section>
 
+      {/* Upcoming charges timeline — migration 0034 surfaces the next
+          three monthly debits so vendors can see how a mid-month PSN
+          pushes the bill into a LATER cycle rather than inflating the
+          one due in a few days. This is the answer to the recurring
+          confusion "I just added boxes but my June 1 bill didn't move
+          — when does my new inventory start contributing?". */}
+      {data.upcomingCharges.length > 0 ? (
+        <section className="rounded-md border border-line bg-white p-6">
+          <header className="flex flex-wrap items-baseline justify-between gap-3">
+            <h2 className="text-h3 font-semibold text-ink">Upcoming charges</h2>
+            <span className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
+              The next three monthly debits
+            </span>
+          </header>
+          <p className="mt-1 text-body-sm text-text-muted">
+            Each row is a cron tick on the 1st of the month at 02:00 UTC. SKUs
+            whose first cycle was prepaid at intake join the bill on a later
+            tick — that&apos;s what produces the step-up between months below.
+          </p>
+          <ul className="mt-4 divide-y divide-line">
+            {data.upcomingCharges.map((tick, idx) => {
+              const prior = idx > 0 ? data.upcomingCharges[idx - 1] : null;
+              const delta = prior ? tick.amountCents - prior.amountCents : 0;
+              return (
+                <li
+                  key={tick.chargeAt}
+                  className="flex flex-wrap items-baseline justify-between gap-4 py-3"
+                >
+                  <div className="flex flex-wrap items-baseline gap-3">
+                    <span className="font-medium text-ink">
+                      {formatDate(tick.chargeAt)}
+                    </span>
+                    <span className="font-mono text-[11px] uppercase tracking-[1.2px] text-text-subtle">
+                      {tick.totalSkuCount} SKU{tick.totalSkuCount === 1 ? "" : "s"}
+                      {tick.newSkuCount > 0 ? ` · ${tick.newSkuCount} joining` : ""}
+                    </span>
+                  </div>
+                  <div className="flex items-baseline gap-3">
+                    {delta > 0 ? (
+                      <span className="font-mono text-[11px] uppercase tracking-[1.2px] text-amber">
+                        +{formatCents(delta)} vs prior
+                      </span>
+                    ) : null}
+                    <span className="text-h3 font-medium tabular-nums text-ink">
+                      {formatCents(tick.amountCents)}
+                    </span>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ) : null}
+
       {/* Wallet shortfall banner — prominent so it can't be missed. */}
       {showWalletShortfallWarning ? (
         <div
@@ -375,6 +445,7 @@ export default function RecurringStoragePage(): JSX.Element {
               <Th>Status</Th>
               <Th>Received</Th>
               <Th>Contributing SKUs</Th>
+              <Th>First bills</Th>
               <Th align="right">Monthly cost</Th>
               <Th align="right">{" "}</Th>
             </THead>
@@ -385,6 +456,17 @@ export default function RecurringStoragePage(): JSX.Element {
                   totalMonthly > 0
                     ? Math.round((row.monthlyEstimateCents / totalMonthly) * 100)
                     : 0;
+                // Whether this PSN's first cron-bill has already passed
+                // (i.e. it's currently contributing to the upcoming
+                // charge) vs sits in the future (deferred, intake-prepaid
+                // first cycle). The amber tint surfaces the deferred ones
+                // so vendors can spot "yes, this PSN is loaded but not on
+                // my next bill yet".
+                const firstBills = row.firstBillingDate
+                  ? new Date(row.firstBillingDate)
+                  : null;
+                const nextCharge = new Date(data.nextChargeAt);
+                const isDeferred = firstBills !== null && firstBills > nextCharge;
                 return (
                   <TR key={row.psnId}>
                     <Td mono strong>
@@ -408,6 +490,21 @@ export default function RecurringStoragePage(): JSX.Element {
                           .map(([t, n]) => `${t.replace("_", "-")}×${n}`)
                           .join(" · ") || "—"}
                       </div>
+                    </Td>
+                    <Td>
+                      <div
+                        className={
+                          "font-mono text-body-sm " +
+                          (isDeferred ? "text-amber" : "text-text")
+                        }
+                      >
+                        {formatDate(row.firstBillingDate)}
+                      </div>
+                      {isDeferred ? (
+                        <div className="mt-0.5 font-mono text-[10px] uppercase tracking-[1.2px] text-amber">
+                          first cycle paid at intake
+                        </div>
+                      ) : null}
                     </Td>
                     <Td num strong>
                       {formatCents(row.monthlyEstimateCents)}
