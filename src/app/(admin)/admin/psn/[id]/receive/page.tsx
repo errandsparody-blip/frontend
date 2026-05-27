@@ -14,12 +14,6 @@ import { StatusPill } from "@/components/ui/status-pill";
 import { DataTable, TBody, THead, Th, TR, Td } from "@/components/ui/table";
 import { api } from "@/lib/api-client";
 import { normalizeError, useApiErrorHandler } from "@/lib/errors";
-import {
-  FALLBACK_TIERS,
-  formatDimensionsLabel,
-  type StorageTierKey,
-  type StorageTiersResponse,
-} from "@/lib/storage-tiers";
 
 interface AdminPsn {
   id: string;
@@ -111,19 +105,6 @@ export default function ReceivePsnPage() {
     queryFn: () => api.get<AdminPsn>(`/admin/psns/${params.id}`),
     enabled: !!params.id,
   });
-
-  // Live tier-size data. Same endpoint the vendor PSN pricing card pulls
-  // from — we render the configured dimensions for each declared tier
-  // so the operator can verify the box at receive without leaving the
-  // page. Falls back to seed defaults if the API errors.
-  const tiersQ = useQuery({
-    queryKey: ["fees", "storage-tiers"],
-    queryFn: () => api.get<StorageTiersResponse>("/fees/storage-tiers"),
-    staleTime: 5 * 60_000,
-    refetchOnWindowFocus: false,
-    retry: 1,
-  });
-  const tiers = tiersQ.data ?? FALLBACK_TIERS;
 
   const [rows, setRows] = useState<Record<string, ReceivingState>>({});
 
@@ -358,11 +339,16 @@ export default function ReceivePsnPage() {
       <DataTable>
         <THead>
           <Th>Product</Th>
-          {/* Migration 0024 — declared tier + its physical dimensions,
-              sourced live from /v1/fees/storage-tiers. Operators can
-              eyeball whether the box on the dock matches the tier the
-              vendor claimed. */}
-          <Th>Tier size</Th>
+          {/* This column shows the PRODUCT's stored tier (the tier
+              admin chose when the product was created or last
+              corrected via the admin product edit page). It is NOT
+              the size of the box being shipped on this PSN — that
+              Renders the vendor-declared box manifest for this
+              shipment — the same chips on every row because the
+              manifest is per PSN, not per product line. This is the
+              column operators actually need at the dock: "what
+              boxes should be on the floor right now?". */}
+          <Th>Boxes shipped</Th>
           <Th align="right">Declared</Th>
           <Th align="right">Already received</Th>
           <Th align="right">Accept</Th>
@@ -386,8 +372,6 @@ export default function ReceivePsnPage() {
             // here so both the Accept cell and any future reference
             // (e.g. labels) read off the same value.
             const accepted = deriveAccepted(l);
-            const tierKey = l.product?.storageTier as StorageTierKey | undefined;
-            const dims = tierKey ? tiers.dimensions?.[tierKey] : undefined;
             return (
               <TR key={l.id} className={overReceive ? "bg-error/5" : ""}>
                 <Td>
@@ -441,18 +425,10 @@ export default function ReceivePsnPage() {
                   )}
                 </Td>
                 <Td>
-                  {tierKey ? (
-                    <div>
-                      <div className="font-mono text-mono-label uppercase tracking-[1.2px] text-text">
-                        {tierKey.replace("_", "-")}
-                      </div>
-                      <div className="font-mono text-[11px] text-text-muted">
-                        {formatDimensionsLabel(dims)}
-                      </div>
-                    </div>
-                  ) : (
-                    <span className="font-mono text-[11px] text-text-muted">—</span>
-                  )}
+                  {/* Vendor-declared box manifest for THIS shipment.
+                      Same chips on every row because the manifest is
+                      a PSN-level value, not per product. */}
+                  <BoxChips counts={psn.declaredBoxCounts} />
                 </Td>
                 <Td num>{l.declaredQty}</Td>
                 <Td num className="text-text-muted">{l.receivedQty}</Td>
@@ -768,29 +744,58 @@ export default function ReceivePsnPage() {
 // box tier with the vendor-declared count, plus a total in the header.
 // ---------------------------------------------------------------------------
 
-function DeclaredBoxesPanel({ counts }: { counts: Record<string, number> }): JSX.Element {
-  // Stable tier order so the chips read smallest → largest left-to-right.
-  const ORDER = ["SMALL", "MEDIUM", "LARGE", "X_LARGE", "PALLET"] as const;
-  const entries = ORDER.map((tier) => ({ tier, count: Number(counts?.[tier] ?? 0) })).filter(
-    (e) => e.count > 0,
+// Stable tier order so chips read smallest → largest left-to-right.
+const BOX_TIER_ORDER = ["SMALL", "MEDIUM", "LARGE", "X_LARGE", "PALLET"] as const;
+
+function boxTierLabel(tier: string): string {
+  switch (tier) {
+    case "SMALL":
+      return "Small box";
+    case "MEDIUM":
+      return "Medium box";
+    case "LARGE":
+      return "Large box";
+    case "X_LARGE":
+      return "Extra-large box";
+    case "PALLET":
+      return "Pallet";
+    default:
+      return tier;
+  }
+}
+
+function readBoxEntries(
+  counts: Record<string, number>,
+): Array<{ tier: string; count: number }> {
+  return BOX_TIER_ORDER.map((tier) => ({
+    tier,
+    count: Number(counts?.[tier] ?? 0),
+  })).filter((e) => e.count > 0);
+}
+
+function BoxChips({ counts }: { counts: Record<string, number> }): JSX.Element {
+  const entries = readBoxEntries(counts);
+  if (entries.length === 0) {
+    return <span className="font-mono text-[11px] text-text-muted">—</span>;
+  }
+  return (
+    <ul className="flex flex-wrap gap-1.5">
+      {entries.map((e) => (
+        <li
+          key={e.tier}
+          className="inline-flex items-baseline gap-1.5 rounded-sm border border-line-strong bg-cream-soft px-2 py-1 font-mono text-[11px]"
+        >
+          <span className="text-text">{boxTierLabel(e.tier)}</span>
+          <span className="font-semibold tabular-nums text-ink">×{e.count}</span>
+        </li>
+      ))}
+    </ul>
   );
+}
+
+function DeclaredBoxesPanel({ counts }: { counts: Record<string, number> }): JSX.Element {
+  const entries = readBoxEntries(counts);
   const total = entries.reduce((acc, e) => acc + e.count, 0);
-  const labelFor = (tier: string): string => {
-    switch (tier) {
-      case "SMALL":
-        return "Small box";
-      case "MEDIUM":
-        return "Medium box";
-      case "LARGE":
-        return "Large box";
-      case "X_LARGE":
-        return "Extra-large box";
-      case "PALLET":
-        return "Pallet";
-      default:
-        return tier;
-    }
-  };
   return (
     <section className="rounded-md border border-line bg-white p-5">
       <header className="flex flex-wrap items-baseline justify-between gap-3">
@@ -817,7 +822,7 @@ function DeclaredBoxesPanel({ counts }: { counts: Record<string, number> }): JSX
               key={e.tier}
               className="inline-flex items-baseline gap-2 rounded-sm border border-line-strong bg-cream-soft px-3 py-1.5 font-mono text-body-sm"
             >
-              <span className="text-text">{labelFor(e.tier)}</span>
+              <span className="text-text">{boxTierLabel(e.tier)}</span>
               <span className="font-semibold tabular-nums text-ink">×{e.count}</span>
             </li>
           ))}
