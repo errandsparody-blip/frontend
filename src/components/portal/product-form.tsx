@@ -570,6 +570,36 @@ export function ProductForm({
               {...register("heightIn")}
             />
           </Field>
+          {/* Storage tier selector — drives storage billing AND the
+              size displayed on the admin receiving page. Without this
+              field rendered, every product silently saved as SMALL,
+              so the receive screen showed every line as SMALL
+              regardless of what the vendor actually shipped. The
+              picker offers all five tiers; the amber hint below
+              surfaces the suggestion derived from the dimensions /
+              weight above so the vendor sees when their pick is too
+              small for the box they typed. */}
+          <Field
+            label="Storage tier"
+            hint={
+              suggestedTier && suggestedTier !== storageTier
+                ? `Based on the dimensions and weight above, this looks like ${suggestedTier.replace("_", "-")}. The admin will re-tier on receive if it's too small.`
+                : "Pick the smallest tier your packed box fits into. We'll bill storage at this tier's monthly rate."
+            }
+            error={errors.storageTier?.message}
+          >
+            <select
+              {...register("storageTier")}
+              disabled={locked}
+              className="h-11 w-full rounded-sm border border-line-strong bg-white px-3 text-body text-text outline-none focus:border-ink focus:ring-2 focus:ring-ink/10 disabled:cursor-not-allowed disabled:bg-cream-soft"
+            >
+              <option value="SMALL">Small box</option>
+              <option value="MEDIUM">Medium box</option>
+              <option value="LARGE">Large box</option>
+              <option value="X_LARGE">Extra-large box</option>
+              <option value="PALLET">Pallet</option>
+            </select>
+          </Field>
         </div>
       </section>
 

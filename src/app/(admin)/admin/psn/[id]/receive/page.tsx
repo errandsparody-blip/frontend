@@ -38,6 +38,11 @@ interface AdminPsn {
   // ADD_TO_PALLET PSNs to the right physical pallet (boxes get placed on
   // the vendor's existing pallet, not landed loose).
   shippingMode: "LOOSE" | "PALLET" | "ADD_TO_PALLET";
+  // Vendor-declared box counts per tier — { SMALL: 3, MEDIUM: 1, ... }.
+  // Used to render the box-summary block above the receiving table so
+  // operators can eyeball the dock against the declaration before they
+  // start counting line items.
+  declaredBoxCounts: Record<string, number>;
   carrier: string | null;
   masterTracking: string | null;
   submittedAt: string | null;
@@ -340,6 +345,14 @@ export default function ReceivePsnPage() {
       ) : null}
 
       <ErrorBanner error={bannerError} onAction={onAction} />
+
+      {/* Vendor-declared box manifest — the answer to "how many boxes
+          and what sizes did they ship?". Sourced from PSN.declaredBoxCounts
+          which the vendor filled in at PSN creation. The total count and
+          per-tier breakdown are surfaced so the dock operator can match
+          the declaration against what's physically on the floor before
+          they start receiving line items. */}
+      <DeclaredBoxesPanel counts={psn.declaredBoxCounts} />
 
       {/* Per-line entry table */}
       <DataTable>
@@ -749,12 +762,70 @@ export default function ReceivePsnPage() {
 }
 
 // ---------------------------------------------------------------------------
-// Shipping-mode badge — sits next to the status pill in the page header so
-// the operator's first look at a PSN tells them whether to land boxes on
-// a fresh pallet (PALLET), into loose receiving (LOOSE), or onto an
-// already-billed pallet (ADD_TO_PALLET). The colour ramp matches the
-// vendor-side tile so a returning operator builds the same mental model.
+// Declared boxes panel — sits above the line-entry table so the dock
+// operator can confirm the manifest matches what's physically on the
+// floor before they start counting line items. Renders one chip per
+// box tier with the vendor-declared count, plus a total in the header.
 // ---------------------------------------------------------------------------
+
+function DeclaredBoxesPanel({ counts }: { counts: Record<string, number> }): JSX.Element {
+  // Stable tier order so the chips read smallest → largest left-to-right.
+  const ORDER = ["SMALL", "MEDIUM", "LARGE", "X_LARGE", "PALLET"] as const;
+  const entries = ORDER.map((tier) => ({ tier, count: Number(counts?.[tier] ?? 0) })).filter(
+    (e) => e.count > 0,
+  );
+  const total = entries.reduce((acc, e) => acc + e.count, 0);
+  const labelFor = (tier: string): string => {
+    switch (tier) {
+      case "SMALL":
+        return "Small box";
+      case "MEDIUM":
+        return "Medium box";
+      case "LARGE":
+        return "Large box";
+      case "X_LARGE":
+        return "Extra-large box";
+      case "PALLET":
+        return "Pallet";
+      default:
+        return tier;
+    }
+  };
+  return (
+    <section className="rounded-md border border-line bg-white p-5">
+      <header className="flex flex-wrap items-baseline justify-between gap-3">
+        <div>
+          <div className="font-mono text-mono-label uppercase tracking-[1.4px] text-text-muted">
+            Vendor declared
+          </div>
+          <h2 className="mt-0.5 text-h3 font-semibold text-ink">
+            {total} box{total === 1 ? "" : "es"} on this shipment
+          </h2>
+        </div>
+        <span className="font-mono text-[11px] uppercase tracking-[1.2px] text-text-subtle">
+          Match the manifest against the dock before receiving
+        </span>
+      </header>
+      {entries.length === 0 ? (
+        <p className="mt-3 text-body-sm text-text-muted">
+          The vendor did not declare any boxes for this shipment.
+        </p>
+      ) : (
+        <ul className="mt-4 flex flex-wrap gap-2">
+          {entries.map((e) => (
+            <li
+              key={e.tier}
+              className="inline-flex items-baseline gap-2 rounded-sm border border-line-strong bg-cream-soft px-3 py-1.5 font-mono text-body-sm"
+            >
+              <span className="text-text">{labelFor(e.tier)}</span>
+              <span className="font-semibold tabular-nums text-ink">×{e.count}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
 
 function ShippingModeBadge({
   mode,
