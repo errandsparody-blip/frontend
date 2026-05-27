@@ -74,7 +74,7 @@ export default function AdminConfigEditPage() {
 
   function onAction(handler: NonNullable<NonNullable<typeof bannerError>["entry"]["action"]>["handler"]) {
     if (handler === "retry") void save.mutate();
-    else if (handler === "support") window.location.href = "mailto:support@myusaerrands.com";
+    else if (handler === "support") window.location.href = "mailto:hello@myusaerrands.com";
   }
 
   function tryParse(): void {

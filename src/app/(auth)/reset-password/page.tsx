@@ -134,7 +134,7 @@ function ResetPasswordInner() {
         <ErrorBanner
           error={bannerError}
           onAction={(handler) => {
-            if (handler === "support") window.location.href = "mailto:support@myusaerrands.com";
+            if (handler === "support") window.location.href = "mailto:hello@myusaerrands.com";
           }}
         />
 

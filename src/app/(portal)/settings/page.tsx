@@ -187,7 +187,7 @@ export default function SettingsPage() {
   });
 
   function onSupport() {
-    window.location.href = "mailto:support@myusaerrands.com";
+    window.location.href = "mailto:hello@myusaerrands.com";
   }
 
   return (

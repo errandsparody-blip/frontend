@@ -312,7 +312,7 @@ export default function VendorReturnDetailPage(): JSX.Element {
                 error={bannerError}
                 onAction={(handler) => {
                   if (handler === "retry") void cancelMut.mutate();
-                  else if (handler === "support") window.location.href = "mailto:support@myusaerrands.com";
+                  else if (handler === "support") window.location.href = "mailto:hello@myusaerrands.com";
                 }}
               />
               <div className="flex justify-end gap-3">

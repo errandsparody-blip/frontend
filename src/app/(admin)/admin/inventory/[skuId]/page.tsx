@@ -130,6 +130,17 @@ export default function AdminInventoryDetailPage(): JSX.Element {
         description={`${s.vendorBusinessName} · ${s.productCode} · ${s.variant}`}
         actions={
           <div className="flex items-center gap-4">
+            {/* Edit product details — admin override of the vendor's
+                declared weight / dimensions / customs values. The
+                vendor cannot edit these themselves; the warehouse
+                weighs and measures at intake and we correct the
+                record here so shipping quotes stay accurate. */}
+            <Link
+              href={`/admin/products/${encodeURIComponent(s.productId)}`}
+              className="font-mono text-mono-label uppercase tracking-[1.2px] text-text hover:text-amber"
+            >
+              Edit product →
+            </Link>
             {/* Print label jumps straight to the Avery 5160 sheet for
                 this SKU. Same component the vendor uses, so labels
                 printed here are interchangeable with vendor-printed
@@ -341,7 +352,7 @@ function AdjustForm({ sku }: { sku: AdminSku }): JSX.Element {
   });
 
   function onAction(handler: NonNullable<NonNullable<typeof bannerError>["entry"]["action"]>["handler"]) {
-    if (handler === "support") window.location.href = "mailto:support@myusaerrands.com";
+    if (handler === "support") window.location.href = "mailto:hello@myusaerrands.com";
   }
 
   const delta = Number(watch("delta") ?? 0);

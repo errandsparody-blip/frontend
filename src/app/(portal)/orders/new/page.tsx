@@ -198,7 +198,7 @@ export default function NewOrderPage() {
       if (step === "rates" || step === "address") void quoteMut.mutate();
       else if (step === "review") void submitMut.mutate();
     } else if (handler === "support") {
-      window.location.href = "mailto:support@myusaerrands.com";
+      window.location.href = "mailto:hello@myusaerrands.com";
     } else if (handler === "topUp") {
       // `insufficient_funds` from order submit — route the user to the
       // funding page so the "Add funds" button does what it says.

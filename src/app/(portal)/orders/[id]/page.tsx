@@ -120,7 +120,7 @@ export default function OrderDetailPage() {
 
   function onAction(handler: NonNullable<NonNullable<typeof bannerError>["entry"]["action"]>["handler"]) {
     if (handler === "retry") void cancelMut.mutate();
-    else if (handler === "support") window.location.href = "mailto:support@myusaerrands.com";
+    else if (handler === "support") window.location.href = "mailto:hello@myusaerrands.com";
   }
 
   if (orderQ.isLoading) {
@@ -414,7 +414,7 @@ export default function OrderDetailPage() {
                 error={bannerError}
                 onAction={(handler) => {
                   if (handler === "support") {
-                    window.location.href = "mailto:support@myusaerrands.com";
+                    window.location.href = "mailto:hello@myusaerrands.com";
                   }
                 }}
               />

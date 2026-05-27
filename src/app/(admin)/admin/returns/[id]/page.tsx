@@ -271,7 +271,7 @@ export default function AdminReturnDetailPage(): JSX.Element {
             else if (canInspect)
               void inspectMut.mutate(buildInspectPayload(r, inspectLines, refundDollars, restockFeeDollars, inspectorNotes));
           } else if (handler === "support") {
-            window.location.href = "mailto:support@myusaerrands.com";
+            window.location.href = "mailto:hello@myusaerrands.com";
           }
         }}
       />

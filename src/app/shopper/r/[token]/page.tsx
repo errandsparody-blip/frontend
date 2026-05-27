@@ -377,7 +377,7 @@ function ThreadView({
             <ErrorBanner
               error={bannerError}
               onAction={(handler) => {
-                if (handler === "support") window.location.href = "mailto:support@myusaerrands.com";
+                if (handler === "support") window.location.href = "mailto:hello@myusaerrands.com";
                 else if (handler === "retry") clear();
               }}
             />
@@ -723,7 +723,7 @@ function IdVerificationCard({
               <ErrorBanner
                 error={bannerError}
                 onAction={(handler) => {
-                  if (handler === "support") window.location.href = "mailto:support@myusaerrands.com";
+                  if (handler === "support") window.location.href = "mailto:hello@myusaerrands.com";
                   else if (handler === "retry") clear();
                 }}
               />
@@ -868,8 +868,8 @@ function WirePaymentCard({
       ) : (
         <div className="mb-4 rounded-sm border-l-4 border-error bg-error/10 px-4 py-3 text-body-sm">
           Bank-transfer details aren&apos;t available yet — please email
-          <a className="ml-1 underline" href="mailto:support@myusaerrands.com">
-            support@myusaerrands.com
+          <a className="ml-1 underline" href="mailto:hello@myusaerrands.com">
+            hello@myusaerrands.com
           </a>
           {" "}and we&apos;ll send them right over.
         </div>
@@ -888,7 +888,7 @@ function WirePaymentCard({
               <ErrorBanner
                 error={bannerError}
                 onAction={(handler) => {
-                  if (handler === "support") window.location.href = "mailto:support@myusaerrands.com";
+                  if (handler === "support") window.location.href = "mailto:hello@myusaerrands.com";
                   else if (handler === "retry") clear();
                 }}
               />

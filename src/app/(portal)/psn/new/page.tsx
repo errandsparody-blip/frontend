@@ -318,7 +318,7 @@ export default function NewPsnPage() {
   }
 
   function onAction(handler: NonNullable<NonNullable<typeof bannerError>["entry"]["action"]>["handler"]) {
-    if (handler === "support") window.location.href = "mailto:support@myusaerrands.com";
+    if (handler === "support") window.location.href = "mailto:hello@myusaerrands.com";
   }
 
   if (productsQ.isLoading) {

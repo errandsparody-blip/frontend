@@ -72,7 +72,7 @@ export default function FundWalletPage() {
 
   function onAction(handler: NonNullable<NonNullable<typeof bannerError>["entry"]["action"]>["handler"]) {
     if (handler === "retry") void createIntent();
-    else if (handler === "support") window.location.href = "mailto:support@myusaerrands.com";
+    else if (handler === "support") window.location.href = "mailto:hello@myusaerrands.com";
   }
 
   async function onSuccess(): Promise<void> {

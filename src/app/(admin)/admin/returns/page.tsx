@@ -110,7 +110,7 @@ export default function AdminReturnsPage(): JSX.Element {
           error={normalized}
           onAction={(handler) => {
             if (handler === "retry") void refetch();
-            else if (handler === "support") window.location.href = "mailto:support@myusaerrands.com";
+            else if (handler === "support") window.location.href = "mailto:hello@myusaerrands.com";
           }}
         />
       ) : !data || data.items.length === 0 ? (

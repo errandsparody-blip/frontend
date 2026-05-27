@@ -105,7 +105,7 @@ export default function PsnDetailPage() {
   });
 
   function onAction(handler: NonNullable<NonNullable<typeof bannerError>["entry"]["action"]>["handler"]) {
-    if (handler === "support") window.location.href = "mailto:support@myusaerrands.com";
+    if (handler === "support") window.location.href = "mailto:hello@myusaerrands.com";
     else if (handler === "topUp") router.push("/wallet/fund");
   }
 
@@ -203,7 +203,7 @@ export default function PsnDetailPage() {
           <div className="font-mono text-mono-label uppercase text-error">PSN rejected</div>
           <p className="mt-1 text-body-sm text-text">
             The warehouse refused this PSN. Onboarding fee remains debited; reply to
-            support@myusaerrands.com if you believe this is in error.
+            hello@myusaerrands.com if you believe this is in error.
           </p>
         </div>
       ) : null}

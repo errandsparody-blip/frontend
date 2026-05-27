@@ -1,4 +1,4 @@
-import { Mail, MapPin, Phone } from "lucide-react";
+import { Mail, Phone } from "lucide-react";
 
 import { FadeUp } from "@/components/marketing/fade-up";
 
@@ -110,16 +110,7 @@ const DETAILS: ReadonlyArray<{
   },
   {
     Icon: Phone,
-    title: "Phone (admin office)",
-    lines: ["+1 (305) 555-0185", "Mon – Fri · 09:00 – 18:00 ET"],
-  },
-  {
-    Icon: MapPin,
-    title: "Warehouse + admin office",
-    lines: [
-      "USA Errands Fulfillment",
-      "1500 NW 70th Ave, Suite 200",
-      "Miami, FL 33126 · United States",
-    ],
+    title: "Phone",
+    lines: ["+1 (737) 328-6316", "Mon – Fri · 09:00 – 18:00 ET"],
   },
 ];
