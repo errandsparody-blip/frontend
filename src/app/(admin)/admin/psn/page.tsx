@@ -107,7 +107,7 @@ export default function AdminPsnQueuePage(): JSX.Element {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        eyebrow="[02] Receiving"
+        eyebrow="Receiving"
         title={isHistory ? "Received PSN history" : "Inbound queue"}
         description={
           isHistory

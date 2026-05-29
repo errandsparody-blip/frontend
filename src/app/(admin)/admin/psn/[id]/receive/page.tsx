@@ -80,7 +80,7 @@ const HOLD_REASON_OPTIONS: ReadonlyArray<{ code: string; label: string }> = [
   { code: "OTHER", label: "Other — explain below" },
 ];
 
-type DialogKind = null | "hold" | "reject" | "returnRequest";
+type DialogKind = null | "hold" | "reject" | "returnRequest" | "resolveDiscrepancy";
 
 // Migration 0024 — Accept is no longer typed by the operator. They
 // enter Missing + Damaged; Accept is computed as
@@ -181,6 +181,7 @@ export default function ReceivePsnPage() {
   const [rejectReason, setRejectReason] = useState("");
   const [returnReason, setReturnReason] = useState("");
   const [returnShippingDollars, setReturnShippingDollars] = useState("");
+  const [resolutionNote, setResolutionNote] = useState("");
 
   function closeDialog(): void {
     setDialog(null);
@@ -229,6 +230,21 @@ export default function ReceivePsnPage() {
     onError: (err) => handle(err),
   });
 
+  // Close out a DISCREPANCY PSN with the previously-recorded quantities
+  // accepted as final. The note is required (and audit-logged) so we have
+  // a written record of how the discrepancy was reconciled — vendor
+  // confirmation, follow-up shipment received separately, etc. Status
+  // flips DISCREPANCY → RECEIVED; no inventory change.
+  const resolveMut = useMutation({
+    mutationFn: () =>
+      api.post(`/admin/psns/${params.id}/resolve-discrepancy`, {
+        resolutionNote: resolutionNote.trim(),
+      }),
+    onMutate: clear,
+    onSuccess: () => onActionSuccess(),
+    onError: (err) => handle(err),
+  });
+
   function onAction(handler: NonNullable<NonNullable<typeof bannerError>["entry"]["action"]>["handler"]) {
     if (handler === "retry") void submitMut.mutate();
     else if (handler === "support") window.location.href = "mailto:hello@myusaerrands.com";
@@ -249,7 +265,12 @@ export default function ReceivePsnPage() {
     );
   }
 
-  const isFinal = ["RECEIVED", "CANCELLED", "DISCREPANCY"].includes(psn.status);
+  // RECEIVED and CANCELLED are truly terminal — no further admin action
+  // applies. DISCREPANCY used to be in this set, but that locked the PSN
+  // forever; the operator now has a "Resolve" path (plus the existing
+  // Hold/Reject/Return paths), so DISCREPANCY is treated as in-progress.
+  const isFinal = ["RECEIVED", "CANCELLED"].includes(psn.status);
+  const isDiscrepancy = psn.status === "DISCREPANCY";
 
   // Summary — accepted is derived from each line via deriveAccepted, so
   // it stays in lockstep with Missing + Damaged without an operator
@@ -289,7 +310,7 @@ export default function ReceivePsnPage() {
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
-        eyebrow={`[02] Receiving / ${psn.id.slice(0, 8)}`}
+        eyebrow={` Receiving / ${psn.id.slice(0, 8)}`}
         title={`Receiving — ${psn.vendor.businessName}`}
         description={`Carrier: ${psn.carrier ?? "—"} · Tracking: ${psn.masterTracking ?? "—"}`}
         actions={
@@ -566,6 +587,17 @@ export default function ReceivePsnPage() {
             extra payment, refuse outright, or ship back to the vendor.
           </p>
           <div className="mt-4 flex flex-wrap gap-3">
+            {/*
+              DISCREPANCY-only: "Resolve" closes the ticket out as
+              RECEIVED with the originally-recorded quantities. Lives
+              first in the action row because it's the most common
+              follow-up once an operator has reconciled with the vendor.
+            */}
+            {isDiscrepancy ? (
+              <Button variant="primary" onClick={() => setDialog("resolveDiscrepancy")}>
+                Resolve discrepancy
+              </Button>
+            ) : null}
             <Button variant="outline" onClick={() => setDialog("hold")}>
               Hold for payment
             </Button>
@@ -576,6 +608,47 @@ export default function ReceivePsnPage() {
               Request return
             </Button>
           </div>
+
+          {/* Resolve-discrepancy form */}
+          {dialog === "resolveDiscrepancy" ? (
+            <div className="mt-6 flex flex-col gap-4 rounded-md border border-line-strong bg-white p-5">
+              <div className="font-mono text-mono-label uppercase tracking-[1.4px] text-ink">
+                Resolve discrepancy as accepted
+              </div>
+              <p className="text-body-sm text-text">
+                Moves this PSN from DISCREPANCY to RECEIVED. The
+                quantities you recorded earlier stay as-is — inventory
+                won&apos;t change. Use this once you&apos;ve reconciled
+                the missing items with the vendor (e.g. they confirmed
+                the shortfall, or the remainder arrived in a separate
+                shipment that&apos;s been entered as its own PSN).
+              </p>
+              <div>
+                <div className="block font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
+                  Resolution note (audit-logged)
+                </div>
+                <Input
+                  type="text"
+                  value={resolutionNote}
+                  onChange={(e) => setResolutionNote(e.target.value)}
+                  placeholder="e.g. Vendor confirmed they only shipped 8 of 10 declared; closing as final."
+                />
+              </div>
+              <div className="flex justify-end gap-3">
+                <Button variant="outline" onClick={closeDialog}>
+                  Cancel
+                </Button>
+                <Button
+                  variant="primary"
+                  onClick={() => resolveMut.mutate()}
+                  loading={resolveMut.isPending}
+                  disabled={resolutionNote.trim().length < 10}
+                >
+                  Mark as resolved
+                </Button>
+              </div>
+            </div>
+          ) : null}
 
           {/* Hold form */}
           {dialog === "hold" ? (

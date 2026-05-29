@@ -123,14 +123,14 @@ export default function DashboardPage() {
 
       <section className="grid gap-4 md:grid-cols-3">
         <Tile
-          eyebrow="[A] Catalogue"
+          eyebrow=" Catalogue"
           value={productsCount.toString()}
           unit={productsCount === 1 ? "active product" : "active products"}
           ctaHref="/products"
           ctaLabel="Manage products"
         />
         <Tile
-          eyebrow="[B] Inbound"
+          eyebrow="Inbound"
           value={psnCount.toString()}
           unit={psnCount === 1 ? "in-flight PSN" : "in-flight PSNs"}
           ctaHref="/psn"
