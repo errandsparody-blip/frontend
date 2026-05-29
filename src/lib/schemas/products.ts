@@ -35,14 +35,19 @@ export const storageTierSchema = z.enum([
 ]);
 export type StorageTier = z.infer<typeof storageTierSchema>;
 
-// Optional product image URL. Empty string clears, full http(s) URL sets.
-// We allow `null` so PATCH bodies can explicitly clear an existing image.
-const imageUrlField = z
-  .union([
-    z.string().trim().url().max(2048),
-    z.literal("").transform(() => null),
-    z.null(),
-  ])
+// Strict http(s) URL — capped at 2048 chars.
+const imageUrlString = z.string().trim().url().max(2048);
+
+// Required on create — vendors must upload a product photo before they
+// can save. Mirror of imageUrlRequired in usa-errands-api/src/common/
+// schemas/product.schema.ts.
+const imageUrlRequired = imageUrlString;
+
+// Optional on update — existing products created before the requirement
+// landed must remain patchable. Empty string normalises to null; null
+// clears; an http(s) URL sets.
+const imageUrlOptional = z
+  .union([imageUrlString, z.literal("").transform(() => null), z.null()])
   .optional();
 
 export const createProductSchema = z.object({
@@ -57,14 +62,15 @@ export const createProductSchema = z.object({
   widthIn: optionalDimension,
   heightIn: optionalDimension,
   storageTier: storageTierSchema.default("SMALL"),
-  imageUrl: imageUrlField,
+  imageUrl: imageUrlRequired,
 });
 export type CreateProductInput = z.infer<typeof createProductSchema>;
 
 export const updateProductSchema = createProductSchema
-  .omit({ code: true })
+  .omit({ code: true, imageUrl: true })
   .partial()
   .extend({
+    imageUrl: imageUrlOptional,
     status: z.enum(["ACTIVE", "ARCHIVED"]).optional(),
   });
 export type UpdateProductInput = z.infer<typeof updateProductSchema>;

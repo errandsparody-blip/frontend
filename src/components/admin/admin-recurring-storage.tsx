@@ -21,6 +21,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { StatusPill } from "@/components/ui/status-pill";
 import { DataTable, TBody, THead, Th, TR, Td } from "@/components/ui/table";
@@ -147,6 +148,12 @@ const STATUS_TONE: Record<string, "success" | "neutral" | "warning"> = {
 export function AdminRecurringStorage({ vendorId }: { vendorId: string }): JSX.Element {
   const qc = useQueryClient();
   const [actionError, setActionError] = useState<string | null>(null);
+  // Pending Remove confirmation. Holding both box id + tier lets the
+  // dialog show a precise message ("Remove this large box from
+  // billing?") without re-deriving anything from the row.
+  const [removeTarget, setRemoveTarget] = useState<{ id: string; tier: string } | null>(
+    null,
+  );
 
   const recurringQ = useQuery({
     queryKey: ["admin", "vendors", vendorId, "recurring-storage"],
@@ -409,15 +416,9 @@ export function AdminRecurringStorage({ vendorId }: { vendorId: string }): JSX.E
                                 size="sm"
                                 loading={isPending && removeM.isPending}
                                 disabled={isPending}
-                                onClick={() => {
-                                  if (
-                                    window.confirm(
-                                      `Remove this ${tierLabel(box.tier)} from billing? This is for boxes that have been physically consolidated out of the warehouse.`,
-                                    )
-                                  ) {
-                                    removeM.mutate({ boxId: box.id });
-                                  }
-                                }}
+                                onClick={() =>
+                                  setRemoveTarget({ id: box.id, tier: box.tier })
+                                }
                               >
                                 Remove
                               </Button>
@@ -443,6 +444,33 @@ export function AdminRecurringStorage({ vendorId }: { vendorId: string }): JSX.E
           </DataTable>
         )}
       </div>
+
+      {/*
+        In-app confirmation for destructive Remove action. Mounted at the
+        section root so its fixed positioning isn't trapped inside a
+        scrolling table cell. Replaces the native window.confirm() popup
+        that didn't match the design system.
+      */}
+      <ConfirmDialog
+        open={removeTarget !== null}
+        onCancel={() => setRemoveTarget(null)}
+        onConfirm={() => {
+          if (!removeTarget) return;
+          removeM.mutate(
+            { boxId: removeTarget.id },
+            { onSettled: () => setRemoveTarget(null) },
+          );
+        }}
+        title={
+          removeTarget
+            ? `Remove this ${tierLabel(removeTarget.tier)} from billing?`
+            : "Remove box from billing?"
+        }
+        description="This is for boxes that have been physically consolidated out of the warehouse. Billing stops immediately; the audit record stays in place."
+        confirmLabel="Remove"
+        tone="danger"
+        confirming={removeM.isPending}
+      />
     </section>
   );
 }

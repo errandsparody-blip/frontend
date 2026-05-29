@@ -20,7 +20,14 @@ import {
 } from "@/lib/schemas/products";
 
 interface ProductFormProps {
-  initial?: Partial<CreateProductInput>;
+  // `imageUrl` is required on the create-product schema (vendors must
+  // upload a photo before save) but legacy products created before
+  // that requirement landed have null images. We loosen the prop to
+  // accept `string | null` so the edit page can prefill the form
+  // without forcing every old row to be patched first.
+  initial?: Partial<Omit<CreateProductInput, "imageUrl">> & {
+    imageUrl?: string | null;
+  };
   submitLabel: string;
   onSubmit: (values: CreateProductInput) => Promise<void>;
   /** Hide the immutable code field on edit. */
@@ -206,6 +213,18 @@ export function ProductForm({
   const [imageUrl, setImageUrl] = useState<string | null>(
     initial?.imageUrl ?? null,
   );
+  // Inline "you need an image" error rendered under the uploader.
+  // Cleared as soon as the vendor uploads a file or switches off the
+  // create path. Held separately from `serverError` so a network failure
+  // banner up top doesn't overwrite the image-specific guidance.
+  const [imageError, setImageError] = useState<string | null>(null);
+  // Whether a product image is required on this render. Required when
+  // creating a brand-new product (showCode is the form's create-vs-edit
+  // proxy — it's true on /products/new, false on /products/[id]). Edits
+  // stay permissive so existing products created before the requirement
+  // landed are still patchable. The locked banner case is also exempt
+  // because no field is editable then.
+  const imageRequired = showCode && !locked;
 
   const {
     register,
@@ -303,16 +322,28 @@ export function ProductForm({
   async function submit(values: FormInput): Promise<void> {
     setServerError(null);
     setSavedJustNow(false);
+    // Gate on the image BEFORE any network work. The image lives
+    // outside react-hook-form (async R2 upload) so Zod can't catch a
+    // missing image at validation time the way it does for the other
+    // fields. We surface the requirement inline next to the uploader
+    // and bail out so the wire payload is never sent half-built.
+    if (imageRequired && !imageUrl) {
+      setImageError("A product image is required. Upload a photo before saving.");
+      return;
+    }
+    setImageError(null);
     try {
       const { declaredValueDollars, weightValue, weightUnit: unit, ...rest } = values;
       const weightOz = convertWeight(weightValue, unit, "oz");
+      // imageUrl is a non-null URL when we get here in the create path
+      // (gated above). On the update path it can still be null — the
+      // backend's updateProductSchema accepts null to keep / clear
+      // an existing image.
       const wireValues: CreateProductInput = {
         ...rest,
         declaredValueCents: dollarsToCents(declaredValueDollars),
         weightOz: round2(weightOz),
-        // Inject the (async-uploaded) image URL or an explicit null so
-        // a PATCH can both set AND clear the column.
-        imageUrl: imageUrl ?? null,
+        imageUrl: (imageUrl ?? null) as string,
       };
       await onSubmit(wireValues);
       // Success — flash the confirmation. If the parent navigated away
@@ -347,15 +378,42 @@ export function ProductForm({
       ) : null}
 
       {/* Product image — leads the form so the visual asset is the
-          first thing the vendor sees. Once the product is created the
-          image is locked alongside the rest of the fields: admin
-          receivers use it to visually match incoming stock, so swapping
-          it later would break the photographic audit trail. */}
+          first thing the vendor sees. Required on create so admin
+          receivers always have a photo to match incoming stock against
+          the declaration; surfaced with an asterisk on the label and an
+          inline error if the vendor tries to submit empty. */}
       <section>
         <h2 className="mb-2 font-mono text-mono-label uppercase text-text-muted">
           Product image
+          {imageRequired ? (
+            <span aria-hidden="true" className="ml-1 text-error">
+              *
+            </span>
+          ) : null}
+          {imageRequired ? (
+            <span className="sr-only"> (required)</span>
+          ) : null}
         </h2>
-        <ProductImageUploader value={imageUrl} onChange={setImageUrl} disabled={locked} />
+        <ProductImageUploader
+          value={imageUrl}
+          onChange={(next) => {
+            setImageUrl(next);
+            // Any successful upload clears the requirement error so
+            // the vendor sees an immediate response to fixing it.
+            if (next) setImageError(null);
+          }}
+          disabled={locked}
+        />
+        {imageError ? (
+          <p className="mt-2 text-caption text-error" role="alert">
+            {imageError}
+          </p>
+        ) : imageRequired && !imageUrl ? (
+          <p className="mt-2 text-caption text-text-muted">
+            Required. The warehouse uses this photo to match your stock
+            on arrival.
+          </p>
+        ) : null}
       </section>
 
       <section className="grid gap-5 md:grid-cols-2">
