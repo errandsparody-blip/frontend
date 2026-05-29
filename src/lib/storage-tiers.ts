@@ -150,47 +150,65 @@ export const FALLBACK_TIERS: StorageTiersResponse = {
 // live data; they're guidance that always applies.
 // ---------------------------------------------------------------------------
 
+/**
+ * Operational notes — surfaced verbatim from the published 2026 vendor
+ * pricing guide PDF. The intent is that what a vendor reads on the
+ * platform matches the contract document they signed at onboarding,
+ * word-for-word, with no soft rewording that could create a gap.
+ *
+ * If finance amends the pricing guide, replicate the change here AND in
+ * the marketing pricing page so the three surfaces stay aligned.
+ */
 export const STORAGE_TIER_NOTES: ReadonlyArray<string> = [
-  "Receiving & inventory setup is a one-time fee charged at PSN submit; monthly storage rolls on the 1st of every month.",
-  "Pricing is per box — pick the smallest tier your product fits into so you don't over-pay.",
-  "Pallet storage covers properly palletized, shrink-wrapped, stable inventory. Per-box receiving fees still apply for every box on the pallet.",
-  "Oversized, fragile, hazardous, or irregular inventory may require custom pricing or approval — contact support before shipping.",
+  "Monthly storage fees are billed automatically on the 1st day of every month.",
+  "First-month storage fees and Receiving & Inventory Setup fees are due on every new incoming inventory shipment.",
+  "It is the vendor's responsibility to ship inventory to the USA Errands warehouse using their preferred shipping method.",
+  "Vendors must create and submit a detailed Pre-Shipment Notice (PSN) before shipping inventory to the warehouse.",
+  "Vendors are responsible for maintaining sufficient wallet balance at all times.",
+  "Receiving & Inventory Setup fees apply to all inbound inventory, including palletized shipments.",
+  "Shipping costs are separate from fulfillment fees and are calculated in real time using carrier rates.",
+  "USA Errands reserves the right to re-tier incorrectly declared inventory.",
+  "Pallets must remain stable, shrink-wrapped, and warehouse safe at all times.",
+  "For enterprise pricing, oversized inventory, custom fulfillment workflows, or bulk pallet storage, vendors may contact USA Errands directly for a customised quote.",
 ];
 
 export const STORAGE_TIER_MATCH_INSTRUCTION = {
-  eyebrow: "Important",
-  headline: "Match your shipment dimensions to the storage tier",
+  eyebrow: "Approved inventory box sizes",
+  headline: "Ship in approved box sizes only",
   body:
-    "USA Errands reserves the right to re-tier inventory upon receipt if the " +
-    "box dimensions exceed what you declared. Any fee difference is automatically " +
-    "debited from your wallet. Measure with a tape — accurate box dimensions " +
-    "avoid delays and discrepancy charges.",
+    "Vendors must ship inventory to the USA Errands warehouse using ONLY " +
+    "the approved storage box sizes shown above. Inventory shipped in " +
+    "non-approved dimensions may be subject to re-tiering, repackaging " +
+    "fees, receiving delays, or rejection. Measure with a tape — accurate " +
+    "box dimensions avoid surprise charges at receive.",
 } as const;
 
 /**
- * Pallet policy block — surfaced verbatim in the storage-tier guide modal
- * and on the marketing pricing page. The numeric `maxBoxesPerPallet`
- * values are seeded server-side and read at runtime via the
- * `pallet_policy` config row; the prose below is static.
+ * Pallet policy block — wording mirrors sections 6, 7, and 8 of the
+ * 2026 vendor pricing guide PDF (Pallet Storage / Box Capacity / Pallet
+ * Rules). Numeric `maxBoxesPerPallet` values are seeded server-side and
+ * read at runtime via the `pallet_policy` config row; the prose below
+ * is static and should be kept in sync with the PDF on every update.
  */
 export const PALLET_POLICY_NOTES = {
   whenItApplies: [
     "Properly palletized inventory",
     "Shrink-wrapped and stable pallets",
-    "Organized bulk inventory",
-    "Low-touch storage inventory",
+    "Standard U.S. pallet footprint — 40 × 48 inches",
+    "Maximum stacked height 60 inches including pallet",
   ],
   boxRules: [
-    "All boxes on a pallet must be the same tier and dimensions",
-    "Mixed box sizes on the same pallet are not permitted",
-    "Each pallet must remain organized, stable, stack-safe, and uniformly arranged",
+    "All boxes on a pallet must be the same size",
+    "Mixed box sizes on the same pallet are not allowed",
+    "Once pallet capacity is reached, vendors must create an additional pallet",
+    "Pallets must remain shrink-wrapped, stable, and warehouse safe",
   ],
   fullPalletPolicy: [
-    "If a pallet reaches its approved maximum, the vendor may create and ship an additional pallet",
+    "If a pallet reaches its approved maximum, the vendor must create and ship an additional pallet",
     "Each pallet is treated as an individually billed, independently tracked storage unit",
   ],
   receivingFeesNote:
-    "Individual receiving & inventory-setup fees still apply to every box on a pallet — USA Errands still performs receiving, counting, inspection, SKU assignment, inventory setup, and warehouse organization before pallets enter storage.",
+    "Standard pallet storage is $45/month per pallet. Receiving & Inventory Setup fees still apply to every box on a pallet — USA Errands performs inventory inspection, counting, SKU setup, labeling, warehouse organization, and placement before pallets enter storage.",
 } as const;
 
 // ---------------------------------------------------------------------------

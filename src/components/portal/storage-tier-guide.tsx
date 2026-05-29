@@ -192,14 +192,15 @@ export function StorageTierGuide({
 
             <header className="mb-6">
               <div className="font-mono text-mono-label uppercase tracking-[1.4px] text-amber">
-                Pricing guide
+                Complete vendor pricing guide
               </div>
               <h2 className="mt-1 text-h2 font-semibold text-ink">
-                USA Errands storage tiers
+                USA Errands storage tiers &amp; pallet dimension guide
               </h2>
               <p className="mt-2 text-body-sm text-text-muted">
-                Per-box pricing. Pick the smallest tier your product fits into so
-                you don&apos;t over-pay for warehouse space.
+                Complete overview of fulfillment, storage, onboarding, pallet
+                handling, and warehouse operational pricing. Pick the smallest
+                tier your product fits into — pricing is per box.
               </p>
               {isFallback ? <FallbackNotice /> : null}
             </header>
@@ -307,14 +308,15 @@ function PalletPolicyBlock(): JSX.Element {
     <section className="mt-8 rounded-md border border-line-strong bg-cream-soft p-5">
       <header className="mb-4">
         <div className="font-mono text-mono-eyebrow uppercase tracking-[1.4px] text-amber">
-          Pallet policy
+          Pallet storage &amp; rules
         </div>
         <h3 className="mt-1 text-h3 font-semibold text-ink">
-          Same tier per pallet · approximate max-box counts
+          Standard pallet · $45/month · same tier per pallet
         </h3>
         <p className="mt-1 text-body-sm text-text-muted">
-          Pallet pricing applies only to properly palletized, shrink-wrapped,
-          and stable inventory. Boxes on each pallet must be the same tier.
+          Pallet dimensions: 40 × 48 inches (102 × 122 cm). Maximum stacked
+          height 60 inches including pallet. All boxes on a pallet must be the
+          same size — mixed sizes are not allowed.
         </p>
       </header>
 
