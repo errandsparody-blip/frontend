@@ -104,7 +104,7 @@ function VerifyEmailInner() {
 
   return (
     <div>
-      <div className="font-mono text-mono-eyebrow uppercase text-amber">[02] Verify email</div>
+      <div className="font-mono text-mono-eyebrow uppercase text-amber">Verify email</div>
       <h1 className="mt-3 text-display font-medium tracking-[-0.8px] text-ink">
         Check your inbox.
       </h1>

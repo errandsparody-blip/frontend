@@ -96,7 +96,7 @@ function ResetPasswordInner() {
 
   return (
     <div>
-      <div className="font-mono text-mono-eyebrow uppercase text-amber">[02] Set new password</div>
+      <div className="font-mono text-mono-eyebrow uppercase text-amber"> Set new password</div>
       <h1 className="mt-3 text-display font-medium tracking-[-0.8px] text-ink">
         Choose a new password.
       </h1>

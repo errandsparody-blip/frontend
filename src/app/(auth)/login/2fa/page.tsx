@@ -84,7 +84,7 @@ function TwoFactorVerifyInner() {
 
   return (
     <div>
-      <div className="font-mono text-mono-eyebrow uppercase text-amber">[02] Two-factor auth</div>
+      <div className="font-mono text-mono-eyebrow uppercase text-amber"> Two-factor auth</div>
       <h1 className="mt-3 text-display font-medium tracking-[-0.8px] text-ink">
         Enter your code.
       </h1>
