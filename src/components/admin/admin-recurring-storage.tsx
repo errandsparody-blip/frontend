@@ -63,7 +63,17 @@ interface RecurringStorage {
     contributingTierCounts: Record<string, number>;
     monthlyEstimateCents: number;
     firstBillingDate: string | null;
+    /**
+     * Migration 0036 — true when every box on this PSN is bundled with
+     * an existing parent pallet (ADD_TO_PALLET shipment). UI renders a
+     * "Bundled with pallet" badge instead of a per-month charge.
+     */
+    isBundledWithParentPallet: boolean;
   }>;
+  /** Migration 0036 — boxes folded into an existing parent pallet. */
+  bundledBoxCount: number;
+  /** Per-tier breakdown of the bundled boxes above. */
+  bundledByTier: Record<string, number>;
 }
 
 interface StorageBox {
@@ -72,7 +82,12 @@ interface StorageBox {
   tier: string;
   status: string;
   receivedAt: string;
-  nextBillingDate: string;
+  /**
+   * Migration 0036 — null means "bundled with parent pallet, not billed
+   * independently". UI renders bundled rows with a badge instead of a
+   * charge date.
+   */
+  nextBillingDate: string | null;
   palletContentTier: string | null;
   palletContentCount: number | null;
   statusNote: string | null;
@@ -370,7 +385,11 @@ export function AdminRecurringStorage({ vendorId }: { vendorId: string }): JSX.E
                       </Td>
                       <Td className="text-text-muted">{formatDate(box.receivedAt)}</Td>
                       <Td className="text-text-muted">
-                        {box.status === "ACTIVE" ? formatDate(box.nextBillingDate) : "—"}
+                        {box.status !== "ACTIVE"
+                          ? "—"
+                          : box.nextBillingDate === null
+                          ? "Bundled with pallet"
+                          : formatDate(box.nextBillingDate)}
                       </Td>
                       <Td align="right">
                         <div className="flex flex-wrap items-center justify-end gap-2">

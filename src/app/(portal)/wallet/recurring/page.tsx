@@ -87,7 +87,24 @@ interface RecurringStorage {
     monthlyEstimateCents: number;
     /** Earliest nextBillingDate among this PSN's SKUs — "this PSN starts billing on". */
     firstBillingDate: string | null;
+    /**
+     * Migration 0036 — true when every box on this PSN is bundled with
+     * an existing parent pallet (ADD_TO_PALLET shipment). The row should
+     * render a "Bundled with pallet" badge instead of a per-month charge
+     * and a first-bill date, because the parent pallet's monthly $45
+     * already covers the contents.
+     */
+    isBundledWithParentPallet: boolean;
   }>;
+  /**
+   * Migration 0036 — boxes the vendor has that ride inside an existing
+   * parent pallet and so don't bill independently. Surfaced separately
+   * so vendors who ship ADD_TO_PALLET can see they're carrying extra
+   * inventory without thinking the next charge will jump.
+   */
+  bundledBoxCount: number;
+  /** Per-tier breakdown of the bundled boxes above. */
+  bundledByTier: Record<string, number>;
   history: Array<{
     id: string;
     amountCents: number;
@@ -469,6 +486,43 @@ export default function RecurringStoragePage(): JSX.Element {
             </TBody>
           </DataTable>
         )}
+        {/*
+          Bundled boxes (migration 0036) — these are inner boxes from a
+          PALLET shipment or boxes added on an ADD_TO_PALLET shipment.
+          They are physically in the warehouse and listed here for
+          transparency, but they do not contribute to the monthly total
+          because the parent pallet's $45/mo already covers them.
+          Hidden when there are none.
+        */}
+        {data.bundledBoxCount > 0 ? (
+          <div className="mt-6 rounded-md border border-line-strong bg-cream-soft p-4">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h3 className="font-mono text-mono-label uppercase tracking-[1.2px] text-text">
+                Also in storage — bundled with a pallet
+              </h3>
+              <span className="font-mono text-[11px] text-text-muted">
+                {data.bundledBoxCount}{" "}
+                {data.bundledBoxCount === 1 ? "box" : "boxes"} · $0.00 / mo ·
+                covered by pallet billing
+              </span>
+            </div>
+            <ul className="mt-2 flex flex-wrap gap-1.5">
+              {Object.entries(data.bundledByTier)
+                .sort(([a], [b]) => a.localeCompare(b))
+                .map(([tier, count]) => (
+                  <li
+                    key={tier}
+                    className="inline-flex items-baseline gap-1.5 rounded-sm border border-line bg-white px-2 py-1 font-mono text-[11px]"
+                  >
+                    <span className="text-text">{tierLabel(tier)}</span>
+                    <span className="font-semibold tabular-nums text-ink">
+                      ×{count}
+                    </span>
+                  </li>
+                ))}
+            </ul>
+          </div>
+        ) : null}
       </section>
 
       {/* Per-PSN attribution — the headline view the user asked for. */}
@@ -544,25 +598,48 @@ export default function RecurringStoragePage(): JSX.Element {
                       </div>
                     </Td>
                     <Td>
-                      <div
-                        className={
-                          "font-mono text-body-sm " +
-                          (isDeferred ? "text-amber" : "text-text")
-                        }
-                      >
-                        {formatDate(row.firstBillingDate)}
-                      </div>
-                      {isDeferred ? (
-                        <div className="mt-0.5 font-mono text-[10px] uppercase tracking-[1.2px] text-amber">
-                          first month already covered
+                      {row.isBundledWithParentPallet ? (
+                        // ADD_TO_PALLET shipments: the parent pallet is
+                        // already billing $45/mo and covers these boxes,
+                        // so there is no separate first-bill date for
+                        // this PSN. Surface it as a bundled badge.
+                        <div className="font-mono text-body-sm text-text-muted">
+                          Bundled with pallet
                         </div>
-                      ) : null}
+                      ) : (
+                        <>
+                          <div
+                            className={
+                              "font-mono text-body-sm " +
+                              (isDeferred ? "text-amber" : "text-text")
+                            }
+                          >
+                            {formatDate(row.firstBillingDate)}
+                          </div>
+                          {isDeferred ? (
+                            <div className="mt-0.5 font-mono text-[10px] uppercase tracking-[1.2px] text-amber">
+                              first month already covered
+                            </div>
+                          ) : null}
+                        </>
+                      )}
                     </Td>
                     <Td num strong>
-                      {formatCents(row.monthlyEstimateCents)}
-                      <div className="mt-0.5 font-mono text-[10px] uppercase tracking-[1.2px] text-text-subtle">
-                        {sharePct}% of bill
-                      </div>
+                      {row.isBundledWithParentPallet ? (
+                        <>
+                          <span className="text-text-muted">$0.00</span>
+                          <div className="mt-0.5 font-mono text-[10px] uppercase tracking-[1.2px] text-text-subtle">
+                            covered by pallet billing
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          {formatCents(row.monthlyEstimateCents)}
+                          <div className="mt-0.5 font-mono text-[10px] uppercase tracking-[1.2px] text-text-subtle">
+                            {sharePct}% of bill
+                          </div>
+                        </>
+                      )}
                     </Td>
                     <Td align="right">
                       <Link
