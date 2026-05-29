@@ -326,7 +326,7 @@ export default function ShopperIntakePage(): JSX.Element {
                   />
                 </Field>
                 <Field
-                  label="Est. unit price ($)"
+                  label="Est.unit price ($)"
                   error={errors.lines?.[index]?.estimatedUnitPriceDollars?.message}
                 >
                   <Input
