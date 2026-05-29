@@ -31,7 +31,7 @@ export default function HomePage() {
                 <span className="text-amber">Sell to America.</span>
               </h1>
               <p className="mt-10 max-w-md text-body-lg text-text-muted">
-                Hold your best-selling inventory in our U.S. warehouse, or
+                Hold your inventory in our U.S. warehouse, or
                 let our personal-shopper desk buy from any U.S. store on
                 your behalf. One platform.
               </p>
