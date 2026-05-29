@@ -33,19 +33,20 @@ export default function DashboardPage() {
     queryFn: () => api.get<VendorMe>("/vendors/me"),
   });
 
-  // Catalogue tile — total ACTIVE products. Pull a page large enough
-  // to cover any realistic vendor in v1 and count locally so the tile
-  // never shows "0 or 1" the way the original `?limit=1` query did.
-  // When the vendor's catalogue grows past 200 we'll move this to a
-  // dedicated count endpoint; for now the over-fetch is fine because
-  // the page already caches the same query for the products page.
+  // Catalogue tile — total ACTIVE products. The list endpoint caps
+  // limit at 100 server-side; we ask for that ceiling so a vendor with
+  // up to 100 active products gets a precise count without paginating.
+  // For vendors beyond 100 we'd need a dedicated count endpoint, but
+  // that's a v2 concern. Requesting more than 100 was the bug that
+  // made this tile show 0 — Zod rejected the query with a 400, React
+  // Query treated `data` as undefined, and the `?? 0` fallback fired.
   const productsQ = useQuery({
     queryKey: ["products", "overview-count"],
     queryFn: () =>
       api.get<{
         items: Array<{ id: string; status: "ACTIVE" | "ARCHIVED" }>;
         nextCursor: string | null;
-      }>("/products?limit=200"),
+      }>("/products?limit=100"),
     staleTime: 30_000,
   });
 
@@ -54,14 +55,15 @@ export default function DashboardPage() {
   // 0 here, not 1; "Inbound" means "shipments the warehouse hasn't
   // closed out yet". Filter client-side so the query works on any
   // backend version (the comma-separated multi-status filter only
-  // landed on the API today).
+  // landed on the API today). Limit capped at 100 — same Zod max as
+  // the products list above; requesting more silently 400s.
   const psnQ = useQuery({
     queryKey: ["psns", "overview-count"],
     queryFn: () =>
       api.get<{
         items: Array<{ id: string; status: string }>;
         nextCursor: string | null;
-      }>("/psns?limit=200"),
+      }>("/psns?limit=100"),
     staleTime: 30_000,
   });
 
