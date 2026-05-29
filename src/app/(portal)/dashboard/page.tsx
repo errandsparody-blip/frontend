@@ -32,18 +32,71 @@ export default function DashboardPage() {
     queryKey: ["vendors", "me"],
     queryFn: () => api.get<VendorMe>("/vendors/me"),
   });
+
+  // Catalogue tile — total ACTIVE products. Pull a page large enough
+  // to cover any realistic vendor in v1 and count locally so the tile
+  // never shows "0 or 1" the way the original `?limit=1` query did.
+  // When the vendor's catalogue grows past 200 we'll move this to a
+  // dedicated count endpoint; for now the over-fetch is fine because
+  // the page already caches the same query for the products page.
   const productsQ = useQuery({
-    queryKey: ["products", { limit: 1 }],
-    queryFn: () => api.get<{ items: unknown[]; nextCursor: string | null }>("/products?limit=1"),
+    queryKey: ["products", "overview-count"],
+    queryFn: () =>
+      api.get<{
+        items: Array<{ id: string; status: "ACTIVE" | "ARCHIVED" }>;
+        nextCursor: string | null;
+      }>("/products?limit=200"),
+    staleTime: 30_000,
   });
+
+  // Inbound tile — PSNs CURRENTLY IN FLIGHT, not the lifetime total.
+  // A vendor whose only shipment has already been received should see
+  // 0 here, not 1; "Inbound" means "shipments the warehouse hasn't
+  // closed out yet". Filter client-side so the query works on any
+  // backend version (the comma-separated multi-status filter only
+  // landed on the API today).
   const psnQ = useQuery({
-    queryKey: ["psns", { limit: 1 }],
-    queryFn: () => api.get<{ items: unknown[]; nextCursor: string | null }>("/psns?limit=1"),
+    queryKey: ["psns", "overview-count"],
+    queryFn: () =>
+      api.get<{
+        items: Array<{ id: string; status: string }>;
+        nextCursor: string | null;
+      }>("/psns?limit=200"),
+    staleTime: 30_000,
+  });
+
+  // Inventory tile — total ACTIVE storage boxes on hand (per-box model,
+  // migration 0035). Includes both billing boxes and bundled-with-
+  // pallet boxes, so the vendor sees the full physical footprint
+  // they're storing rather than just the boxes that bill directly.
+  // Falls back to dash on error so a transient failure doesn't crash
+  // the dashboard.
+  const recurringQ = useQuery({
+    queryKey: ["wallet", "recurring-storage", "overview"],
+    queryFn: () =>
+      api.get<{ activeSkuCount: number }>("/vendors/me/recurring-storage"),
+    staleTime: 30_000,
+    retry: 0,
   });
 
   const me = meQ.data;
-  const productsCount = productsQ.data?.items.length ?? 0;
-  const psnCount = psnQ.data?.items.length ?? 0;
+  const productsCount =
+    productsQ.data?.items.filter((p) => p.status === "ACTIVE").length ?? 0;
+  const IN_FLIGHT_STATUSES = new Set([
+    "DRAFT",
+    "SUBMITTED",
+    "AWAITING_RECEIPT",
+    "PARTIALLY_RECEIVED",
+    "HOLD",
+  ]);
+  const psnCount =
+    psnQ.data?.items.filter((p) => IN_FLIGHT_STATUSES.has(p.status)).length ?? 0;
+  // Inventory: null while loading or on error → render as "—". Zero
+  // is a legitimate value (no stock received yet) and renders as "0".
+  const inventoryCount =
+    recurringQ.isError || recurringQ.data == null
+      ? null
+      : recurringQ.data.activeSkuCount;
 
   return (
     <div className="flex flex-col gap-8">
@@ -70,18 +123,26 @@ export default function DashboardPage() {
         <Tile
           eyebrow="[A] Catalogue"
           value={productsCount.toString()}
-          unit={productsCount === 1 ? "product" : "products"}
+          unit={productsCount === 1 ? "active product" : "active products"}
           ctaHref="/products"
           ctaLabel="Manage products"
         />
         <Tile
           eyebrow="[B] Inbound"
           value={psnCount.toString()}
-          unit={psnCount === 1 ? "PSN" : "PSNs"}
+          unit={psnCount === 1 ? "in-flight PSN" : "in-flight PSNs"}
           ctaHref="/psn"
           ctaLabel="View PSNs"
         />
-        <Tile eyebrow="[C] Inventory" value="—" unit="on hand" ctaHref="/inventory" ctaLabel="Open inventory" />
+        <Tile
+          eyebrow="[C] Inventory"
+          value={inventoryCount == null ? "—" : inventoryCount.toString()}
+          unit={
+            inventoryCount === 1 ? "box on hand" : "boxes on hand"
+          }
+          ctaHref="/inventory"
+          ctaLabel="Open inventory"
+        />
       </section>
     </div>
   );

@@ -96,8 +96,15 @@ function readPreferredUnit(): WeightUnit {
   return "oz";
 }
 
+// `imageUrl` is omitted here because the image lives OUTSIDE
+// react-hook-form (it's held in component state set by the async R2
+// uploader). If we left the field in the form schema, RHF's zod
+// resolver would silently fail validation on every Save click —
+// because `defaultValues` never seeds an imageUrl — and the user
+// would see a dead button with no error. The custom `imageRequired`
+// gate in `submit()` handles the "must upload before save" rule.
 const formSchema = createProductSchema
-  .omit({ declaredValueCents: true, weightOz: true })
+  .omit({ declaredValueCents: true, weightOz: true, imageUrl: true })
   .extend({
     declaredValueDollars: z.coerce
       .number()
