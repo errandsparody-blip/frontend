@@ -40,11 +40,14 @@ interface AdminPsnRow extends PublicPsn {
 
 type TabId = "inbox" | "history";
 
-const TAB_STATUS: Record<TabId, string> = {
-  // Comma-list maps onto the schema's multi-status form. The default
-  // (no `status` param) would also serve the inbox view, but passing
-  // an explicit list keeps the URL self-describing.
-  inbox: "AWAITING_RECEIPT,PARTIALLY_RECEIVED",
+// Inbox passes no `status` param — the backend already defaults to
+// AWAITING_RECEIPT + PARTIALLY_RECEIVED when status is omitted. Doing it
+// this way keeps the Inbox tab working against older backend builds
+// that don't yet understand the comma-separated multi-status form.
+// History always passes the explicit four-status list because there is
+// no equivalent server-side default for the post-receive view.
+const TAB_STATUS: Record<TabId, string | null> = {
+  inbox: null,
   history: "RECEIVED,DISCREPANCY,REJECTED,RETURN_REQUESTED",
 };
 
@@ -85,10 +88,15 @@ export default function AdminPsnQueuePage(): JSX.Element {
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["admin", "psns", tab],
-    queryFn: () =>
-      api.get<{ items: AdminPsnRow[]; nextCursor: string | null }>(
-        `/admin/psns?limit=100&status=${TAB_STATUS[tab]}`,
-      ),
+    queryFn: () => {
+      const statusParam = TAB_STATUS[tab];
+      const qs = statusParam
+        ? `limit=100&status=${encodeURIComponent(statusParam)}`
+        : `limit=100`;
+      return api.get<{ items: AdminPsnRow[]; nextCursor: string | null }>(
+        `/admin/psns?${qs}`,
+      );
+    },
     // Keep previous data while switching tabs so the table doesn't
     // collapse into the loading state between clicks.
     placeholderData: (prev) => prev,
