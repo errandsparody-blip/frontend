@@ -81,7 +81,7 @@ export default function LoginPage() {
 
   return (
     <div>
-      <div className="font-mono text-mono-eyebrow uppercase text-amber">[01] Sign in</div>
+      <div className="font-mono text-mono-eyebrow uppercase text-amber">Sign in</div>
       <h1 className="mt-3 text-display font-medium tracking-[-0.8px] text-ink">Welcome back.</h1>
       <p className="mt-3 text-body text-text-muted">
         Use the email and password you signed up with. We&apos;ll prompt for your authenticator code next.

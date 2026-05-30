@@ -25,7 +25,7 @@ import { Button } from "@/components/ui/button";
 export const metadata: Metadata = {
   title: "FAQ — USA Errands",
   description:
-    "Eighteen direct answers about onboarding, storage, fulfillment, returns, payments, and how we handle your inventory at USA Errands.",
+    "Direct answers about onboarding, storage, fulfillment, payments, and how we handle your inventory at USA Errands.",
 };
 
 interface QA {
@@ -68,7 +68,7 @@ const FAQ_GROUPS: ReadonlyArray<FAQGroup> = [
     eyebrow: "Storage & inventory",
     title: "How we store your boxes",
     blurb:
-      "Storage is the bulk of what you'll pay us every month. We bill it transparently, by box-tier, and we'll proactively help you reclassify when a tier change saves you money.",
+      "Storage is the bulk of what you'll pay us every month. We bill it transparently, by box-tier, and we'll proactively help you reclassify when a tier changes to help save some money.",
     items: [
       {
         q: "How do storage tiers work and what do they cost?",
@@ -103,24 +103,6 @@ const FAQ_GROUPS: ReadonlyArray<FAQGroup> = [
     ],
   },
   {
-    id: "returns",
-    eyebrow: "Returns",
-    title: "Returns, inspections, and refunds",
-    blurb:
-      "Returns are opt-in. If you turn them on, here's exactly how a buyer's package gets back into your sellable stock — or doesn't.",
-    items: [
-      {
-        q: "Do you handle returns for me?",
-        a: "Yes, if you enable returns on your vendor settings. Buyers (or you) initiate an RMA inside the portal, we generate a prepaid inbound label, the parcel comes back to us, and we inspect, photograph, and either re-stock or quarantine it depending on condition. You can act on the inspection result inside the returns dashboard.",
-      },
-      {
-        q: "What happens to a damaged return?",
-        a: "We photograph the unit at receive, log the condition, and pause it in the Returns Inspection state. You decide whether to discard, donate, recycle, or have it shipped to a U.S. address you provide. We charge handling at the published rate for whichever route you pick; no decision happens silently.",
-      },
-      
-    ],
-  },
-  {
     id: "payments",
     eyebrow: "Payments & wallet",
     title: "Funding, billing, and refunds",
@@ -130,14 +112,6 @@ const FAQ_GROUPS: ReadonlyArray<FAQGroup> = [
       {
         q: "How does the wallet work?",
         a: "USA Errands runs on a prepaid wallet. You top it up via Stripe (card or ACH) or wire transfer; every fee — onboarding, storage, fulfillment, shipping, returns handling — debits from that balance. The wallet ledger is append-only: every entry is timestamped, immutable, and exportable to CSV from the Statements page.",
-      },
-      {
-        q: "What payment methods are supported?",
-        a: "Vendors top up the wallet via Stripe-backed cards, ACH transfers, or wire. Personal-shopper buyers pay through Stripe Checkout for orders under $1,000; orders at or above $1,000 require a verified government-issued ID and a wire transfer for compliance.",
-      },
-      {
-        q: "What happens if my wallet balance runs out?",
-        a: "Fulfillment is suspended first — pending orders sit in the queue and your dashboard shows a clear top-up banner. Storage billing continues to accrue against the wallet (it can run negative on this specific line). If the balance stays overdue past the notice period in the Vendor Agreement, we'll work with you on a remediation plan before any inventory action.",
       },
     ],
   },
@@ -172,23 +146,24 @@ export default function FaqPage(): JSX.Element {
         <div className="mx-auto max-w-[84rem] px-8 py-20">
           <FadeUp>
             <div className="font-mono text-mono-eyebrow uppercase text-amber">
-              [FAQ] Eighteen questions
+              [FAQ]
             </div>
             <h1 className="mt-3 max-w-3xl text-display font-medium leading-[1.05] tracking-[-1px] text-ink">
               Everything we get asked, answered.
             </h1>
+            {/*
+              The Vendor Agreement reference here is intentionally plain
+              text. It IS the canonical source for the contractual rules
+              referenced below, so we don't want the marketing FAQ to
+              imply it's just another link the reader can shop around —
+              vendors see and accept the agreement at signup, the link
+              from here was redundant and could mislead.
+            */}
             <p className="mt-4 max-w-2xl text-body-lg text-text-muted">
-              Pricing, onboarding, returns, security, and the small print —
-              organized so you can find what you need in under a minute. For
-              the official wording on storage, billing, and termination,
-              the{" "}
-              <Link
-                href="/legal/vendor-agreement"
-                className="font-medium text-amber underline-offset-4 hover:underline"
-              >
-                Vendor Agreement
-              </Link>{" "}
-              is the canonical source.
+              Pricing, onboarding, security, and the small print —
+              organized so you can find what you need in under a minute.
+              For the official wording on storage, billing, and
+              termination, the Vendor Agreement is the canonical source.
             </p>
 
             <div className="mt-8 flex flex-wrap gap-2 font-mono text-mono-label uppercase tracking-[1.2px]">
