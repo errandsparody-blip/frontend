@@ -84,11 +84,14 @@ export default function DashboardPage() {
   const me = meQ.data;
   const productsCount =
     productsQ.data?.items.filter((p) => p.status === "ACTIVE").length ?? 0;
+  // PSNs still in flight from the vendor's perspective — anything not
+  // yet sealed by admin receiving. PARTIALLY_RECEIVED is terminal under
+  // the single-shot receive policy (admin's Accept sealed it), so it
+  // belongs in the history view, not the inbound tile.
   const IN_FLIGHT_STATUSES = new Set([
     "DRAFT",
     "SUBMITTED",
     "AWAITING_RECEIPT",
-    "PARTIALLY_RECEIVED",
     "HOLD",
   ]);
   const psnCount =

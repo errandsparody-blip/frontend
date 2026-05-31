@@ -5,20 +5,23 @@
  *
  * Two tabs over the same endpoint (`GET /admin/psns`):
  *
- *   Inbox    — default. Shows AWAITING_RECEIPT + PARTIALLY_RECEIVED so
- *              the operator's queue is the first thing rendered, ordered
+ *   Inbox    — default. Shows AWAITING_RECEIPT only — the single
+ *              status that still has receiving work to do. Ordered
  *              oldest-first so the longest-waiting shipment surfaces
  *              at the top.
  *
- *   History  — RECEIVED + DISCREPANCY + REJECTED + RETURN_REQUESTED,
- *              ordered receivedAt desc so the most-recently-processed
- *              PSN comes first. Lets super admin browse every shipment
- *              the warehouse has touched without leaving the page.
+ *   History  — every sealed PSN: RECEIVED, PARTIALLY_RECEIVED,
+ *              DISCREPANCY, REJECTED, RETURN_REQUESTED. Ordered
+ *              receivedAt desc so the most-recently-processed PSN
+ *              comes first. PARTIALLY_RECEIVED + DISCREPANCY are now
+ *              terminal (single-shot receive policy) so they belong
+ *              in History — not the Inbox — once the operator has
+ *              accepted whatever arrived.
  *
  * The Receive action on every row still links to the existing
  * /admin/psn/[id]/receive page. For PSNs whose status has already moved
  * past receiving, that page is read-only (the workflow gates the
- * receive form on AWAITING_RECEIPT / PARTIALLY_RECEIVED).
+ * receive form on AWAITING_RECEIPT only).
  */
 
 import { useQuery } from "@tanstack/react-query";
@@ -40,15 +43,15 @@ interface AdminPsnRow extends PublicPsn {
 
 type TabId = "inbox" | "history";
 
-// Inbox passes no `status` param — the backend already defaults to
-// AWAITING_RECEIPT + PARTIALLY_RECEIVED when status is omitted. Doing it
-// this way keeps the Inbox tab working against older backend builds
-// that don't yet understand the comma-separated multi-status form.
-// History always passes the explicit four-status list because there is
-// no equivalent server-side default for the post-receive view.
+// Inbox passes AWAITING_RECEIPT explicitly — the single status with
+// outstanding receiving work under the single-shot receive policy.
+// PARTIALLY_RECEIVED is now terminal and lives in History alongside
+// every other sealed outcome. History passes the full set of
+// post-receive statuses; there is no equivalent server-side default
+// for that view, so the list must be explicit.
 const TAB_STATUS: Record<TabId, string | null> = {
-  inbox: null,
-  history: "RECEIVED,DISCREPANCY,REJECTED,RETURN_REQUESTED",
+  inbox: "AWAITING_RECEIPT",
+  history: "RECEIVED,PARTIALLY_RECEIVED,DISCREPANCY,REJECTED,RETURN_REQUESTED",
 };
 
 const TONE: Record<PsnStatus, "neutral" | "info" | "success" | "warning" | "error"> = {
@@ -111,7 +114,7 @@ export default function AdminPsnQueuePage(): JSX.Element {
         title={isHistory ? "Received PSN history" : "Inbound queue"}
         description={
           isHistory
-            ? "Every Pre-Shipment Notice the warehouse has processed — received, discrepancy, rejected, or returned. Open one to view its receive record."
+            ? "Every Pre-Shipment Notice the warehouse has sealed — received, partially received, discrepancy, rejected, or returned. Open one to view its receive record."
             : "PSNs awaiting receipt at the warehouse. Open one to start the receiving workflow."
         }
       />

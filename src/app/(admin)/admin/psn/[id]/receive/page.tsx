@@ -14,6 +14,7 @@ import { StatusPill } from "@/components/ui/status-pill";
 import { DataTable, TBody, THead, Th, TR, Td } from "@/components/ui/table";
 import { api } from "@/lib/api-client";
 import { normalizeError, useApiErrorHandler } from "@/lib/errors";
+import { cn } from "@/lib/utils";
 
 interface AdminPsn {
   id: string;
@@ -40,6 +41,11 @@ interface AdminPsn {
   carrier: string | null;
   masterTracking: string | null;
   submittedAt: string | null;
+  // Stamped on first receive (the single-shot Accept action) regardless
+  // of outcome — RECEIVED, PARTIALLY_RECEIVED, and DISCREPANCY all set
+  // this. Surfaced on the sealed banner so operators can see exactly
+  // when the PSN was sealed.
+  receivedAt: string | null;
   vendor: { id: string; businessName: string; country: string };
   lines: Array<{
     id: string;
@@ -80,7 +86,7 @@ const HOLD_REASON_OPTIONS: ReadonlyArray<{ code: string; label: string }> = [
   { code: "OTHER", label: "Other — explain below" },
 ];
 
-type DialogKind = null | "hold" | "reject" | "returnRequest" | "resolveDiscrepancy";
+type DialogKind = null | "hold" | "reject" | "returnRequest";
 
 // Migration 0024 — Accept is no longer typed by the operator. They
 // enter Missing + Damaged; Accept is computed as
@@ -201,7 +207,6 @@ export default function ReceivePsnPage() {
   const [rejectReason, setRejectReason] = useState("");
   const [returnReason, setReturnReason] = useState("");
   const [returnShippingDollars, setReturnShippingDollars] = useState("");
-  const [resolutionNote, setResolutionNote] = useState("");
 
   function closeDialog(): void {
     setDialog(null);
@@ -250,20 +255,12 @@ export default function ReceivePsnPage() {
     onError: (err) => handle(err),
   });
 
-  // Close out a DISCREPANCY PSN with the previously-recorded quantities
-  // accepted as final. The note is required (and audit-logged) so we have
-  // a written record of how the discrepancy was reconciled — vendor
-  // confirmation, follow-up shipment received separately, etc. Status
-  // flips DISCREPANCY → RECEIVED; no inventory change.
-  const resolveMut = useMutation({
-    mutationFn: () =>
-      api.post(`/admin/psns/${params.id}/resolve-discrepancy`, {
-        resolutionNote: resolutionNote.trim(),
-      }),
-    onMutate: clear,
-    onSuccess: () => onActionSuccess(),
-    onError: (err) => handle(err),
-  });
+  // Under the single-shot receive policy, DISCREPANCY is a terminal
+  // state — no resolve action exists on the receive page anymore.
+  // The /admin/psns/:id/resolve-discrepancy endpoint is retained
+  // server-side so legacy DISCREPANCY rows from before the policy
+  // change can still be cleaned up manually via API if anyone needs
+  // to, but the UI no longer surfaces it.
 
   function onAction(handler: NonNullable<NonNullable<typeof bannerError>["entry"]["action"]>["handler"]) {
     if (handler === "retry") void submitMut.mutate();
@@ -299,10 +296,6 @@ export default function ReceivePsnPage() {
     "REJECTED",
     "RETURN_REQUESTED",
   ].includes(psn.status);
-  // `isDiscrepancy` is no longer used to surface a "Resolve" action —
-  // DISCREPANCY is sealed under the single-shot policy. Kept as a flag
-  // in case the UI ever wants to show a discrepancy-specific badge.
-  const isDiscrepancy = psn.status === "DISCREPANCY";
 
   // Summary — accepted is derived from each line via deriveAccepted, so
   // it stays in lockstep with Missing + Damaged without an operator
@@ -380,6 +373,62 @@ export default function ReceivePsnPage() {
       ) : null}
 
       <ErrorBanner error={bannerError} onAction={onAction} />
+
+      {/* Single-shot receive policy seal banner. Shown whenever the PSN
+          is in a terminal state so operators (and anyone reviewing the
+          history record) see immediately that the shipment has been
+          sealed, what the outcome was, and when it happened. The form
+          below is rendered read-only in that case, so this banner is
+          the primary at-a-glance status indicator. */}
+      {isFinal ? (
+        <div
+          role="status"
+          aria-live="polite"
+          className={cn(
+            "rounded-md border-l-4 px-5 py-4",
+            psn.status === "RECEIVED"
+              ? "border-success bg-success/10"
+              : psn.status === "CANCELLED" ||
+                  psn.status === "REJECTED" ||
+                  psn.status === "RETURN_REQUESTED"
+                ? "border-error bg-error/10"
+                : "border-amber bg-amber/10",
+          )}
+        >
+          <div
+            className={cn(
+              "font-mono text-mono-label uppercase tracking-[1.4px]",
+              psn.status === "RECEIVED"
+                ? "text-success"
+                : psn.status === "CANCELLED" ||
+                    psn.status === "REJECTED" ||
+                    psn.status === "RETURN_REQUESTED"
+                  ? "text-error"
+                  : "text-amber",
+            )}
+          >
+            Sealed — {psn.status.replace(/_/g, " ").toLowerCase()}
+          </div>
+          <p className="mt-1 text-body-sm text-text">
+            This Pre-Shipment Notice was sealed on{" "}
+            <strong>
+              {psn.receivedAt
+                ? new Date(psn.receivedAt).toLocaleString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                    hour: "numeric",
+                    minute: "2-digit",
+                  })
+                : "—"}
+            </strong>
+            . Under the single-shot receive policy, receiving is a one-time
+            action and this record is locked. Damaged, missing, and accepted
+            counts below reflect what was recorded at sealing. Any
+            late-arriving boxes should be received on a fresh PSN.
+          </p>
+        </div>
+      ) : null}
 
       {/* Vendor-declared box manifest — the answer to "how many boxes
           and what sizes did they ship?". Sourced from PSN.declaredBoxCounts
@@ -620,17 +669,6 @@ export default function ReceivePsnPage() {
             extra payment, refuse outright, or ship back to the vendor.
           </p>
           <div className="mt-4 flex flex-wrap gap-3">
-            {/*
-              DISCREPANCY-only: "Resolve" closes the ticket out as
-              RECEIVED with the originally-recorded quantities. Lives
-              first in the action row because it's the most common
-              follow-up once an operator has reconciled with the vendor.
-            */}
-            {isDiscrepancy ? (
-              <Button variant="primary" onClick={() => setDialog("resolveDiscrepancy")}>
-                Resolve discrepancy
-              </Button>
-            ) : null}
             <Button variant="outline" onClick={() => setDialog("hold")}>
               Hold for payment
             </Button>
@@ -641,47 +679,6 @@ export default function ReceivePsnPage() {
               Request return
             </Button>
           </div>
-
-          {/* Resolve-discrepancy form */}
-          {dialog === "resolveDiscrepancy" ? (
-            <div className="mt-6 flex flex-col gap-4 rounded-md border border-line-strong bg-white p-5">
-              <div className="font-mono text-mono-label uppercase tracking-[1.4px] text-ink">
-                Resolve discrepancy as accepted
-              </div>
-              <p className="text-body-sm text-text">
-                Moves this PSN from DISCREPANCY to RECEIVED. The
-                quantities you recorded earlier stay as-is — inventory
-                won&apos;t change. Use this once you&apos;ve reconciled
-                the missing items with the vendor (e.g. they confirmed
-                the shortfall, or the remainder arrived in a separate
-                shipment that&apos;s been entered as its own PSN).
-              </p>
-              <div>
-                <div className="block font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
-                  Resolution note (audit-logged)
-                </div>
-                <Input
-                  type="text"
-                  value={resolutionNote}
-                  onChange={(e) => setResolutionNote(e.target.value)}
-                  placeholder="e.g. Vendor confirmed they only shipped 8 of 10 declared; closing as final."
-                />
-              </div>
-              <div className="flex justify-end gap-3">
-                <Button variant="outline" onClick={closeDialog}>
-                  Cancel
-                </Button>
-                <Button
-                  variant="primary"
-                  onClick={() => resolveMut.mutate()}
-                  loading={resolveMut.isPending}
-                  disabled={resolutionNote.trim().length < 10}
-                >
-                  Mark as resolved
-                </Button>
-              </div>
-            </div>
-          ) : null}
 
           {/* Hold form */}
           {dialog === "hold" ? (
