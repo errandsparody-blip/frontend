@@ -235,7 +235,17 @@ export default function PsnDetailPage() {
           highlight
         />
         <Stat label="Submitted" value={psn.submittedAt ? new Date(psn.submittedAt).toLocaleString() : "—"} />
-        <Stat label="Received" value={psn.receivedAt ? new Date(psn.receivedAt).toLocaleString() : "—"} />
+        {/*
+          "First received" instead of plain "Received" so partial /
+          discrepancy receipts (which can be re-opened) don't read as
+          "the whole thing is done". The backend stamps this on the
+          first warehouse action of any kind — see admin-psn.service.ts
+          receivedAt fallback comment.
+        */}
+        <Stat
+          label="First received"
+          value={psn.receivedAt ? new Date(psn.receivedAt).toLocaleString() : "—"}
+        />
       </section>
 
       {/* Box counts */}
