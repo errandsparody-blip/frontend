@@ -138,7 +138,7 @@ export default function PsnDetailPage() {
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
-        eyebrow={`[04] PSN / ${psn.id.slice(0, 8)}`}
+        eyebrow={`  PSN / ${psn.id.slice(0, 8)}`}
         title={`Pre-Shipment Notice ${psn.id.slice(0, 8)}`}
         description={
           psn.submittedAt

@@ -358,7 +358,7 @@ export default function NewPsnPage() {
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
-        eyebrow="[04] PSN / New"
+        eyebrow="  PSN / New"
         title="New Pre-Shipment Notice"
         description="Declare every product and box you're shipping. The onboarding fee is computed from the box mix at submit — open the storage tier guide if you're unsure which tier to pick."
       />

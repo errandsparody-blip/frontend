@@ -43,7 +43,7 @@ export default function ReconciliationPage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        eyebrow="[03] Finance / Reconciliation"
+        eyebrow="  Finance / Reconciliation"
         title="Ledger reconciliation"
         description="For every vendor: does the materialized wallet balance equal the sum of their ledger entries? The daily cron writes the same comparison; this is the on-demand view."
       />

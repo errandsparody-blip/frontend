@@ -139,7 +139,7 @@ export default function AdminShopperDetailPage(): JSX.Element {
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
-        eyebrow="[08] Personal Shopper"
+        eyebrow="  Personal Shopper"
         title={`${request.lines.length} ${request.lines.length === 1 ? "item" : "items"} · ${request.buyerEmail}`}
         description={`Created ${fmtTime(request.createdAt)} · ${request.buyerName ?? "no buyer name"}`}
         actions={

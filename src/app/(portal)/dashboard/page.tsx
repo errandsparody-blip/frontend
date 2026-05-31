@@ -103,7 +103,7 @@ export default function DashboardPage() {
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
-        eyebrow="[01] Overview"
+        eyebrow="  Overview"
         title={me ? me.businessName : "Welcome"}
         description={
           me

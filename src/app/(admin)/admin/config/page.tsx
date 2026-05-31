@@ -42,7 +42,7 @@ export default function AdminConfigPage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        eyebrow="[07] Configuration"
+        eyebrow="  Configuration"
         title="Platform configuration"
         description="Fee schedule, tier dimensions, repackaging fees. Every change is captured in the audit log with the full before/after JSON."
       />

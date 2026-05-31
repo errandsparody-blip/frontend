@@ -95,7 +95,7 @@ function AcceptInviteInner() {
   return (
     <div className="mx-auto flex max-w-md flex-col gap-6">
       <div>
-        <div className="font-mono text-mono-eyebrow uppercase text-amber">[01] Accept invitation</div>
+        <div className="font-mono text-mono-eyebrow uppercase text-amber">  Accept invitation</div>
         <h1 className="mt-2 text-h1 font-semibold tracking-[-0.4px] text-ink">Set your password</h1>
         <p className="mt-2 text-body-sm text-text-muted">
           You&apos;ve been invited to join a USA Errands account. Set a password to finish — you&apos;ll enrol two-factor

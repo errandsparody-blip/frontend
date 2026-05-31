@@ -42,7 +42,7 @@ export default function FinanceLandingPage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        eyebrow="[03] Finance"
+        eyebrow="  Finance"
         title="Vendors & wallets"
         description="Search a vendor to credit a manual deposit (Wise / Payoneer) or open the reconciliation report."
         actions={

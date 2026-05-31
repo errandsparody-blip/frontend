@@ -75,7 +75,7 @@ export default function AdminVendorsPage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        eyebrow="[02] Vendors"
+        eyebrow="  Vendors"
         title="KYC & vendor review"
         description="Review pending vendors, verify their public footprint, and approve or reject onboarding."
       />

@@ -48,7 +48,7 @@ export default function PolicyConfigPage(): JSX.Element {
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
-        eyebrow="[07] Configuration / Policy"
+        eyebrow="  Configuration / Policy"
         title="Platform policy"
         description="Quarantine billing, downsize-trigger thresholds, and the active vendor-agreement version. Each setting has its own save action and audit-log row."
       />

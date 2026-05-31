@@ -34,7 +34,7 @@ export default function PsnListPage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        eyebrow="[04] Pre-Shipment Notices"
+        eyebrow="  Pre-Shipment Notices"
         title="Inbound shipments"
         description="Declare each shipment before it arrives. The onboarding fee is locked in at submit time and the PSN moves to 'awaiting receipt'."
         actions={

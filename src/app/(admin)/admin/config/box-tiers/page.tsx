@@ -151,7 +151,7 @@ export default function BoxTiersConfigPage(): JSX.Element {
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
-        eyebrow="[07] Configuration / Box tiers"
+        eyebrow="  Configuration / Box tiers"
         title="Box tier dimensions & repackaging fees"
         description="Physical box specs the warehouse uses at receiving, and the per-tier rate we charge a vendor when their inbound packaging needs to be repacked into our standard tier."
       />

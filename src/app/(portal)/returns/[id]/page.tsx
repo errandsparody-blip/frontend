@@ -115,7 +115,7 @@ export default function VendorReturnDetailPage(): JSX.Element {
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
-        eyebrow={`[06] Returns / ${r.rmaCode}`}
+        eyebrow={`  Returns / ${r.rmaCode}`}
         title={r.rmaCode}
         description={`RMA against order ${r.orderId.slice(0, 8)} — reason: ${RETURN_REASON_LABEL[r.reason]}.`}
         actions={<BackButton fallback="/returns" />}

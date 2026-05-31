@@ -77,7 +77,7 @@ export default function AdminReturnsPage(): JSX.Element {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        eyebrow="[06] Returns / Queue"
+        eyebrow="  Returns / Queue"
         title="Returns queue"
         description="Inbound RMAs across every vendor. Triage with the status filter; click a row to receive or inspect."
       />

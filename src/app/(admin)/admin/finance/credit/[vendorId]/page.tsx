@@ -107,7 +107,7 @@ export default function CreditDepositPage() {
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
-        eyebrow="[03] Finance / Credit"
+        eyebrow="  Finance / Credit"
         title="Credit a manual deposit"
         description="Use this when a Wise or Payoneer transfer arrives in the operating account. The credit is audit-logged with the actor, reason, and provider reference."
         actions={

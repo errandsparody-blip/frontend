@@ -106,7 +106,7 @@ export default function AdminConfigEditPage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        eyebrow={`[07] Configuration / ${data.key}`}
+        eyebrow={`  Configuration / ${data.key}`}
         title={data.key}
         description={data.description ?? "Edit the JSON value. The change is recorded in the audit log."}
         actions={<BackButton fallback="/admin/config" />}

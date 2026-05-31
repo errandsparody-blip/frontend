@@ -125,7 +125,7 @@ export default function AdminInventoryDetailPage(): JSX.Element {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        eyebrow={`[03] Inventory / ${s.id}`}
+        eyebrow={`  Inventory / ${s.id}`}
         title={s.productName}
         description={`${s.vendorBusinessName} · ${s.productCode} · ${s.variant}`}
         actions={

@@ -80,7 +80,7 @@ export default function MfaEnrollPage() {
   if (step === "codes") {
     return (
       <div>
-        <div className="font-mono text-mono-eyebrow uppercase text-amber">[04] Save recovery codes</div>
+        <div className="font-mono text-mono-eyebrow uppercase text-amber">  Save recovery codes</div>
         <h1 className="mt-3 text-display font-medium tracking-[-0.8px] text-ink">
           Save these somewhere safe.
         </h1>
@@ -116,7 +116,7 @@ export default function MfaEnrollPage() {
 
   return (
     <div>
-      <div className="font-mono text-mono-eyebrow uppercase text-amber">[03] Set up MFA</div>
+      <div className="font-mono text-mono-eyebrow uppercase text-amber">  Set up MFA</div>
       <h1 className="mt-3 text-display font-medium tracking-[-0.8px] text-ink">
         Scan the QR code.
       </h1>

@@ -185,7 +185,7 @@ export default function AdminTransactionsPage(): JSX.Element {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        eyebrow="[03] Finance"
+        eyebrow="  Finance"
         title="Transactions"
         description="Every dollar movement on the platform — vendor wallet activity and shopper request payments, in one filterable view."
         actions={

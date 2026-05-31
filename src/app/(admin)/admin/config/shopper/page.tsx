@@ -75,7 +75,7 @@ export default function AdminShopperConfigPage(): JSX.Element {
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
-        eyebrow="[07] Configuration / Shopper"
+        eyebrow="  Configuration / Shopper"
         title="Personal Shopper settings"
         description="Commission rate, warehouse state, and per-state estimated sales tax. Each section saves independently. Every change is captured in the audit log with the full before/after JSON."
       />

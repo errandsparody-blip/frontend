@@ -48,7 +48,7 @@ export default function OrdersListPage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        eyebrow="[05] Orders"
+        eyebrow="  Orders"
         title="Outbound shipments"
         description="Submit fulfillment orders. Stock is reserved and the wallet is debited at submit time; both are released on cancel."
         actions={

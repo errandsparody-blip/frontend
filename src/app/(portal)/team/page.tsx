@@ -96,7 +96,7 @@ export default function TeamPage() {
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
-        eyebrow="[07] Team"
+        eyebrow="  Team"
         title="Sub-users"
         description="Invite teammates to manage products, PSNs, orders, and returns. Sub-users have read + write access inside this account but cannot invite others or change billing settings."
       />

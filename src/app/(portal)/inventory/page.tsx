@@ -39,7 +39,7 @@ export default function InventoryPage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        eyebrow="[03] Inventory"
+        eyebrow="  Inventory"
         title="Stock on hand"
         description="Real-time view of every SKU bucket. Counts update the moment an operator receives a shipment or an order ships."
         actions={

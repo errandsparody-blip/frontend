@@ -64,7 +64,7 @@ export default function AdminAuditPage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        eyebrow="[06] Audit"
+        eyebrow="  Audit"
         title="Audit log"
         description="Every privileged action lands here. The viewer itself is logged — you cannot read this page silently."
       />

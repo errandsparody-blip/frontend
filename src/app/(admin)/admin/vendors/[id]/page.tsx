@@ -425,7 +425,7 @@ export default function AdminVendorDetailPage() {
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
-        eyebrow="[02] Vendor"
+        eyebrow="  Vendor"
         title={v.businessName}
         description={`Signed up ${new Date(v.createdAt).toLocaleDateString()} · ${v.country}`}
         actions={<BackButton fallback="/admin/vendors" label="← Back to queue" />}

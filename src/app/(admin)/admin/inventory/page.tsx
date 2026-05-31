@@ -114,7 +114,7 @@ export default function AdminInventoryPage(): JSX.Element {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        eyebrow="[03] Inventory"
+        eyebrow="  Inventory"
         title="SKU buckets"
         description="Cross-vendor view of every SKU. Available + reserved counts come straight from the SKU table; movement history per SKU is one click away."
       />

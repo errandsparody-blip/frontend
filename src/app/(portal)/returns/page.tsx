@@ -75,7 +75,7 @@ export default function VendorReturnsPage(): JSX.Element {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        eyebrow="[06] Returns"
+        eyebrow="  Returns"
         title="Return authorisations"
         description="Open an RMA against a delivered order. We'll send the customer a prepaid label; once the box arrives we inspect and refund your wallet."
       />

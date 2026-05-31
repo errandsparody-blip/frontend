@@ -51,7 +51,7 @@ export default function ProductDetailPage() {
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
-        eyebrow={`[02] Catalogue / ${product.code}`}
+        eyebrow={`  Catalogue / ${product.code}`}
         title={product.name}
         description={`Variant ${product.variant} · ${product.countryOfOrigin}`}
         actions={

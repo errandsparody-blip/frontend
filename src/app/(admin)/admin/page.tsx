@@ -73,7 +73,7 @@ export default function AdminDashboardPage(): JSX.Element {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        eyebrow="[01] Operations"
+        eyebrow="  Operations"
         title="Console overview"
         description="Cross-vendor view of vendor onboarding, inbound receiving queue, and inventory under management."
       />

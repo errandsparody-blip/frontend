@@ -67,7 +67,7 @@ export default function StatementsPage() {
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
-        eyebrow="[05] Wallet / Statements"
+        eyebrow="  Wallet / Statements"
         title="Monthly statements"
         description="Pick a month to see the opening + closing balance, totals by entry type, and every line that hit your wallet."
         actions={

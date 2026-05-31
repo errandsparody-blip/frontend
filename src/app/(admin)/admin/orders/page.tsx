@@ -91,7 +91,7 @@ export default function AdminOrdersQueuePage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        eyebrow="[04] Fulfillment"
+        eyebrow="  Fulfillment"
         title="Order queue"
         description="Buy labels, pick, pack, and ship. Each transition is captured in the order's append-only timeline."
       />

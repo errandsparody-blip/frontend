@@ -228,7 +228,7 @@ export default function RecurringStoragePage(): JSX.Element {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        eyebrow="[05] Wallet / Recurring storage"
+        eyebrow="  Wallet / Recurring storage"
         title="Storage charges"
         description="What you pay to keep your inventory in our warehouse. Each item is billed once every 30 days, anchored to the day it was received. Your first 30 days are already covered by the receiving fee you paid when the shipment arrived."
         actions={

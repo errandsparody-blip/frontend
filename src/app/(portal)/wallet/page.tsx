@@ -47,7 +47,7 @@ export default function WalletPage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        eyebrow="[05] Wallet"
+        eyebrow="  Wallet"
         title="Balance & ledger"
         description="Your prepaid balance funds storage, fulfillment, and shipping. The ledger is append-only — every charge or deposit is here permanently."
         actions={

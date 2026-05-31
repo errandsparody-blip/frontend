@@ -124,7 +124,7 @@ export default function AdminOrderDetailPage() {
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
-        eyebrow={`[04] Fulfillment / #${o.orderNumber}`}
+        eyebrow={`  Fulfillment / #${o.orderNumber}`}
         title={`Order #${o.orderNumber}`}
         description={[
           `${o.vendor.businessName} → ${o.recipientName}, ${o.shipCity}, ${o.shipState}`,

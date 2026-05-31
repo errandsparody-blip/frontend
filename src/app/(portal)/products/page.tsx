@@ -21,7 +21,7 @@ export default function ProductsPage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        eyebrow="[02] Catalogue"
+        eyebrow="  Catalogue"
         title="Products"
         description="Pre-create the products you'll be sending us. SKUs are generated at receiving time from these definitions."
         actions={

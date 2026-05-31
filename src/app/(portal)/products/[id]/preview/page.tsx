@@ -66,7 +66,7 @@ export default function ProductPreviewPage(): JSX.Element {
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
-        eyebrow={`[02] Catalogue / ${product.code} / Preview`}
+        eyebrow={`  Catalogue / ${product.code} / Preview`}
         title={`Preview: ${product.name}`}
         description="This is how your product looks to admin operators and (when the public catalog ships) buyers. Edit the product to change the image, name, or details."
         actions={

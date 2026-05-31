@@ -858,7 +858,7 @@ export default function VerificationPage(): JSX.Element {
   if (ks === "APPROVED") {
     return (
       <StatusPanel
-        eyebrow="[02] Verification"
+        eyebrow="  Verification"
         title="You're verified."
         body="Your account is fully verified. You can ship inventory in and place orders."
         tone="success"
@@ -869,7 +869,7 @@ export default function VerificationPage(): JSX.Element {
   if (ks === "IN_PROGRESS") {
     return (
       <StatusPanel
-        eyebrow="[02] Verification"
+        eyebrow="  Verification"
         title="Review in progress."
         body="Our team is verifying your business. This usually takes one business day."
         tone="warning"
@@ -880,7 +880,7 @@ export default function VerificationPage(): JSX.Element {
   if (ks === "REJECTED") {
     return (
       <StatusPanel
-        eyebrow="[02] Verification"
+        eyebrow="  Verification"
         title="We couldn't verify your account."
         body="Reach out to support if you have additional documentation."
         tone="error"
@@ -892,7 +892,7 @@ export default function VerificationPage(): JSX.Element {
   if (isSubUser) {
     return (
       <StatusPanel
-        eyebrow="[02] Verification"
+        eyebrow="  Verification"
         title="Verification is account-admin only."
         body="Ask your account admin to complete the verification form. Sub-users can't submit on their behalf."
         tone="warning"
@@ -917,7 +917,7 @@ export default function VerificationPage(): JSX.Element {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        eyebrow="[02] Verification"
+        eyebrow="  Verification"
         title="Verify your business."
         description="Provide your business details, identity, and operations so we can activate your account. Each step is saved as you go."
         actions={<StatusPill tone="warning">KYC {ks.replace(/_/g, " ")}</StatusPill>}

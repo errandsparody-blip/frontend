@@ -111,7 +111,7 @@ export default function AdminShopperQueuePage(): JSX.Element {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        eyebrow="[08] Personal Shopper"
+        eyebrow="  Personal Shopper"
         title="Shopper queue"
         description="Buyer-paid procurement requests. Each request tracks a buyer thread, intake payment, line reconciliation, and shipping."
         actions={

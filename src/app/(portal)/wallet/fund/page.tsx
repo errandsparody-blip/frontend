@@ -84,7 +84,7 @@ export default function FundWalletPage() {
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
-        eyebrow="[05] Wallet / Fund"
+        eyebrow="  Wallet / Fund"
         title="Add funds"
         description="Stripe deposits are credited the moment the charge clears. Wise and Payoneer are reconciled manually by our finance team within one business day."
       />

@@ -285,11 +285,23 @@ export default function ReceivePsnPage() {
     );
   }
 
-  // RECEIVED and CANCELLED are truly terminal — no further admin action
-  // applies. DISCREPANCY used to be in this set, but that locked the PSN
-  // forever; the operator now has a "Resolve" path (plus the existing
-  // Hold/Reject/Return paths), so DISCREPANCY is treated as in-progress.
-  const isFinal = ["RECEIVED", "CANCELLED"].includes(psn.status);
+  // Single-shot receive policy: clicking Accept seals the PSN no matter
+  // the outcome. RECEIVED, PARTIALLY_RECEIVED, and DISCREPANCY are all
+  // terminal — the form is read-only, no further actions remain.
+  // REJECTED, RETURN_REQUESTED, and CANCELLED are likewise terminal
+  // from other workflow paths. HOLD is excluded because it's a
+  // pre-receive state with its own resolution path elsewhere.
+  const isFinal = [
+    "RECEIVED",
+    "PARTIALLY_RECEIVED",
+    "DISCREPANCY",
+    "CANCELLED",
+    "REJECTED",
+    "RETURN_REQUESTED",
+  ].includes(psn.status);
+  // `isDiscrepancy` is no longer used to surface a "Resolve" action —
+  // DISCREPANCY is sealed under the single-shot policy. Kept as a flag
+  // in case the UI ever wants to show a discrepancy-specific badge.
   const isDiscrepancy = psn.status === "DISCREPANCY";
 
   // Summary — accepted is derived from each line via deriveAccepted, so

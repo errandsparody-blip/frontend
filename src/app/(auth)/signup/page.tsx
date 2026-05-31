@@ -77,7 +77,7 @@ export default function SignupPage() {
 
   return (
     <div>
-      <div className="font-mono text-mono-eyebrow uppercase text-amber">[01] Create account</div>
+      <div className="font-mono text-mono-eyebrow uppercase text-amber">  Create account</div>
       <h1 className="mt-3 text-display font-medium tracking-[-0.8px] text-ink">
         Set up your business account.
       </h1>

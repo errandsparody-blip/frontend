@@ -26,7 +26,7 @@ export default function NewProductPage() {
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
-        eyebrow="[02] Catalogue / New"
+        eyebrow="  Catalogue / New"
         title="Create a product"
         description="The product code is part of the SKU id. Make it short, uppercase, and stable — once products are received against it, the code is locked."
       />

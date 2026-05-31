@@ -152,7 +152,7 @@ export default function OrderDetailPage() {
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
-        eyebrow={`[05] Orders / #${o.orderNumber}`}
+        eyebrow={`  Orders / #${o.orderNumber}`}
         title={`Order #${o.orderNumber}`}
         description={
           o.externalReference

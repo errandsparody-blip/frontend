@@ -173,7 +173,7 @@ export default function AdminReturnDetailPage(): JSX.Element {
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
-        eyebrow={`[06] Returns / ${r.rmaCode}`}
+        eyebrow={`  Returns / ${r.rmaCode}`}
         title={r.rmaCode}
         description={`Vendor ${r.vendorId.slice(0, 8)} · Order ${r.orderId.slice(0, 8)} · ${RETURN_REASON_LABEL[r.reason]}`}
         actions={<BackButton fallback="/admin/returns" />}

@@ -189,7 +189,7 @@ export default function AdminProductEditPage(): JSX.Element {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        eyebrow={`[02] Catalogue / ${p.code}`}
+        eyebrow={`  Catalogue / ${p.code}`}
         title={p.name}
         description={`${p.vendorBusinessName} · variant ${p.variant} · admin override`}
         actions={

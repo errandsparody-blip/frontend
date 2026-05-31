@@ -193,7 +193,7 @@ export default function SettingsPage() {
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
-        eyebrow="[08] Settings"
+        eyebrow="  Settings"
         title="Account settings"
         description="Manage your business profile, notification preferences, and account state. Sub-users can view but not edit."
       />

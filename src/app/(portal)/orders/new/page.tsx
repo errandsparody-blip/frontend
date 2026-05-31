@@ -229,7 +229,7 @@ export default function NewOrderPage() {
     return (
       <div className="flex flex-col gap-8">
         <PageHeader
-          eyebrow="[05] Orders / New"
+          eyebrow="  Orders / New"
           title="Order submitted"
           description="Stock is reserved and your wallet has been debited. We'll notify you when the label is purchased and the package ships."
         />
@@ -264,7 +264,7 @@ export default function NewOrderPage() {
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
-        eyebrow="[05] Orders / New"
+        eyebrow="  Orders / New"
         title="Create a fulfillment order"
         description="Pick the items, the recipient, and the carrier. Stock + funds are reserved at submit; both can be released by cancelling before pickup."
         actions={
