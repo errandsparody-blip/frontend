@@ -73,7 +73,7 @@ const CITIES: ReadonlyArray<City> = [
   { name: "SEATTLE",     cx: 120, cy: 110, durationSec: 6.5, delaySec: 0.0,  labelDy: -10 },
   { name: "LOS ANGELES", cx: 140, cy: 280, durationSec: 6.0, delaySec: 1.4,  labelDx: 8, labelDy: 18 },
   { name: "DENVER",      cx: 290, cy: 230, durationSec: 5.0, delaySec: 2.7,  labelDy: 18 },
-  { name: "CHICAGO",     cx: 470, cy: 200, durationSec: 4.0, delaySec: 0.8,  labelDy: -10 },
+  // { name: "CHICAGO",     cx: 470, cy: 200, durationSec: 4.0, delaySec: 0.8,  labelDy: -10 },
   { name: "HOUSTON",     cx: 410, cy: 360, durationSec: 3.5, delaySec: 3.1,  labelDy: 18 },
   { name: "ATLANTA",     cx: 520, cy: 320, durationSec: 2.8, delaySec: 1.9,  labelDx: -10, labelDy: 18 },
   { name: "NEW YORK",    cx: 660, cy: 175, durationSec: 4.5, delaySec: 2.3,  labelDy: -10 },

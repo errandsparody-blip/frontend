@@ -11,7 +11,7 @@
  * Composition (desktop):
  *
  *   ┌──────────────────────────────────────────┐
- *   │ ☷  LIVE OPS · HOUSTON HQ      ● LIVE     │  header
+ *   │ ☷  LIVE OPS · Austin HQ      ● LIVE     │  header
  *   ├──────────────────────────────────────────┤
  *   │ ┌────────────┐ ┌─────────────────────┐  │
  *   │ │ TODAY      │ │ WALLET · USD        │  │
@@ -104,7 +104,7 @@ function Header(): JSX.Element {
             Live Ops
           </span>
           <span className="font-mono text-[9px] uppercase tracking-[1.4px] text-text-muted">
-            Houston HQ
+          Austin HQ
           </span>
         </div>
       </div>

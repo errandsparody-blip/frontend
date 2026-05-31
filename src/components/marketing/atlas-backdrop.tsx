@@ -46,7 +46,7 @@ interface City {
   labelDy?: number;
 }
 
-// Houston is the real warehouse — the hub of the network. Cities
+// Austin is the real warehouse — the hub of the network. Cities
 // are positioned so the hub sits in the LOWER-CENTRE of the canvas
 // (clearly visible below the card on desktop) and destinations
 // radiate UP and OUT. Routes that head toward the right pass
@@ -67,7 +67,7 @@ const CITIES: ReadonlyArray<City> = [
   { name: "SEATTLE",     cx: 180,  cy: 130, durationSec: 6.4, delaySec: 0.0,  labelDy: -14 },
   { name: "LOS ANGELES", cx: 220,  cy: 360, durationSec: 5.4, delaySec: 1.5,  labelDx: 10, labelDy: 22 },
   { name: "DENVER",      cx: 470,  cy: 280, durationSec: 4.0, delaySec: 2.8,  labelDy: 22 },
-  { name: "CHICAGO",     cx: 820,  cy: 230, durationSec: 3.6, delaySec: 0.9,  labelDy: -14 },
+  // { name: "CHICAGO",     cx: 820,  cy: 230, durationSec: 3.6, delaySec: 0.9,  labelDy: -14 },
   { name: "ATLANTA",     cx: 980,  cy: 470, durationSec: 3.6, delaySec: 2.0,  labelDx: -12, labelDy: 22 },
   { name: "MIAMI",       cx: 1140, cy: 580, durationSec: 4.8, delaySec: 3.3,  labelDy: 22 },
   { name: "NEW YORK",    cx: 1300, cy: 220, durationSec: 5.0, delaySec: 2.4,  labelDy: -14 },
@@ -198,7 +198,7 @@ export function AtlasBackdrop(): JSX.Element {
           letterSpacing="2.4"
           fill="#1a1a1a"
         >
-          HOUSTON · HUB
+          Austin · HUB
         </text>
       </svg>
 
@@ -211,7 +211,7 @@ export function AtlasBackdrop(): JSX.Element {
         className="absolute inset-y-0 left-0 w-full bg-gradient-to-r from-cream/85 via-cream/45 to-transparent md:from-cream/85 md:via-cream/30 md:w-[46%]"
       />
       {/* Very subtle bottom fade — lighter than before so the
-          Houston hub (now sitting in the lower portion of the
+          Austin hub (now sitting in the lower portion of the
           canvas) reads cleanly all the way to the section edge
           where it's most likely to be visible. */}
       <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-cream/70 to-transparent" />
