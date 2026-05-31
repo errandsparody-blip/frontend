@@ -26,12 +26,35 @@ function ConfirmInner({ onSuccess, submitLabel }: ConfirmInnerProps): JSX.Elemen
   const elements = useElements();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The PaymentElement loads asynchronously inside its iframe. `elements`
+  // from useElements() is truthy from the moment the Elements provider
+  // mounts, which is BEFORE the PaymentElement child has finished
+  // loading. Calling stripe.confirmPayment({ elements }) at that moment
+  // throws IntegrationError "elements should have a mounted Payment
+  // Element". We track the PaymentElement's own `ready` event and keep
+  // the submit button disabled until it fires.
+  const [paymentElementReady, setPaymentElementReady] = useState(false);
+  // Surface load failures (e.g. expired client secret, blocked iframe,
+  // network failure inside Stripe's iframe) instead of leaving the user
+  // staring at an empty box. Without this, the form silently appears
+  // broken when the PaymentElement can't render.
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   async function onSubmit(e: React.FormEvent): Promise<void> {
     e.preventDefault();
-    if (!stripe || !elements) return;
+    if (!stripe || !elements || !paymentElementReady) return;
     setSubmitting(true);
     setError(null);
+
+    // Defense in depth — even with the `ready` gate above, race against
+    // unmount (e.g. navigation triggered mid-click) by re-verifying the
+    // element is still in the tree before we call confirmPayment.
+    const paymentEl = elements.getElement(PaymentElement);
+    if (!paymentEl) {
+      setError("Payment form is not ready. Please refresh and try again.");
+      setSubmitting(false);
+      return;
+    }
 
     const result = await stripe.confirmPayment({
       elements,
@@ -53,7 +76,21 @@ function ConfirmInner({ onSuccess, submitLabel }: ConfirmInnerProps): JSX.Elemen
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-5">
-      <PaymentElement options={{ layout: "tabs" }} />
+      <PaymentElement
+        options={{ layout: "tabs" }}
+        onReady={() => setPaymentElementReady(true)}
+        onLoadError={(event) =>
+          setLoadError(event.error.message ?? "Failed to load the payment form.")
+        }
+      />
+      {loadError ? (
+        <div
+          role="alert"
+          className="rounded-sm border-l-4 border-error bg-error/10 px-4 py-3 text-body-sm text-error"
+        >
+          {loadError} If this keeps happening, try refreshing the page or contact support.
+        </div>
+      ) : null}
       {error ? (
         <div role="alert" className="rounded-sm border-l-4 border-error bg-error/10 px-4 py-3 text-body-sm text-error">
           {error}
@@ -64,10 +101,14 @@ function ConfirmInner({ onSuccess, submitLabel }: ConfirmInnerProps): JSX.Elemen
         variant="amber"
         size="lg"
         withArrow
-        disabled={!stripe || !elements || submitting}
+        disabled={!stripe || !elements || !paymentElementReady || submitting}
         loading={submitting}
       >
-        {submitting ? "Processing" : submitLabel}
+        {submitting
+          ? "Processing"
+          : !paymentElementReady
+            ? "Loading payment form…"
+            : submitLabel}
       </Button>
     </form>
   );
