@@ -140,7 +140,7 @@ export default function DashboardPage() {
           ctaLabel="View PSNs"
         />
         <Tile
-          eyebrow="[C] Inventory"
+          eyebrow="  Inventory"
           value={inventoryCount == null ? "—" : inventoryCount.toString()}
           unit={
             inventoryCount === 1 ? "box on hand" : "boxes on hand"
