@@ -77,13 +77,186 @@ export default function AdminShopperConfigPage(): JSX.Element {
       <PageHeader
         eyebrow="  Configuration / Shopper"
         title="Personal Shopper settings"
-        description="Commission rate, warehouse state, and per-state estimated sales tax. Each section saves independently. Every change is captured in the audit log with the full before/after JSON."
+        description="Commission rate, wire-transfer threshold, warehouse state, and per-state estimated sales tax. Each section saves independently. Every change is captured in the audit log with the full before/after JSON."
       />
       <CommissionCard />
+      <WireThresholdCard />
       <WarehouseStateCard />
       <TaxRatesCard />
       <FreightRatesCard />
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Wire-transfer threshold (migration 0023)
+//
+// Items-subtotal above which a buyer is routed onto the wire-transfer +
+// ID-verification track instead of paying by card. Backend reads
+// `shopper_wire_threshold_cents` on every intake request; this card lets
+// an operator change it without redeploying. Stored in cents; the input
+// accepts dollars and converts at submit time. The backend enforces a
+// hard cap at $100,000 (anything higher falls back to the $1,000
+// default), so we mirror that cap here.
+// ---------------------------------------------------------------------------
+
+// Mirrors WIRE_THRESHOLD_MAX_CENTS in shopper.controller.ts so the UI
+// rejects values the backend would silently revert.
+const WIRE_THRESHOLD_MAX_DOLLARS = 100_000;
+
+function WireThresholdCard(): JSX.Element {
+  const qc = useQueryClient();
+  const { bannerError, handle, clear } = useApiErrorHandler();
+
+  const q = useQuery({
+    queryKey: ["admin", "config", "shopper_wire_threshold_cents"],
+    queryFn: () =>
+      api.get<ConfigRow<number>>("/admin/config/shopper_wire_threshold_cents"),
+    // The row doesn't exist on a fresh DB — surface that as an
+    // actionable banner rather than a hard error, since the backend
+    // falls back to $1,000 in that case.
+    retry: false,
+  });
+
+  // Dollar string so the field can be empty mid-typing; re-seeded
+  // whenever the loaded value changes.
+  const [dollars, setDollars] = useState<string>("");
+  useEffect(() => {
+    if (q.data) setDollars((q.data.value / 100).toString());
+  }, [q.data]);
+
+  const save = useMutation({
+    mutationFn: (cents: number) =>
+      api.patch<ConfigRow<number>>("/admin/config/shopper_wire_threshold_cents", {
+        value: cents,
+      }),
+    onSuccess: async () => {
+      await qc.invalidateQueries({
+        queryKey: ["admin", "config", "shopper_wire_threshold_cents"],
+      });
+    },
+    onError: (err) => handle(err),
+  });
+
+  function onSave(): void {
+    clear();
+    const value = Number(dollars);
+    if (!Number.isFinite(value) || value < 0 || value > WIRE_THRESHOLD_MAX_DOLLARS) return;
+    // Round to integer cents — fractional cents would be silently
+    // truncated by the backend's Math.floor and we'd rather not have
+    // the rendered value drift away from what the operator typed.
+    const cents = Math.round(value * 100);
+    save.mutate(cents);
+  }
+
+  // Row missing on this environment — show a one-click "create it"
+  // message rather than failing the page. The backend's GET returns
+  // 400 with code config_unknown when the row hasn't been seeded.
+  const rowMissing =
+    q.isError &&
+    (q.error as { code?: string } | null)?.code === "config_unknown";
+
+  return (
+    <section className="rounded-md border border-line bg-white p-8">
+      <header className="mb-4 flex flex-wrap items-baseline justify-between gap-3">
+        <div>
+          <h2 className="text-h2 font-semibold text-ink">Wire-transfer threshold</h2>
+          <p className="mt-1 max-w-prose text-body-sm text-text-muted">
+            Items-subtotal above which a buyer must pay by wire transfer and verify their identity
+            instead of paying with a card at checkout. Lower this when you want to route more
+            traffic through the manual review flow; raise it to keep more orders on the self-serve
+            card path. Hard cap is ${WIRE_THRESHOLD_MAX_DOLLARS.toLocaleString()} — anything higher
+            is rejected and the backend falls back to the $1,000 default.
+          </p>
+        </div>
+        {q.data ? (
+          <StatusPill tone="info">
+            Saved · ${(q.data.value / 100).toLocaleString()} ·{" "}
+            {new Date(q.data.updatedAt).toLocaleString()}
+          </StatusPill>
+        ) : null}
+      </header>
+
+      {bannerError ? (
+        <div className="mb-4">
+          <ErrorBanner error={bannerError} />
+        </div>
+      ) : null}
+
+      {rowMissing ? (
+        <div
+          role="alert"
+          className="mb-4 rounded-md border-l-4 border-amber bg-amber/10 px-5 py-4 text-body-sm"
+        >
+          The <code className="font-mono">shopper_wire_threshold_cents</code> configuration row
+          doesn&apos;t exist yet on this environment, so the backend is falling back to the
+          $1,000 default. Run this SQL once on the Railway Postgres Data tab to seed it, then
+          reload this page:
+          <pre className="mt-2 overflow-x-auto rounded-sm bg-ink/5 p-3 font-mono text-[11px] text-text">
+{`INSERT INTO configuration (key, value, description)
+VALUES ('shopper_wire_threshold_cents', '100000'::jsonb,
+        'Items subtotal in cents above which buyers are routed to wire transfer.')
+ON CONFLICT (key) DO NOTHING;`}
+          </pre>
+        </div>
+      ) : null}
+
+      {q.isLoading ? (
+        <div className="font-mono text-mono-label uppercase text-text-muted">Loading…</div>
+      ) : q.data ? (
+        <div className="grid gap-5 md:grid-cols-[1fr_auto_auto]">
+          <Field
+            label="Threshold (USD)"
+            hint="Whole-dollar amount works fine. Stored as cents."
+          >
+            <div className="flex items-center gap-1">
+              <span className="font-mono text-mono-label uppercase text-text-muted">$</span>
+              <Input
+                type="number"
+                inputMode="decimal"
+                min={0}
+                max={WIRE_THRESHOLD_MAX_DOLLARS}
+                step={1}
+                value={dollars}
+                onChange={(e) => setDollars(e.target.value)}
+                placeholder="1000"
+              />
+            </div>
+          </Field>
+          <div>
+            <div className="font-mono text-mono-label uppercase text-text-muted">
+              Will store as
+            </div>
+            <div className="mt-2 font-mono text-h3 tabular-nums text-ink">
+              {(() => {
+                const n = Number(dollars);
+                if (!Number.isFinite(n) || n < 0) return "—";
+                return `${Math.round(n * 100).toLocaleString()} cents`;
+              })()}
+            </div>
+          </div>
+          <div className="flex items-end">
+            <Button
+              type="button"
+              onClick={onSave}
+              variant="amber"
+              size="lg"
+              loading={save.isPending}
+              disabled={
+                save.isPending ||
+                !q.data ||
+                dollars === String(q.data.value / 100) ||
+                !Number.isFinite(Number(dollars)) ||
+                Number(dollars) < 0 ||
+                Number(dollars) > WIRE_THRESHOLD_MAX_DOLLARS
+              }
+            >
+              Save threshold
+            </Button>
+          </div>
+        </div>
+      ) : null}
+    </section>
   );
 }
 
