@@ -116,9 +116,20 @@ export default function ReceivePsnPage() {
       if (Object.keys(prev).length > 0) return prev; // preserve operator entries
       const seed: Record<string, ReceivingState> = {};
       for (const l of psn.lines) {
+        // Initialise the form from the LINE'S CURRENT STATE on the
+        // server, not from zeros. On a fresh PSN these are all 0 so
+        // behaviour matches the original "blank form" intent. On a
+        // re-open of a PARTIALLY_RECEIVED / DISCREPANCY PSN, the
+        // operator immediately sees the missing / damaged counts they
+        // recorded earlier, instead of an empty form that makes it
+        // look like they have to start over. Without this, the Accept
+        // column showed nonsense numbers (e.g. "2" when the operator
+        // had previously declared 2 missing on a 100-unit line) because
+        // the math treated each session as "what's still arriving"
+        // rather than "what is the final state of this shipment".
         seed[l.id] = {
-          damagedQty: 0,
-          missingQty: 0,
+          damagedQty: l.damagedQty ?? 0,
+          missingQty: l.missingQty ?? 0,
           notes: l.notes ?? "",
         };
       }
@@ -127,10 +138,20 @@ export default function ReceivePsnPage() {
   }, [psn]);
 
   /**
-   * Compute the accepted quantity for a line from its current
-   * receiving-state entries. Always:
-   *   remaining = declared − already-received
-   *   accepted  = max(0, remaining − missing − damaged)
+   * Compute the accepted quantity for a line as the CUMULATIVE total
+   * for the whole PSN line, not a per-session delta:
+   *
+   *   accepted = max(0, declared − missing − damaged)
+   *
+   * The previous version subtracted the already-received quantity
+   * first and treated input as "how much more this session" — that
+   * worked on a first receive but broke on every re-receive because
+   * `remaining` shrank with each prior submission and the operator
+   * couldn't see their previous declarations. Now the form always
+   * shows the final-state numbers; my SkuService delta logic on the
+   * backend handles the bucket math correctly when the cumulative
+   * value changes between sessions.
+   *
    * `clamp(0)` is defensive — if an operator overshoots Missing or
    * Damaged we render 0 rather than a negative count, and a banner
    * tells them to dial back. The submit math relies on the same
@@ -139,10 +160,9 @@ export default function ReceivePsnPage() {
    */
   function deriveAccepted(line: AdminPsn["lines"][number]): number {
     const r = rows[line.id] ?? { damagedQty: 0, missingQty: 0, notes: "" };
-    const remaining = line.declaredQty - line.receivedQty;
     return Math.max(
       0,
-      remaining - (Number(r.damagedQty) || 0) - (Number(r.missingQty) || 0),
+      line.declaredQty - (Number(r.damagedQty) || 0) - (Number(r.missingQty) || 0),
     );
   }
 
@@ -289,15 +309,16 @@ export default function ReceivePsnPage() {
   );
 
   // Detect over-receive on the missing/damaged inputs — if the operator
-  // types more missing+damaged than physically possible (i.e. > remaining)
-  // we highlight the line, disable submit, and show a banner. Accept is
-  // derived so it can never itself overshoot; this gate catches the
-  // upstream typo.
+  // types cumulative missing + damaged that exceeds the declared count
+  // for the line we highlight it, disable submit, and show a banner.
+  // Accept is derived so it can never itself overshoot; this gate
+  // catches the upstream typo. Compared against `declaredQty` directly
+  // because the form now operates on cumulative totals — see the
+  // deriveAccepted comment above for why.
   const overReceiveLines = psn.lines.filter((l) => {
-    const remaining = l.declaredQty - l.receivedQty;
     const r = rows[l.id];
     if (!r) return false;
-    return (Number(r.missingQty) || 0) + (Number(r.damagedQty) || 0) > remaining;
+    return (Number(r.missingQty) || 0) + (Number(r.damagedQty) || 0) > l.declaredQty;
   });
   const hasOverReceive = overReceiveLines.length > 0;
   const hasAnyEntry =
