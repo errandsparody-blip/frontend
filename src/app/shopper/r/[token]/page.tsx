@@ -315,12 +315,18 @@ function ThreadView({
         ) : null}
       </section>
 
-      {/* May 2026 — Manual-only payment policy. ID verification is no
-          longer collected; the buyer goes straight to the multi-method
-          payment picker. The IdVerificationCard component is kept in
-          the file for legacy reference but is no longer rendered. */}
+      {/* May 2026 — All-manual payment policy with threshold-gated ID
+          verification. Above $10k (or whatever the admin set), the
+          buyer must clear ID review BEFORE payment instructions are
+          released. The IdVerificationCard short-circuits to null when
+          idVerificationStatus is "NONE" (below-threshold requests) so
+          we can render it unconditionally here without leaking the
+          card to buyers who don't need to upload anything. */}
       {r.paymentMethod === "WIRE" ? (
-        <WirePaymentCard request={r} token={token} onRefresh={onRefresh} />
+        <>
+          <IdVerificationCard request={r} token={token} onRefresh={onRefresh} />
+          <WirePaymentCard request={r} token={token} onRefresh={onRefresh} />
+        </>
       ) : null}
 
       {/* Migration 0027 follow-up — BUYER_FREIGHT "Ship From" panel.
@@ -514,12 +520,15 @@ function buyerCallout(status: ShopperRequestStatus): string | null {
       return "This request has been cancelled.";
     case "REFUNDED":
       return "This request has been cancelled and refunded.";
-    // May 2026 — manual-payment callouts. The ID-verification flow has
-    // been retired but the two ID statuses still appear in the enum, so
-    // we keep no-op cases that say nothing rather than removing them.
+    // May 2026 — manual-payment callouts. ID verification is required
+    // only for above-threshold requests; for below-threshold requests
+    // these two cases are unreachable because the buyer's
+    // idVerificationStatus is "NONE" and the initial status skips
+    // directly to AWAITING_WIRE_PAYMENT.
     case "AWAITING_ID_VERIFICATION":
+      return "Because this order is above our verification threshold, upload a photo of your government-issued ID and a selfie holding it. We'll review usually within one business day.";
     case "ID_UNDER_REVIEW":
-      return "";
+      return "We're reviewing your ID — usually within one business day. We'll message you here as soon as we've finished.";
     case "QUOTE_SENT":
     case "AWAITING_WIRE_PAYMENT":
       return "Choose a payment method below, send your payment, then upload a confirmation here so we can match it.";
@@ -631,14 +640,10 @@ function IdVerificationCard({
   token: string;
   onRefresh: () => void;
 }): JSX.Element | null {
-  // States where the buyer either still needs to upload, or just did.
-  // Once their ID is APPROVED we render a compact "verified" summary
-  // instead of taking up screen space with the uploader form.
-  const showFullUploader =
-    request.idVerificationStatus === "PENDING_UPLOAD" ||
-    request.idVerificationStatus === "REJECTED" ||
-    request.idVerificationStatus === "UNDER_REVIEW";
-
+  // Hooks must run unconditionally — we call them all up front so the
+  // hook order stays stable across renders even when the early-return
+  // path below decides not to display anything. ESLint enforces this
+  // ordering rule on a per-component basis.
   const [docUrls, setDocUrls] = useState<string[]>([]);
   const [selfieUrls, setSelfieUrls] = useState<string[]>([]);
   const { bannerError, handle, clear } = useApiErrorHandler();
@@ -662,6 +667,20 @@ function IdVerificationCard({
     },
     onError: (err) => handle(err),
   });
+
+  // May 2026 — Threshold-gated ID. When the request was created below
+  // the wire threshold, idVerificationStatus is "NONE" and the buyer
+  // doesn't need to upload anything. Skip rendering entirely so the
+  // page goes straight from "request summary" to the payment picker.
+  if (request.idVerificationStatus === "NONE") return null;
+
+  // States where the buyer either still needs to upload, or just did.
+  // Once their ID is APPROVED we render a compact "verified" summary
+  // instead of taking up screen space with the uploader form.
+  const showFullUploader =
+    request.idVerificationStatus === "PENDING_UPLOAD" ||
+    request.idVerificationStatus === "REJECTED" ||
+    request.idVerificationStatus === "UNDER_REVIEW";
 
   // After approval — compact summary so the buyer sees their progress
   // through the funnel but the uploader doesn't occupy precious space.

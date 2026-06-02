@@ -71,7 +71,14 @@ type FormShape = {
 // finance can change the server-side number without a deploy, in which
 // case this hint becomes slightly conservative (some carts that look
 // under the line will still be routed onto WIRE, which is fine).
-const WIRE_THRESHOLD_HINT_CENTS = 100_000;
+// May 2026 — Repurposed from the original Stripe-vs-wire threshold
+// into the ID-verification threshold. Default $10,000 mirrors the
+// backend's WIRE_THRESHOLD_FALLBACK_CENTS; finance can change the
+// server-side number from the admin config page without a deploy, in
+// which case this hint becomes slightly conservative (carts that look
+// under the line client-side will still hit ID review server-side,
+// which is acceptable).
+const WIRE_THRESHOLD_HINT_CENTS = 1_000_000;
 
 const DEFAULT_LINE: LineFormShape = {
   productUrl: "",
@@ -261,23 +268,25 @@ export default function ShopperIntakePage(): JSX.Element {
           </div>
         </section>
 
-        {/* Migration 0023 — when the cart crosses the wire threshold,
-            surface a clear notice so the buyer isn't surprised at submit.
-            The server is authoritative; this hint is purely visual. */}
+        {/* When the cart crosses the ID-verification threshold, surface a
+            clear notice so the buyer isn't surprised at submit. The server is
+            authoritative; this hint is purely visual. */}
         {itemsTotalCents >= WIRE_THRESHOLD_HINT_CENTS ? (
           <div
             role="note"
             className="-mb-2 rounded-md border-l-4 border-amber bg-amber/10 px-5 py-4"
           >
             <div className="font-mono text-mono-label uppercase text-amber">
-              Orders over $1,000 — Wire transfer required
+              Orders over $10,000 — ID verification required
             </div>
             <p className="mt-1 text-body-sm text-text">
-              Because your items add up to over $1,000, you&apos;ll be asked to
-              verify your identity with a government-issued ID and pay by bank
-              wire transfer instead of card. We&apos;ll email a link to your
-              private order page where you can upload your ID. Bank-transfer
-              instructions are only revealed after we approve your verification.
+              Because your items add up to over $10,000, you&apos;ll be asked to
+              upload a government-issued ID and a selfie holding it before we
+              release payment instructions. All payments are still by wire, ACH,
+              Zelle, or Cash App — only the ID step changes. We&apos;ll email a
+              link to your private order page where you can upload your ID;
+              payment details unlock once we approve it (usually within one
+              business day).
             </p>
           </div>
         ) : null}
@@ -467,20 +476,41 @@ export default function ShopperIntakePage(): JSX.Element {
 
         {/* Confirm + submit */}
         <section className="rounded-md border border-line bg-cream-soft p-6">
-          <p className="text-body-sm text-text-muted">
-            On submit, you&apos;ll land on your private order page. There you&apos;ll
-            see our available payment methods (wire, ACH, Zelle, or Cash App) and
-            choose the one that works best for you. Total estimate so far:{" "}
-            <strong>
-              ${(itemsTotalCents / 100).toFixed(2)} + service fee + estimated U.S. sales tax
-            </strong>
-            . After we receive your payment we&apos;ll either invoice any remaining
-            difference + shipping, or refund you. By submitting, you agree to our{" "}
-            <Link href="/legal/terms" className="underline">
-              Terms
-            </Link>
-            .
-          </p>
+          {itemsTotalCents >= WIRE_THRESHOLD_HINT_CENTS ? (
+            <p className="text-body-sm text-text-muted">
+              On submit, you&apos;ll land on your private order page. Because
+              this order is over $10,000, you&apos;ll first upload a
+              government-issued ID and a selfie holding it. Once we approve
+              your ID (usually within one business day), you&apos;ll see our
+              available payment methods (wire, ACH, Zelle, or Cash App) and
+              choose the one that works best for you. Total estimate so far:{" "}
+              <strong>
+                ${(itemsTotalCents / 100).toFixed(2)} + service fee + estimated U.S. sales tax
+              </strong>
+              . By submitting, you agree to our{" "}
+              <Link href="/legal/terms" className="underline">
+                Terms
+              </Link>
+              .
+            </p>
+          ) : (
+            <p className="text-body-sm text-text-muted">
+              On submit, you&apos;ll land on your private order page. There
+              you&apos;ll see our available payment methods (wire, ACH, Zelle,
+              or Cash App) and choose the one that works best for you. Total
+              estimate so far:{" "}
+              <strong>
+                ${(itemsTotalCents / 100).toFixed(2)} + service fee + estimated U.S. sales tax
+              </strong>
+              . After we receive your payment we&apos;ll either invoice any
+              remaining difference + shipping, or refund you. By submitting,
+              you agree to our{" "}
+              <Link href="/legal/terms" className="underline">
+                Terms
+              </Link>
+              .
+            </p>
+          )}
 
           {/* Set the recovery expectation up front so a buyer who closes
               the tab knows exactly what to do. The thread has no password —

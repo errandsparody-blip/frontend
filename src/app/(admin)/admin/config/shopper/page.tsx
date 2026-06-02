@@ -230,9 +230,11 @@ function PaymentMethodCard({ spec }: { spec: PaymentMethodSpec }): JSX.Element {
   const q = useQuery({
     queryKey: ["admin", "config", configKey],
     queryFn: () => api.get<ConfigRow<PaymentMethodValue>>(`/admin/config/${configKey}`),
-    // Row may not exist yet on this environment — surface as a one-click
-    // "create it" banner instead of treating the missing row as a fatal
-    // page error.
+    // First-load 404 is expected when the row hasn't been saved yet on
+    // this environment. We surface that as an empty form, not an
+    // error, so the admin can configure + save in one click. The
+    // backend's PATCH is upsert-aware (admin-config.controller.ts) so
+    // first save just creates the row.
     retry: false,
   });
 
@@ -252,9 +254,12 @@ function PaymentMethodCard({ spec }: { spec: PaymentMethodSpec }): JSX.Element {
       }
       setDetails(seeded);
     } else if (q.isError) {
+      // Row doesn't exist yet — start with a blank form. Save will
+      // create the row via the backend's upsert PATCH.
       const blank: Record<string, string> = {};
       for (const f of spec.fields) blank[f.key] = "";
       setDetails(blank);
+      setActive(false);
     }
   }, [q.data, q.isError, spec.fields]);
 
@@ -281,8 +286,13 @@ function PaymentMethodCard({ spec }: { spec: PaymentMethodSpec }): JSX.Element {
     save.mutate({ active, details: trimmed });
   }
 
+  // Row may not exist yet (config_unknown 404) — that's the first-save
+  // case and we render the form as a blank slate. Any OTHER error
+  // genuinely blocks the page and we'd want to show it; today the
+  // useApiErrorHandler hook surfaces those via `bannerError`.
   const rowMissing =
     q.isError && (q.error as { code?: string } | null)?.code === "config_unknown";
+  const showForm = q.data !== undefined || rowMissing;
   const isActive = q.data ? Boolean(q.data.value.active) : false;
 
   return (
@@ -303,26 +313,9 @@ function PaymentMethodCard({ spec }: { spec: PaymentMethodSpec }): JSX.Element {
         </div>
       ) : null}
 
-      {rowMissing ? (
-        <div
-          role="alert"
-          className="mb-4 rounded-md border-l-4 border-amber bg-amber/10 px-5 py-4 text-body-sm"
-        >
-          The <code className="font-mono">{configKey}</code> configuration row
-          doesn&apos;t exist yet. Run this SQL once on the Railway Postgres
-          Data tab to seed it, then reload this page:
-          <pre className="mt-2 overflow-x-auto rounded-sm bg-ink/5 p-3 font-mono text-[11px] text-text">
-{`INSERT INTO configuration (key, value, description)
-VALUES ('${configKey}', '{"active": false, "details": {}}'::jsonb,
-        '${spec.label} payment method for shopper requests.')
-ON CONFLICT (key) DO NOTHING;`}
-          </pre>
-        </div>
-      ) : null}
-
       {q.isLoading ? (
         <div className="font-mono text-mono-label uppercase text-text-muted">Loading…</div>
-      ) : q.data ? (
+      ) : showForm ? (
         <>
           <label className="mb-5 flex items-center gap-3 text-body-sm">
             <input
@@ -370,7 +363,7 @@ ON CONFLICT (key) DO NOTHING;`}
               variant="amber"
               size="md"
               loading={save.isPending}
-              disabled={save.isPending || !q.data}
+              disabled={save.isPending}
             >
               Save {spec.label}
             </Button>
@@ -411,12 +404,21 @@ function WireThresholdCard(): JSX.Element {
     retry: false,
   });
 
-  // Dollar string so the field can be empty mid-typing; re-seeded
-  // whenever the loaded value changes.
+  // Dollar string so the field can be empty mid-typing. Seeds from the
+  // server when the row exists, defaults to the $10k fallback when the
+  // row doesn't exist yet (matches the backend constant). The PATCH
+  // endpoint is upsert-aware, so saving with no prior row creates it.
   const [dollars, setDollars] = useState<string>("");
   useEffect(() => {
-    if (q.data) setDollars((q.data.value / 100).toString());
-  }, [q.data]);
+    if (q.data) {
+      setDollars((q.data.value / 100).toString());
+    } else if (q.isError) {
+      // Row doesn't exist yet — render the form pre-filled with the
+      // backend default so the admin sees what they're agreeing to
+      // when they hit Save.
+      setDollars("10000");
+    }
+  }, [q.data, q.isError]);
 
   const save = useMutation({
     mutationFn: (cents: number) =>
@@ -442,24 +444,25 @@ function WireThresholdCard(): JSX.Element {
     save.mutate(cents);
   }
 
-  // Row missing on this environment — show a one-click "create it"
-  // message rather than failing the page. The backend's GET returns
-  // 400 with code config_unknown when the row hasn't been seeded.
+  // Row missing on this environment — treat as the empty/initial state
+  // and let the admin save normally; PATCH is upsert-aware so first
+  // save creates the row.
   const rowMissing =
     q.isError &&
     (q.error as { code?: string } | null)?.code === "config_unknown";
+  const showForm = q.data !== undefined || rowMissing;
 
   return (
     <section className="rounded-md border border-line bg-white p-8">
       <header className="mb-4 flex flex-wrap items-baseline justify-between gap-3">
         <div>
-          <h2 className="text-h2 font-semibold text-ink">Wire-transfer threshold</h2>
+          <h2 className="text-h2 font-semibold text-ink">ID verification threshold</h2>
           <p className="mt-1 max-w-prose text-body-sm text-text-muted">
-            Items-subtotal above which a buyer must pay by wire transfer and verify their identity
-            instead of paying with a card at checkout. Lower this when you want to route more
-            traffic through the manual review flow; raise it to keep more orders on the self-serve
-            card path. Hard cap is ${WIRE_THRESHOLD_MAX_DOLLARS.toLocaleString()} — anything higher
-            is rejected and the backend falls back to the $1,000 default.
+            Items-subtotal at or above which a buyer must upload a government-issued ID + selfie
+            before payment instructions are released. Orders below this number skip the ID step
+            and land straight on the payment-method picker. All payments are manual either way.
+            Hard cap is ${WIRE_THRESHOLD_MAX_DOLLARS.toLocaleString()} — anything higher is
+            rejected and the backend falls back to the $10,000 default.
           </p>
         </div>
         {q.data ? (
@@ -476,27 +479,9 @@ function WireThresholdCard(): JSX.Element {
         </div>
       ) : null}
 
-      {rowMissing ? (
-        <div
-          role="alert"
-          className="mb-4 rounded-md border-l-4 border-amber bg-amber/10 px-5 py-4 text-body-sm"
-        >
-          The <code className="font-mono">shopper_wire_threshold_cents</code> configuration row
-          doesn&apos;t exist yet on this environment, so the backend is falling back to the
-          $1,000 default. Run this SQL once on the Railway Postgres Data tab to seed it, then
-          reload this page:
-          <pre className="mt-2 overflow-x-auto rounded-sm bg-ink/5 p-3 font-mono text-[11px] text-text">
-{`INSERT INTO configuration (key, value, description)
-VALUES ('shopper_wire_threshold_cents', '100000'::jsonb,
-        'Items subtotal in cents above which buyers are routed to wire transfer.')
-ON CONFLICT (key) DO NOTHING;`}
-          </pre>
-        </div>
-      ) : null}
-
       {q.isLoading ? (
         <div className="font-mono text-mono-label uppercase text-text-muted">Loading…</div>
-      ) : q.data ? (
+      ) : showForm ? (
         <div className="grid gap-5 md:grid-cols-[1fr_auto_auto]">
           <Field
             label="Threshold (USD)"
@@ -723,7 +708,7 @@ function FreightRatesCard(): JSX.Element {
               variant="amber"
               size="lg"
               loading={save.isPending}
-              disabled={save.isPending || !q.data}
+              disabled={save.isPending}
             >
               Save freight rates
             </Button>
@@ -1057,7 +1042,7 @@ function TaxRatesCard(): JSX.Element {
               variant="amber"
               size="lg"
               loading={save.isPending}
-              disabled={save.isPending || !q.data}
+              disabled={save.isPending}
             >
               Save tax rates
             </Button>
