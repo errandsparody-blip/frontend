@@ -128,6 +128,41 @@ export default function NewOrderPage() {
   const [insuranceRequested, setInsuranceRequested] = useState(false);
   const [quote, setQuote] = useState<QuoteResult | null>(null);
   const [chosen, setChosen] = useState<QuoteRateOption | null>(null);
+
+  // Migration 0037 — live fulfillment-cost estimate for the
+  // VENDOR_CARRIER branch. We don't quote carrier rates on this path
+  // (the vendor brings their own label), but the vendor still pays
+  // handling + insurance. Re-fetched whenever lines or insurance
+  // changes; gated to VENDOR_CARRIER + at least one line so we never
+  // burn an API call we can't render. React Query memoises the result
+  // by query-key so flipping between fulfillment modes is free.
+  const fulfillmentEstimateQ = useQuery({
+    queryKey: [
+      "orders",
+      "fulfillment-estimate",
+      // Stable shape — array order matters for cache invalidation, so
+      // we sort by skuId before sending to keep keys consistent across
+      // reorder operations that don't actually change the request.
+      [...lines]
+        .map((l) => `${l.skuId}:${l.quantity}`)
+        .sort()
+        .join(","),
+      insuranceRequested,
+    ],
+    queryFn: () =>
+      api.post<{
+        totalUnits: number;
+        declaredValueCents: number;
+        fulfillmentFeeCents: number;
+        insuranceFeeCents: number;
+        totalCents: number;
+      }>("/orders/fulfillment-estimate", { lines, insuranceRequested }),
+    enabled: fulfillmentMode === "VENDOR_CARRIER" && lines.length > 0,
+    // Stale-time keeps the cost stable across step transitions for a
+    // few seconds — switching from Recipient back to Lines without
+    // editing shouldn't show a flicker.
+    staleTime: 30_000,
+  });
   // Local validation messages (not API errors — those go through the banner).
   // Two flavours: a top-level message ("Add at least one line.") and a
   // per-field map for the address step so we can light up individual inputs.
@@ -335,6 +370,20 @@ export default function NewOrderPage() {
 
       <Stepper step={step} />
 
+      {/* Migration 0037 — VENDOR_CARRIER cost strip. Visible from the
+          moment the vendor has any lines, on every step, so they
+          always see what handling + insurance will cost. Shipping is
+          NOT charged on this branch (the vendor brings their own
+          label), which the strip calls out explicitly. */}
+      {fulfillmentMode === "VENDOR_CARRIER" && lines.length > 0 ? (
+        <FulfillmentCostStrip
+          loading={fulfillmentEstimateQ.isLoading}
+          error={fulfillmentEstimateQ.error}
+          estimate={fulfillmentEstimateQ.data ?? null}
+          insuranceRequested={insuranceRequested}
+        />
+      ) : null}
+
       <ErrorBanner error={bannerError} onAction={onAction} />
 
       {validationError ? (
@@ -443,15 +492,20 @@ export default function NewOrderPage() {
               quoteMut.mutate();
               return;
             }
-            // VENDOR_CARRIER — validate vendor-supplied fields up front
-            // so the buyer doesn't reach the review step only to bounce.
+            // VENDOR_CARRIER — defence in depth. The FulfillmentStep
+            // disables its Continue button when neither a label NOR
+            // (carrier + tracking) is supplied, so under normal
+            // operation this branch is unreachable. Kept in case the
+            // button's disabled state is bypassed (devtools, future
+            // refactor) so we never accept a half-formed VENDOR_CARRIER
+            // order at the wizard layer.
             const hasLabel = vendorLabelUrl.trim().length > 0;
             const hasManual =
               vendorCarrierName.trim().length > 0 &&
               vendorTrackingNumber.trim().length > 0;
             if (!hasLabel && !hasManual) {
               setValidationError(
-                "Provide a label URL or both a carrier name and tracking number.",
+                "Upload a pre-paid label, or enter both a carrier name and tracking number.",
               );
               return;
             }
@@ -506,6 +560,14 @@ export default function NewOrderPage() {
           vendorCarrierName={vendorCarrierName}
           vendorTrackingNumber={vendorTrackingNumber}
           vendorLabelUrl={vendorLabelUrl}
+          // Migration 0037 — surface the same handling + insurance
+          // breakdown the cost strip shows, right before the vendor
+          // commits. The estimate is fetched at the wizard level, so
+          // we just hand it down. May be null while in-flight; the
+          // panel renders a "calculating" placeholder.
+          insuranceRequested={insuranceRequested}
+          costEstimate={fulfillmentEstimateQ.data ?? null}
+          costLoading={fulfillmentEstimateQ.isLoading}
           submitting={submitMut.isPending}
           onBack={() => setStep("fulfillment")}
           onSubmit={() => submitMut.mutate()}
@@ -1027,6 +1089,16 @@ function FulfillmentStep({
   onBack: () => void;
   onNext: () => void;
 }): JSX.Element {
+  // Migration 0037 — derive the gating flag locally so the Continue
+  // button and the inline hint both react to the same state. For
+  // PLATFORM_SHIP this is always true (the rates step has its own
+  // gating); for VENDOR_CARRIER we require either a label OR a
+  // complete carrier+tracking pair before proceeding.
+  const hasLabel = vendorLabelUrl.trim().length > 0;
+  const hasManual =
+    vendorCarrierName.trim().length > 0 &&
+    vendorTrackingNumber.trim().length > 0;
+  const canProceed = mode === "PLATFORM_SHIP" || hasLabel || hasManual;
   return (
     <section className="flex flex-col gap-6 rounded-md border border-line bg-white p-8">
       <header>
@@ -1122,6 +1194,28 @@ function FulfillmentStep({
         </div>
       ) : null}
 
+      {/* Migration 0037 — inline hint when the Continue button is
+          disabled because the vendor hasn't given us either a label
+          or carrier+tracking. Without this, the disabled button
+          looks broken; with it, the vendor knows exactly what to
+          fill in to proceed. Only shown on the VENDOR_CARRIER
+          branch — the PLATFORM_SHIP branch has its own validation
+          path (the carrier-rate step). */}
+      {mode === "VENDOR_CARRIER" && !canProceed ? (
+        <div
+          role="status"
+          className="rounded-sm border-l-4 border-amber bg-amber/10 px-4 py-3 text-body-sm text-text"
+        >
+          <strong className="font-mono text-mono-label uppercase tracking-[1.2px] text-amber">
+            Need a label
+          </strong>
+          <p className="mt-1">
+            Upload your pre-paid label above, or fill in both the carrier name
+            and tracking number, before you can continue to review.
+          </p>
+        </div>
+      ) : null}
+
       <div className="flex items-center justify-between">
         <Button type="button" variant="outline" size="lg" onClick={onBack}>
           ← Back
@@ -1133,6 +1227,15 @@ function FulfillmentStep({
           withArrow
           onClick={onNext}
           loading={quoting}
+          // Migration 0037 — block VENDOR_CARRIER continuation when
+          // neither a label nor carrier+tracking is supplied. The
+          // parent's submit-time validation catches this at the end
+          // too, but disabling here makes the requirement visible
+          // BEFORE the click. PLATFORM_SHIP doesn't use canProceed
+          // (always true on that branch) — its validation is "we
+          // got rates from the carrier API", handled by the quote
+          // mutation's loading state.
+          disabled={mode === "VENDOR_CARRIER" && !canProceed}
         >
           {quoting
             ? "Getting rates…"
@@ -1197,6 +1300,9 @@ function VendorCarrierReviewPanel({
   vendorCarrierName,
   vendorTrackingNumber,
   vendorLabelUrl,
+  insuranceRequested,
+  costEstimate,
+  costLoading,
   submitting,
   onBack,
   onSubmit,
@@ -1207,10 +1313,30 @@ function VendorCarrierReviewPanel({
   vendorCarrierName: string;
   vendorTrackingNumber: string;
   vendorLabelUrl: string;
+  insuranceRequested: boolean;
+  costEstimate: {
+    fulfillmentFeeCents: number;
+    insuranceFeeCents: number;
+    totalCents: number;
+  } | null;
+  costLoading: boolean;
   submitting: boolean;
   onBack: () => void;
   onSubmit: () => void;
 }): JSX.Element {
+  // Migration 0037 — render the breakdown right above the Submit
+  // button. We deliberately KEEP it consistent with the strip up
+  // top (same labels, same formatting) so the vendor reads the
+  // same number in both places. Dollars helper is local to this
+  // function — the rest of the wizard uses a few different
+  // formatters and we don't want a re-render-triggering import.
+  const dollars = (cents: number | undefined): string =>
+    cents == null
+      ? "—"
+      : `$${(cents / 100).toLocaleString("en-US", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })}`;
   return (
     <section className="flex flex-col gap-6 rounded-md border border-line bg-white p-8">
       <header>
@@ -1258,6 +1384,37 @@ function VendorCarrierReviewPanel({
         ) : null}
       </dl>
 
+      {/* Migration 0037 — money breakdown card right above Submit so
+          the vendor confirms the exact charge before it hits their
+          wallet. Numbers match the strip pinned above the stepper. */}
+      <div className="rounded-md border border-line bg-cream-soft p-5">
+        <div className="mb-3 font-mono text-mono-label uppercase tracking-[1.4px] text-amber">
+          You&apos;ll be charged
+        </div>
+        <dl className="grid grid-cols-2 gap-y-1 font-mono text-body-sm">
+          <dt className="text-text-muted">Handling</dt>
+          <dd className="text-right text-text">
+            {dollars(costEstimate?.fulfillmentFeeCents)}
+          </dd>
+          <dt className="text-text-muted">Insurance</dt>
+          <dd className="text-right text-text">
+            {insuranceRequested
+              ? dollars(costEstimate?.insuranceFeeCents)
+              : "— (off)"}
+          </dd>
+          <dt className="text-text-muted">Shipping</dt>
+          <dd className="text-right text-text-muted">$0.00 · your carrier</dd>
+          <dt className="border-t border-line pt-2 text-h3 font-semibold text-ink">
+            Total
+          </dt>
+          <dd className="border-t border-line pt-2 text-right text-h3 font-semibold text-ink">
+            {costLoading && !costEstimate
+              ? "Calculating…"
+              : dollars(costEstimate?.totalCents)}
+          </dd>
+        </dl>
+      </div>
+
       <div className="flex items-center justify-between">
         <Button type="button" variant="outline" size="lg" onClick={onBack}>
           ← Back
@@ -1269,6 +1426,11 @@ function VendorCarrierReviewPanel({
           withArrow
           onClick={onSubmit}
           loading={submitting}
+          // Don't let the vendor commit while the cost is still
+          // calculating — they should see the number they're agreeing
+          // to. Once we have an estimate (or the parent's submit
+          // validation fires), the button enables.
+          disabled={submitting || (costLoading && !costEstimate)}
         >
           {submitting ? "Submitting…" : "Submit order"}
         </Button>
@@ -1302,5 +1464,78 @@ function SummaryRow({
         {value}
       </dd>
     </div>
+  );
+}
+
+/**
+ * Migration 0037 — pinned cost strip for the VENDOR_CARRIER branch of
+ * the order wizard. Renders below the stepper, visible on every step
+ * from Lines onwards, so the vendor always knows what they'll be
+ * charged. Shipping is NOT included on this branch (the vendor uses
+ * their own label) — the strip calls this out explicitly so there's
+ * no doubt about what the platform is billing for.
+ *
+ * Loading/error states fall back to "—" rather than disappearing so
+ * the strip's position is stable across the wizard.
+ */
+function FulfillmentCostStrip({
+  loading,
+  error,
+  estimate,
+  insuranceRequested,
+}: {
+  loading: boolean;
+  error: unknown;
+  estimate: {
+    fulfillmentFeeCents: number;
+    insuranceFeeCents: number;
+    totalCents: number;
+  } | null;
+  insuranceRequested: boolean;
+}): JSX.Element {
+  const dash = "—";
+  const fmt = (cents: number | undefined): string =>
+    cents == null
+      ? dash
+      : `$${(cents / 100).toLocaleString("en-US", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })}`;
+  const handling = estimate ? fmt(estimate.fulfillmentFeeCents) : dash;
+  const insurance = estimate ? fmt(estimate.insuranceFeeCents) : dash;
+  const total = estimate ? fmt(estimate.totalCents) : dash;
+
+  return (
+    <section
+      aria-label="Fulfillment cost estimate"
+      className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-amber/40 bg-amber/10 px-5 py-3"
+    >
+      <div className="flex flex-wrap items-baseline gap-4">
+        <span className="font-mono text-mono-label uppercase tracking-[1.2px] text-amber">
+          Fulfillment cost
+        </span>
+        <span className="text-body-sm text-text-muted">
+          Handling{" "}
+          <span className="font-mono text-ink">{handling}</span>
+        </span>
+        <span className="text-body-sm text-text-muted">
+          Insurance{" "}
+          <span className="font-mono text-ink">
+            {insuranceRequested ? insurance : `${dash} (off)`}
+          </span>
+        </span>
+        <span className="text-body-sm font-semibold text-ink">
+          Total{" "}
+          <span className="font-mono">{total}</span>
+        </span>
+      </div>
+      <span className="font-mono text-caption uppercase tracking-[1.2px] text-text-muted">
+        {loading
+          ? "Calculating…"
+          : error
+            ? "Estimate unavailable"
+            : "Shipping not included — your carrier"}
+      </span>
+    </section>
   );
 }
