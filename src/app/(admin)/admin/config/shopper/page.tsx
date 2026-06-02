@@ -77,13 +77,306 @@ export default function AdminShopperConfigPage(): JSX.Element {
       <PageHeader
         eyebrow="  Configuration / Shopper"
         title="Personal Shopper settings"
-        description="Commission rate, wire-transfer threshold, warehouse state, and per-state estimated sales tax. Each section saves independently. Every change is captured in the audit log with the full before/after JSON."
+        description="Commission rate, payment methods, warehouse state, and per-state estimated sales tax. Each section saves independently. Every change is captured in the audit log with the full before/after JSON."
       />
       <CommissionCard />
+      <PaymentMethodsSection />
       <WireThresholdCard />
       <WarehouseStateCard />
       <TaxRatesCard />
       <FreightRatesCard />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Payment methods (May 2026)
+//
+// All shopper payments are manual. Admin configures up to four channels
+// (Wire / ACH / Zelle / Cash App), toggles each one active or inactive,
+// and the buyer thread surfaces only the active ones with their details.
+// Each method is its own configuration row so they can be audited
+// independently:
+//
+//   shopper_payment_method_wire
+//   shopper_payment_method_ach
+//   shopper_payment_method_zelle
+//   shopper_payment_method_cashapp
+//
+// All four share the same JSON shape: `{ active: boolean, details: {...} }`.
+// The `details` object's exact fields vary per method but the buyer
+// thread renders them generically as label-value pairs in the order
+// they appear here.
+// ---------------------------------------------------------------------------
+
+interface PaymentMethodValue {
+  active: boolean;
+  details: Record<string, string>;
+}
+
+interface PaymentMethodSpec {
+  /** Lowercase identifier used in the config key suffix. */
+  code: "wire" | "ach" | "zelle" | "cashapp";
+  /** Display name shown on the card header and in the buyer picker. */
+  label: string;
+  /** One-line operator hint shown under the card title. */
+  hint: string;
+  /** Ordered field definitions for the details object. */
+  fields: ReadonlyArray<{
+    key: string;
+    label: string;
+    placeholder?: string;
+    /** Single line vs multi-line input (e.g. memo/instructions). */
+    multiline?: boolean;
+  }>;
+}
+
+const PAYMENT_METHODS: ReadonlyArray<PaymentMethodSpec> = [
+  {
+    code: "wire",
+    label: "Wire transfer",
+    hint: "Domestic + international bank wires. Use SWIFT for outside-US.",
+    fields: [
+      { key: "bankName", label: "Bank name", placeholder: "Chase Bank, N.A." },
+      { key: "accountName", label: "Account holder name", placeholder: "USA Errands Inc." },
+      { key: "accountNumber", label: "Account number", placeholder: "0123456789" },
+      { key: "routingNumber", label: "Routing / ABA", placeholder: "021000021" },
+      { key: "swift", label: "SWIFT / BIC (international)", placeholder: "CHASUS33" },
+      { key: "bankAddress", label: "Bank address", placeholder: "270 Park Ave, New York, NY" },
+      {
+        key: "memo",
+        label: "Required memo / reference",
+        placeholder: "Include your order reference in the memo line",
+        multiline: true,
+      },
+    ],
+  },
+  {
+    code: "ach",
+    label: "ACH transfer",
+    hint: "US-only bank-to-bank transfer. Slower than wire (1–3 business days) and cheaper.",
+    fields: [
+      { key: "bankName", label: "Bank name", placeholder: "Chase Bank, N.A." },
+      { key: "accountName", label: "Account holder name", placeholder: "USA Errands Inc." },
+      { key: "accountNumber", label: "Account number", placeholder: "0123456789" },
+      { key: "routingNumber", label: "ACH routing number", placeholder: "021000021" },
+      {
+        key: "memo",
+        label: "Required memo / reference",
+        placeholder: "Include your order reference in the memo line",
+        multiline: true,
+      },
+    ],
+  },
+  {
+    code: "zelle",
+    label: "Zelle",
+    hint: "Instant US bank transfer via phone number or email. No fees.",
+    fields: [
+      { key: "handle", label: "Zelle handle (phone or email)", placeholder: "payments@myusaerrands.com" },
+      { key: "recipientName", label: "Recipient name shown in Zelle", placeholder: "USA Errands" },
+      {
+        key: "memo",
+        label: "Required memo / reference",
+        placeholder: "Include your order reference in the Zelle memo",
+        multiline: true,
+      },
+    ],
+  },
+  {
+    code: "cashapp",
+    label: "Cash App",
+    hint: "Send to a $cashtag from the buyer's Cash App account.",
+    fields: [
+      { key: "cashtag", label: "Cashtag", placeholder: "$myusaerrands" },
+      { key: "recipientName", label: "Recipient name shown in Cash App", placeholder: "USA Errands" },
+      {
+        key: "memo",
+        label: "Required memo / reference",
+        placeholder: "Include your order reference in the Cash App note",
+        multiline: true,
+      },
+    ],
+  },
+];
+
+function PaymentMethodsSection(): JSX.Element {
+  return (
+    <section className="rounded-md border border-line bg-white p-8">
+      <header className="mb-6">
+        <h2 className="text-h2 font-semibold text-ink">Buyer payment methods</h2>
+        <p className="mt-1 max-w-prose text-body-sm text-text-muted">
+          Configure the channels buyers can pay you through. Only methods marked
+          <em> active</em> are shown on the buyer&apos;s order page — they pick whichever
+          they prefer. Inactive methods stay saved (so you can re-enable without
+          re-typing) but are hidden from buyers. Buyers always see your order
+          reference in their payment instructions so you can match payments back.
+        </p>
+      </header>
+      <div className="flex flex-col gap-6">
+        {PAYMENT_METHODS.map((spec) => (
+          <PaymentMethodCard key={spec.code} spec={spec} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function PaymentMethodCard({ spec }: { spec: PaymentMethodSpec }): JSX.Element {
+  const qc = useQueryClient();
+  const { bannerError, handle, clear } = useApiErrorHandler();
+  const configKey = `shopper_payment_method_${spec.code}`;
+
+  const q = useQuery({
+    queryKey: ["admin", "config", configKey],
+    queryFn: () => api.get<ConfigRow<PaymentMethodValue>>(`/admin/config/${configKey}`),
+    // Row may not exist yet on this environment — surface as a one-click
+    // "create it" banner instead of treating the missing row as a fatal
+    // page error.
+    retry: false,
+  });
+
+  const [active, setActive] = useState(false);
+  const [details, setDetails] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (q.data) {
+      setActive(Boolean(q.data.value.active));
+      // Seed every spec field so unsaved values don't carry over from
+      // another method's edit state and the form renders cleanly even
+      // when the saved JSON omits a key entirely.
+      const seeded: Record<string, string> = {};
+      for (const f of spec.fields) {
+        const v = q.data.value.details?.[f.key];
+        seeded[f.key] = typeof v === "string" ? v : "";
+      }
+      setDetails(seeded);
+    } else if (q.isError) {
+      const blank: Record<string, string> = {};
+      for (const f of spec.fields) blank[f.key] = "";
+      setDetails(blank);
+    }
+  }, [q.data, q.isError, spec.fields]);
+
+  const save = useMutation({
+    mutationFn: (next: PaymentMethodValue) =>
+      api.patch<ConfigRow<PaymentMethodValue>>(`/admin/config/${configKey}`, {
+        value: next,
+      }),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["admin", "config", configKey] });
+    },
+    onError: (err) => handle(err),
+  });
+
+  function onSave(): void {
+    clear();
+    // Strip empty strings on save so the persisted JSON stays clean —
+    // the buyer thread treats absent keys as "not provided".
+    const trimmed: Record<string, string> = {};
+    for (const f of spec.fields) {
+      const raw = (details[f.key] ?? "").trim();
+      if (raw.length > 0) trimmed[f.key] = raw;
+    }
+    save.mutate({ active, details: trimmed });
+  }
+
+  const rowMissing =
+    q.isError && (q.error as { code?: string } | null)?.code === "config_unknown";
+  const isActive = q.data ? Boolean(q.data.value.active) : false;
+
+  return (
+    <div className="rounded-md border border-line bg-cream-soft p-6">
+      <header className="mb-3 flex flex-wrap items-baseline justify-between gap-3">
+        <div>
+          <h3 className="text-h3 font-semibold text-ink">{spec.label}</h3>
+          <p className="mt-1 text-body-sm text-text-muted">{spec.hint}</p>
+        </div>
+        <StatusPill tone={isActive ? "success" : "neutral"}>
+          {isActive ? "Active — shown to buyers" : "Inactive — hidden"}
+        </StatusPill>
+      </header>
+
+      {bannerError ? (
+        <div className="mb-4">
+          <ErrorBanner error={bannerError} />
+        </div>
+      ) : null}
+
+      {rowMissing ? (
+        <div
+          role="alert"
+          className="mb-4 rounded-md border-l-4 border-amber bg-amber/10 px-5 py-4 text-body-sm"
+        >
+          The <code className="font-mono">{configKey}</code> configuration row
+          doesn&apos;t exist yet. Run this SQL once on the Railway Postgres
+          Data tab to seed it, then reload this page:
+          <pre className="mt-2 overflow-x-auto rounded-sm bg-ink/5 p-3 font-mono text-[11px] text-text">
+{`INSERT INTO configuration (key, value, description)
+VALUES ('${configKey}', '{"active": false, "details": {}}'::jsonb,
+        '${spec.label} payment method for shopper requests.')
+ON CONFLICT (key) DO NOTHING;`}
+          </pre>
+        </div>
+      ) : null}
+
+      {q.isLoading ? (
+        <div className="font-mono text-mono-label uppercase text-text-muted">Loading…</div>
+      ) : q.data ? (
+        <>
+          <label className="mb-5 flex items-center gap-3 text-body-sm">
+            <input
+              type="checkbox"
+              checked={active}
+              onChange={(e) => setActive(e.target.checked)}
+              className="h-4 w-4 accent-amber"
+            />
+            <span className="font-mono text-mono-label uppercase tracking-[1.2px] text-text">
+              Show this method to buyers on their order page
+            </span>
+          </label>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            {spec.fields.map((f) => (
+              <Field key={f.key} label={f.label}>
+                {f.multiline ? (
+                  <textarea
+                    rows={2}
+                    value={details[f.key] ?? ""}
+                    onChange={(e) =>
+                      setDetails((prev) => ({ ...prev, [f.key]: e.target.value }))
+                    }
+                    placeholder={f.placeholder}
+                    className="min-h-[64px] w-full rounded-sm border border-line-strong bg-white px-3 py-2 text-body text-text outline-none focus:border-ink focus:ring-2 focus:ring-ink/10"
+                  />
+                ) : (
+                  <Input
+                    type="text"
+                    value={details[f.key] ?? ""}
+                    onChange={(e) =>
+                      setDetails((prev) => ({ ...prev, [f.key]: e.target.value }))
+                    }
+                    placeholder={f.placeholder}
+                  />
+                )}
+              </Field>
+            ))}
+          </div>
+
+          <div className="mt-5 flex justify-end">
+            <Button
+              type="button"
+              onClick={onSave}
+              variant="amber"
+              size="md"
+              loading={save.isPending}
+              disabled={save.isPending || !q.data}
+            >
+              Save {spec.label}
+            </Button>
+          </div>
+        </>
+      ) : null}
     </div>
   );
 }

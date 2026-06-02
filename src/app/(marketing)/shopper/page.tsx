@@ -467,33 +467,20 @@ export default function ShopperIntakePage(): JSX.Element {
 
         {/* Confirm + submit */}
         <section className="rounded-md border border-line bg-cream-soft p-6">
-          {itemsTotalCents >= WIRE_THRESHOLD_HINT_CENTS ? (
-            <p className="text-body-sm text-text-muted">
-              On submit, you&apos;ll land on your private order page. We&apos;ll
-              ask you to upload a government-issued ID and a selfie holding it.
-              Once verified, we&apos;ll send the bank-transfer instructions
-              there. Total estimate so far:{" "}
-              <strong>${(itemsTotalCents / 100).toFixed(2)} + service fee + estimated U.S. sales tax</strong>.
-              By submitting, you agree to our{" "}
-              <Link href="/legal/terms" className="underline">
-                Terms
-              </Link>
-              .
-            </p>
-          ) : (
-            <p className="text-body-sm text-text-muted">
-              You&apos;ll be redirected to Stripe to pay{" "}
-              <strong>${(itemsTotalCents / 100).toFixed(2)} + service fee + estimated U.S. sales tax</strong>{" "}
-              up front. The U.S. retailer charges sales tax on every purchase based on where they ship to —
-              we estimate it at intake using the rate for our warehouse state, then reconcile against the
-              actual tax we paid. After we procure your items we&apos;ll either invoice any remaining
-              difference + shipping, or refund you. By submitting, you agree to our{" "}
-              <Link href="/legal/terms" className="underline">
-                Terms
-              </Link>
-              .
-            </p>
-          )}
+          <p className="text-body-sm text-text-muted">
+            On submit, you&apos;ll land on your private order page. There you&apos;ll
+            see our available payment methods (wire, ACH, Zelle, or Cash App) and
+            choose the one that works best for you. Total estimate so far:{" "}
+            <strong>
+              ${(itemsTotalCents / 100).toFixed(2)} + service fee + estimated U.S. sales tax
+            </strong>
+            . After we receive your payment we&apos;ll either invoice any remaining
+            difference + shipping, or refund you. By submitting, you agree to our{" "}
+            <Link href="/legal/terms" className="underline">
+              Terms
+            </Link>
+            .
+          </p>
 
           {/* Set the recovery expectation up front so a buyer who closes
               the tab knows exactly what to do. The thread has no password —

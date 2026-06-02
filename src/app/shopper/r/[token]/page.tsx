@@ -315,15 +315,12 @@ function ThreadView({
         ) : null}
       </section>
 
-      {/* Migration 0023 — wire-track action cards. Render only when the
-          request is on the WIRE rail; STRIPE-track requests skip these
-          entirely. The two cards represent the two distinct buyer
-          actions: prove identity, then prove payment. */}
+      {/* May 2026 — Manual-only payment policy. ID verification is no
+          longer collected; the buyer goes straight to the multi-method
+          payment picker. The IdVerificationCard component is kept in
+          the file for legacy reference but is no longer rendered. */}
       {r.paymentMethod === "WIRE" ? (
-        <>
-          <IdVerificationCard request={r} token={token} onRefresh={onRefresh} />
-          <WirePaymentCard request={r} token={token} onRefresh={onRefresh} />
-        </>
+        <WirePaymentCard request={r} token={token} onRefresh={onRefresh} />
       ) : null}
 
       {/* Migration 0027 follow-up — BUYER_FREIGHT "Ship From" panel.
@@ -517,18 +514,18 @@ function buyerCallout(status: ShopperRequestStatus): string | null {
       return "This request has been cancelled.";
     case "REFUNDED":
       return "This request has been cancelled and refunded.";
-    // Migration 0023 — wire-track callouts. Each one tells the buyer
-    // exactly what to do next, or that the ball is in our court.
+    // May 2026 — manual-payment callouts. The ID-verification flow has
+    // been retired but the two ID statuses still appear in the enum, so
+    // we keep no-op cases that say nothing rather than removing them.
     case "AWAITING_ID_VERIFICATION":
-      return "Upload a photo of your government-issued ID and a selfie holding it. We'll review usually within one business day.";
     case "ID_UNDER_REVIEW":
-      return "We're reviewing your ID — usually within one business day. We'll message you here as soon as we've finished.";
+      return "";
     case "QUOTE_SENT":
     case "AWAITING_WIRE_PAYMENT":
-      return "Your ID has been verified. Wire the total below to the bank account shown and upload your transfer receipt when done.";
+      return "Choose a payment method below, send your payment, then upload a confirmation here so we can match it.";
     case "WIRE_PROOF_UPLOADED":
     case "WIRE_UNDER_REVIEW":
-      return "We're confirming your wire-transfer landed. We'll start sourcing as soon as the payment clears.";
+      return "We're confirming your payment landed. We'll start sourcing as soon as it clears.";
     case "WIRE_CONFIRMED":
     case "PURCHASE_APPROVED":
       return "Payment confirmed. We're sourcing your items now.";
@@ -786,6 +783,7 @@ function WirePaymentCard({
   onRefresh: () => void;
 }): JSX.Element | null {
   const [proofUrls, setProofUrls] = useState<string[]>([]);
+  const [selectedMethodCode, setSelectedMethodCode] = useState<string | null>(null);
   const { bannerError, handle, clear } = useApiErrorHandler();
 
   const submit = useMutation({
@@ -801,12 +799,49 @@ function WirePaymentCard({
     onError: (err) => handle(err),
   });
 
-  // Card is only meaningful once ID is approved AND we're past the
-  // ID review stage. Below the threshold (idVerificationStatus !==
-  // "APPROVED") we don't render anything; above WIRE_CONFIRMED the
-  // ball is back in our court and the payment summary serves as the
-  // status indicator.
-  if (request.idVerificationStatus !== "APPROVED") return null;
+  // Prefer the multi-method list from the server; fall back to the
+  // legacy single `bankInstructions` block (synthesised as a one-entry
+  // "Wire transfer" method) so requests created before this change
+  // keep rendering. Memoised so the effect below sees a stable
+  // reference across renders — without useMemo, the conditional
+  // expression would build a new array every render and re-trigger
+  // the effect unnecessarily.
+  const methods = useMemo<
+    Array<{ code: string; label: string; details: Record<string, string> }>
+  >(() => {
+    if (request.paymentMethods.length > 0) return request.paymentMethods;
+    if (request.bankInstructions) {
+      return [
+        {
+          code: "wire",
+          label: "Wire transfer",
+          details: Object.fromEntries(
+            Object.entries(request.bankInstructions).filter(
+              (entry): entry is [string, string] =>
+                typeof entry[1] === "string" && entry[1].trim().length > 0,
+            ),
+          ),
+        },
+      ];
+    }
+    return [];
+  }, [request.paymentMethods, request.bankInstructions]);
+
+  // Default selection: pick the first method as soon as the list is
+  // populated. Effect runs after every render so a server-side change
+  // from 0 → N methods seeds the picker on the next poll. Kept above
+  // the early-return so the hook order is stable across renders.
+  useEffect(() => {
+    if (selectedMethodCode === null && methods.length > 0) {
+      const first = methods[0];
+      if (first) setSelectedMethodCode(first.code);
+    }
+  }, [methods, selectedMethodCode]);
+
+  // May 2026 — Manual-payment policy. Card renders any time the request
+  // is in a payment-pending or under-review state. The ID-verification
+  // gate is gone (we no longer collect ID). Anything past WIRE_CONFIRMED
+  // is post-payment and renders the existing line/chat sections instead.
   const showActiveForm =
     request.status === "QUOTE_SENT" ||
     request.status === "AWAITING_WIRE_PAYMENT";
@@ -815,73 +850,96 @@ function WirePaymentCard({
     request.status === "WIRE_UNDER_REVIEW";
   if (!showActiveForm && !showReviewState) return null;
 
-  const bank = request.bankInstructions;
+  const selectedMethod =
+    methods.find((m) => m.code === selectedMethodCode) ?? methods[0] ?? null;
   const canSubmit = proofUrls.length > 0 && !submit.isPending;
 
   return (
     <section className="rounded-md border border-line bg-white p-8">
       <div className="mb-4">
         <h2 className="font-mono text-mono-label uppercase text-text-muted">
-          Step 2 — Wire transfer
+          Pay {`$${(request.intakeTotalCents / 100).toFixed(2)}`}
         </h2>
         <p className="mt-2 text-body-sm text-text-muted">
-          Wire <strong>${(request.intakeTotalCents / 100).toFixed(2)}</strong> to
-          the bank account below. Once you&apos;ve sent it, upload your bank
-          receipt or wire confirmation here so we can match the payment.
+          Choose a payment method below, send your payment, then upload a
+          screenshot or confirmation so we can match it. We&apos;ll start
+          sourcing your items as soon as the payment clears.
         </p>
       </div>
 
-      {/* Bank details. Server only sends these when the gate is met —
-          if `bank` is null we render a "missing" hint for the buyer to
-          contact support, which would only happen if finance hasn't
-          filled in the configuration row yet. */}
-      {bank ? (
-        <div className="mb-4 rounded-sm border border-line bg-cream-soft p-5">
-          <div className="grid gap-4 md:grid-cols-2">
-            {bank.beneficiaryName ? (
-              <BankRow label="Beneficiary" value={bank.beneficiaryName} />
-            ) : null}
-            {bank.bankName ? (
-              <BankRow label="Bank" value={bank.bankName} />
-            ) : null}
-            {bank.accountNumber ? (
-              <BankRow label="Account number" value={bank.accountNumber} mono />
-            ) : null}
-            {bank.routingNumber ? (
-              <BankRow label="Routing / ABA" value={bank.routingNumber} mono />
-            ) : null}
-            {bank.swift ? <BankRow label="SWIFT / BIC" value={bank.swift} mono /> : null}
-            {bank.iban ? <BankRow label="IBAN" value={bank.iban} mono /> : null}
-          </div>
-          {bank.memo ? (
-            <div className="mt-4 border-t border-line pt-3 text-body-sm text-text">
-              <strong className="font-mono text-mono-label uppercase tracking-[1.2px] text-amber">
-                Wire memo
-              </strong>
-              <p className="mt-1">{bank.memo}</p>
-            </div>
-          ) : null}
-          <div className="mt-4 rounded-sm border border-amber/40 bg-amber/10 px-3 py-2 font-mono text-mono-label uppercase tracking-[1.2px] text-amber">
-            Include reference {request.reference} in your wire memo.
-          </div>
-        </div>
-      ) : (
+      {methods.length === 0 ? (
         <div className="mb-4 rounded-sm border-l-4 border-error bg-error/10 px-4 py-3 text-body-sm">
-          Bank-transfer details aren&apos;t available yet — please email
+          No payment methods are available right now — please email
           <a className="ml-1 underline" href="mailto:hello@myusaerrands.com">
             hello@myusaerrands.com
-          </a>
-          {" "}and we&apos;ll send them right over.
+          </a>{" "}
+          and we&apos;ll arrange payment with you directly.
         </div>
+      ) : (
+        <>
+          {/* Method picker. Renders as a row of pill buttons when more
+              than one is active; collapses to a single header label
+              when only one is enabled. */}
+          {methods.length > 1 ? (
+            <div className="mb-5">
+              <div className="mb-2 font-mono text-mono-label uppercase text-text-muted">
+                Choose how to pay
+              </div>
+              <div role="tablist" aria-label="Payment methods" className="flex flex-wrap gap-2">
+                {methods.map((m) => (
+                  <button
+                    key={m.code}
+                    type="button"
+                    role="tab"
+                    aria-selected={selectedMethodCode === m.code}
+                    onClick={() => setSelectedMethodCode(m.code)}
+                    className={
+                      selectedMethodCode === m.code
+                        ? "rounded-sm bg-ink px-4 py-2 font-mono text-mono-label uppercase tracking-[1.2px] text-cream-soft"
+                        : "rounded-sm border border-line-strong bg-white px-4 py-2 font-mono text-mono-label uppercase tracking-[1.2px] text-text hover:border-ink"
+                    }
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {/* Selected method's details — rendered as a clean label/value
+              grid so any field set we add later works without a template
+              change. Order is whatever the server returned, which mirrors
+              the admin config field order. */}
+          {selectedMethod ? (
+            <div className="mb-4 rounded-sm border border-line bg-cream-soft p-5">
+              <div className="mb-3 font-mono text-mono-label uppercase tracking-[1.4px] text-amber">
+                {selectedMethod.label}
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                {Object.entries(selectedMethod.details).map(([key, value]) => (
+                  <BankRow
+                    key={key}
+                    label={humanLabel(key)}
+                    value={value}
+                    mono={isMonoField(key)}
+                  />
+                ))}
+              </div>
+              <div className="mt-4 rounded-sm border border-amber/40 bg-amber/10 px-3 py-2 font-mono text-mono-label uppercase tracking-[1.2px] text-amber">
+                Include reference {request.reference} in your payment note
+              </div>
+            </div>
+          ) : null}
+        </>
       )}
 
       {showReviewState ? (
         <div className="rounded-sm border-l-4 border-info bg-info/10 px-4 py-3 text-body-sm">
-          We&apos;ve received your wire-transfer proof and our team is matching
-          it against the bank statement. We&apos;ll start sourcing as soon as
+          We&apos;ve received your payment proof and our team is matching it
+          against the bank statement. We&apos;ll start sourcing as soon as
           the payment clears. No further action needed.
         </div>
-      ) : (
+      ) : methods.length > 0 ? (
         <>
           {bannerError ? (
             <div className="mb-4">
@@ -896,7 +954,7 @@ function WirePaymentCard({
           ) : null}
 
           <div className="mb-2 font-mono text-mono-label uppercase text-text-muted">
-            Upload your wire receipt
+            Upload your payment confirmation
           </div>
           <AttachmentUploader
             value={proofUrls}
@@ -916,13 +974,35 @@ function WirePaymentCard({
                 submit.mutate();
               }}
             >
-              {submit.isPending ? "Submitting…" : "Submit wire receipt"}
+              {submit.isPending ? "Submitting…" : "Submit payment proof"}
             </Button>
           </div>
         </>
-      )}
+      ) : null}
     </section>
   );
+}
+
+/**
+ * Convert a camelCase detail key into a human-readable label.
+ * "accountNumber" → "Account number", "swift" → "Swift".
+ */
+function humanLabel(key: string): string {
+  const spaced = key.replace(/([a-z])([A-Z])/g, "$1 $2");
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1).toLowerCase();
+}
+
+/** Fields whose values should render in monospace (account numbers, etc.). */
+function isMonoField(key: string): boolean {
+  const monoKeys = new Set([
+    "accountNumber",
+    "routingNumber",
+    "swift",
+    "iban",
+    "cashtag",
+    "handle",
+  ]);
+  return monoKeys.has(key);
 }
 
 function BankRow({

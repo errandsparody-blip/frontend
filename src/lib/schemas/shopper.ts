@@ -275,8 +275,32 @@ export interface ShopperRequestSnapshot {
   hasWireProof: boolean;
   wireProofUploadedAt: string | null;
   wireConfirmedAt: string | null;
-  /** Server only sends this when the buyer is in the wire-payment leg. */
+  /**
+   * Legacy single bank-instructions block. Kept for back-compat with
+   * the original wire-only flow. New requests use `paymentMethods`
+   * below; this field will be null on any request the admin hasn't
+   * explicitly populated.
+   */
   bankInstructions: ShopperBankInstructions | null;
+  /**
+   * May 2026 — Multi-method manual payment list. One entry per active
+   * payment channel the admin enabled in shopper config. The buyer
+   * picks one in the UI and pays externally. Empty array means no
+   * methods are configured / active, or the request isn't in a
+   * payment-pending state yet.
+   */
+  paymentMethods: Array<{
+    /** Stable identifier — "wire" | "ach" | "zelle" | "cashapp". */
+    code: string;
+    /** Display name shown on the picker card and as the section header. */
+    label: string;
+    /**
+     * Generic label → value map. Field set varies per method (see
+     * admin config card). Frontend renders each entry as a labelled
+     * row in the order the server returned them.
+     */
+    details: Record<string, string>;
+  }>;
   /**
    * Migration 0027 follow-up — warehouse "Ship From" address sourced
    * from the API's WAREHOUSE_FROM_* env vars. Always present on
