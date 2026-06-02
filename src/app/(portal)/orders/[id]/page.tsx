@@ -34,6 +34,8 @@ const TONE: Record<OrderStatus, "neutral" | "info" | "success" | "warning" | "er
   SHIPPED: "info",
   IN_TRANSIT: "info",
   DELIVERED: "success",
+  // Migration 0037 — terminal success state for VENDOR_CARRIER orders.
+  HANDED_OFF: "success",
   EXCEPTION: "error",
   CANCELLED: "error",
   RETURNED: "warning",
@@ -162,16 +164,43 @@ export default function OrderDetailPage() {
         actions={<BackButton fallback="/orders" />}
       />
 
+      {(() => {
+        const isVendorCarrier = o.fulfillmentMode === "VENDOR_CARRIER";
+        // Migration 0037 — same hierarchy as the admin page: prefer the
+        // vendor-typed name, fall back to whatever made it onto the
+        // canonical `carrier`/`trackingNumber` columns (the create
+        // pipeline mirrors VENDOR_CARRIER values onto them at write time).
+        const displayCarrier = isVendorCarrier
+          ? (o.vendorCarrierName?.trim() || o.carrier || o.carrierService || "Your carrier")
+          : o.carrierService;
+        const displayTracking = isVendorCarrier
+          ? (o.vendorTrackingNumber?.trim() || o.trackingNumber)
+          : o.trackingNumber;
+        return (
       <section className="rounded-md border border-line bg-white p-6">
         <div className="flex flex-wrap items-baseline gap-4">
           <StatusPill tone={TONE[o.status]}>{o.status.replace(/_/g, " ")}</StatusPill>
-          {o.carrierService ? (
-            <span className="font-mono text-body-sm text-text-muted">{o.carrierService}</span>
-          ) : null}
-          {o.trackingNumber ? (
-            <span className="font-mono text-body-sm text-text">
-              Tracking: {o.trackingNumber}
+          {isVendorCarrier ? (
+            <span
+              className="inline-flex items-center rounded-sm border border-amber/30 bg-amber/10 px-2 py-0.5 font-mono text-[11px] uppercase tracking-[1.2px] text-amber"
+              title="You used your own carrier label for this order. USA Errands handed the parcel off to your carrier — we don't observe tracking events from this point on."
+            >
+              Fulfillment only · your carrier
             </span>
+          ) : null}
+          {displayCarrier ? (
+            <span className="font-mono text-body-sm text-text-muted">{displayCarrier}</span>
+          ) : null}
+          {displayTracking ? (
+            <span className="font-mono text-body-sm text-text">
+              Tracking: {displayTracking}
+            </span>
+          ) : null}
+          {/* Vendor's own label URL — only surfaced for VENDOR_CARRIER
+              orders. Hostname is allowlisted to our own R2 bucket; the
+              upload endpoint rejects anything else. */}
+          {isVendorCarrier && o.vendorLabelUrl ? (
+            <VendorLabelLink labelUrl={o.vendorLabelUrl} />
           ) : null}
         </div>
 
@@ -212,6 +241,8 @@ export default function OrderDetailPage() {
           </div>
         </div>
       </section>
+        );
+      })()}
 
       <section className="rounded-md border border-line bg-white p-6">
         <h2 className="font-mono text-mono-label uppercase text-text-muted">Lines</h2>
@@ -250,7 +281,17 @@ export default function OrderDetailPage() {
             <Event when={o.submittedAt} label="Submitted" />
           ) : null}
           {o.allocatedAt ? <Event when={o.allocatedAt} label="Stock reserved" /> : null}
+          {/* Migration 0037 — the VENDOR_CARRIER branch never reaches
+              `shippedAt` because there's no Shippo label-buy or
+              tracking webhook. Instead we surface `handedOffAt` —
+              the operator-side terminal action. */}
           {o.shippedAt ? <Event when={o.shippedAt} label="Shipped" /> : null}
+          {o.handedOffAt ? (
+            <Event
+              when={o.handedOffAt}
+              label="Handed off to your carrier"
+            />
+          ) : null}
           {o.deliveredAt ? <Event when={o.deliveredAt} label="Delivered" /> : null}
           {o.cancelledAt ? (
             <Event when={o.cancelledAt} label={`Cancelled: ${o.cancelReason ?? ""}${o.cancelNote ? ` (${o.cancelNote})` : ""}`} tone="error" />
@@ -535,5 +576,50 @@ function Event({
       <span className="text-text-subtle">{new Date(when).toLocaleString()}</span>
       <span className={tone === "error" ? "text-error" : "text-text"}>· {label}</span>
     </li>
+  );
+}
+
+/**
+ * Migration 0037 — renders the vendor's uploaded label URL for
+ * VENDOR_CARRIER orders. The URL is captured at order creation through
+ * the same AttachmentUploader → R2 pipeline the rest of the portal
+ * uses, so we know it's an R2-hosted public URL by construction.
+ *
+ * Defence in depth: we still allowlist the hostname before turning the
+ * URL into a one-click link. If a row somehow has an off-domain URL
+ * (data migration, manual SQL), it renders as a non-clickable badge so
+ * a vendor can't be tricked into following a swapped link.
+ */
+function VendorLabelLink({ labelUrl }: { labelUrl: string }): JSX.Element {
+  let host: string | null = null;
+  try {
+    host = new URL(labelUrl).host;
+  } catch {
+    host = null;
+  }
+  const looksTrusted =
+    !!host &&
+    (host.endsWith(".r2.cloudflarestorage.com") ||
+      host.endsWith(".r2.dev") ||
+      host.endsWith("myusaerrands.com"));
+  if (!looksTrusted) {
+    return (
+      <span
+        className="rounded-sm border border-amber bg-amber/10 px-2 py-0.5 font-mono text-[11px] uppercase tracking-[1.2px] text-amber"
+        title="Label URL is outside the platform's storage bucket — open it from your own systems if needed."
+      >
+        Your label · external URL
+      </span>
+    );
+  }
+  return (
+    <a
+      href={labelUrl}
+      target="_blank"
+      rel="noreferrer noopener"
+      className="font-mono text-[11px] uppercase tracking-[1.2px] text-amber hover:text-amber-hi"
+    >
+      Open your label →
+    </a>
   );
 }

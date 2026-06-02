@@ -35,6 +35,21 @@ interface AdminOrderDetail {
   fulfillmentFeeCents: number;
   insuranceFeeCents: number;
   vendor: { id: string; businessName: string };
+  /**
+   * Migration 0037 — branches the entire fulfillment workflow:
+   *   - PLATFORM_SHIP: USA Errands buys the Shippo label, operator runs
+   *     purchase-label → pick → pack → ship.
+   *   - VENDOR_CARRIER: vendor supplies their own carrier + tracking +
+   *     optional label URL. Operator skips purchase-label and finishes
+   *     with markHandedOff instead of ship.
+   * Server defaults to PLATFORM_SHIP for pre-migration rows so the
+   * field is always present on the wire.
+   */
+  fulfillmentMode: "PLATFORM_SHIP" | "VENDOR_CARRIER";
+  vendorCarrierName: string | null;
+  vendorTrackingNumber: string | null;
+  vendorLabelUrl: string | null;
+  handedOffAt: string | null;
   lines: Array<{
     id: string;
     skuId: string;
@@ -62,16 +77,43 @@ const TONE: Record<string, "neutral" | "info" | "success" | "warning" | "error">
   SHIPPED: "info",
   IN_TRANSIT: "info",
   DELIVERED: "success",
+  // Migration 0037 — terminal success state for VENDOR_CARRIER orders.
+  HANDED_OFF: "success",
   EXCEPTION: "error",
   CANCELLED: "error",
 };
 
-const NEXT_ACTION: Record<string, { label: string; endpoint: string } | null> = {
-  ALLOCATED: { label: "Buy carrier label", endpoint: "purchase-label" },
-  LABEL_PURCHASED: { label: "Start picking", endpoint: "pick" },
-  PICKING: { label: "Mark packed", endpoint: "pack" },
-  PACKED: { label: "Hand to carrier (ship)", endpoint: "ship" },
-};
+/**
+ * Migration 0037 — pick the next operator action based on BOTH the order
+ * status AND the fulfillment mode. The two branches diverge in two places:
+ *
+ *   ALLOCATED + VENDOR_CARRIER  → skip purchase-label entirely (there is
+ *                                 no Shippo label to buy) and jump
+ *                                 straight to pick.
+ *   PACKED    + VENDOR_CARRIER  → finish with markHandedOff (terminal)
+ *                                 instead of ship — the vendor's
+ *                                 carrier owns delivery from here on.
+ *
+ * PLATFORM_SHIP keeps the original purchase-label → pick → pack → ship
+ * sequence. Returning `null` hides the action card; the rest of the page
+ * is read-only.
+ */
+function getNextAction(
+  status: string,
+  fulfillmentMode: AdminOrderDetail["fulfillmentMode"],
+): { label: string; endpoint: string } | null {
+  if (fulfillmentMode === "VENDOR_CARRIER") {
+    if (status === "ALLOCATED") return { label: "Start picking", endpoint: "pick" };
+    if (status === "PICKING") return { label: "Mark packed", endpoint: "pack" };
+    if (status === "PACKED") return { label: "Mark handed off", endpoint: "handed-off" };
+    return null;
+  }
+  if (status === "ALLOCATED") return { label: "Buy carrier label", endpoint: "purchase-label" };
+  if (status === "LABEL_PURCHASED") return { label: "Start picking", endpoint: "pick" };
+  if (status === "PICKING") return { label: "Mark packed", endpoint: "pack" };
+  if (status === "PACKED") return { label: "Hand to carrier (ship)", endpoint: "ship" };
+  return null;
+}
 
 function formatCents(cents: number): string {
   return `$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -119,7 +161,21 @@ export default function AdminOrderDetailPage() {
     );
   }
   const o = orderQ.data;
-  const next = NEXT_ACTION[o.status] ?? null;
+  const next = getNextAction(o.status, o.fulfillmentMode);
+  const isVendorCarrier = o.fulfillmentMode === "VENDOR_CARRIER";
+
+  // Migration 0037 — the meta row (under the status pill) needs to render
+  // the right "carrier" string per branch. For VENDOR_CARRIER we prefer
+  // the vendor-typed name; for PLATFORM_SHIP we keep using the Shippo
+  // carrier service. Tracking number falls through the same hierarchy
+  // because `order.service.ts` mirrors vendorTrackingNumber onto the
+  // canonical `trackingNumber` column at create time.
+  const displayCarrier = isVendorCarrier
+    ? (o.vendorCarrierName?.trim() || o.carrier || o.carrierService || "Vendor label")
+    : o.carrierService;
+  const displayTracking = isVendorCarrier
+    ? (o.vendorTrackingNumber?.trim() || o.trackingNumber)
+    : o.trackingNumber;
 
   return (
     <div className="flex flex-col gap-8">
@@ -138,11 +194,32 @@ export default function AdminOrderDetailPage() {
       <section className="rounded-md border border-line bg-white p-6">
         <div className="flex flex-wrap items-baseline gap-4">
           <StatusPill tone={TONE[o.status] ?? "neutral"}>{o.status.replace(/_/g, " ")}</StatusPill>
-          {o.carrierService ? <span className="font-mono text-body-sm text-text-muted">{o.carrierService}</span> : null}
-          {o.trackingNumber ? (
-            <span className="font-mono text-body-sm text-text">Tracking: {o.trackingNumber}</span>
+          {isVendorCarrier ? (
+            // Migration 0037 — make the branch unmistakable at the top of
+            // the page so operators don't go looking for a Shippo label
+            // that doesn't exist.
+            <span
+              className="inline-flex items-center rounded-sm border border-amber/30 bg-amber/10 px-2 py-0.5 font-mono text-[11px] uppercase tracking-[1.2px] text-amber"
+              title="Vendor brought their own carrier label — no Shippo label was bought for this order."
+            >
+              Fulfillment only · vendor carrier
+            </span>
           ) : null}
-          {o.labelUrl ? <LabelLink labelUrl={o.labelUrl} /> : null}
+          {displayCarrier ? (
+            <span className="font-mono text-body-sm text-text-muted">{displayCarrier}</span>
+          ) : null}
+          {displayTracking ? (
+            <span className="font-mono text-body-sm text-text">Tracking: {displayTracking}</span>
+          ) : null}
+          {/* Label link branches: VENDOR_CARRIER orders may carry a
+              vendor-supplied URL (uploaded PDF); PLATFORM_SHIP orders
+              carry a Shippo-issued labelUrl. The two are mutually
+              exclusive at the DB layer (different columns) but rendered
+              by the same primitive. */}
+          {isVendorCarrier && o.vendorLabelUrl ? (
+            <VendorLabelLink labelUrl={o.vendorLabelUrl} />
+          ) : null}
+          {!isVendorCarrier && o.labelUrl ? <LabelLink labelUrl={o.labelUrl} /> : null}
         </div>
 
         <div className="mt-6 grid grid-cols-2 gap-6">
@@ -277,6 +354,55 @@ function LabelLink({ labelUrl }: { labelUrl: string }): JSX.Element {
       className="font-mono text-[11px] uppercase tracking-[1.2px] text-amber hover:text-amber-hi"
     >
       Open label PDF →
+    </a>
+  );
+}
+
+/**
+ * Migration 0037 — renders the vendor-supplied label URL for VENDOR_CARRIER
+ * orders. The URL is collected at order creation (a Cloudflare R2 upload
+ * routed through the same AttachmentUploader the rest of the app uses),
+ * so we can safely use it as `href`. We still defend with rel="noreferrer"
+ * + target="_blank" to keep the admin session boundary intact.
+ *
+ * No stub-host check needed here — the value originates from our own R2
+ * bucket and the upload endpoint already rejects anything else. If a row
+ * somehow has an off-domain URL (data migration / manual SQL), we render
+ * a non-clickable badge instead of letting the operator follow it blind.
+ */
+function VendorLabelLink({ labelUrl }: { labelUrl: string }): JSX.Element {
+  let host: string | null = null;
+  try {
+    host = new URL(labelUrl).host;
+  } catch {
+    host = null;
+  }
+  // Defence in depth: the upload endpoint stores R2-issued URLs only, so
+  // anything not on a recognized hostname is suspicious and should not
+  // become a one-click link from the admin console.
+  const looksTrusted =
+    !!host &&
+    (host.endsWith(".r2.cloudflarestorage.com") ||
+      host.endsWith(".r2.dev") ||
+      host.endsWith("myusaerrands.com"));
+  if (!looksTrusted) {
+    return (
+      <span
+        className="rounded-sm border border-amber bg-amber/10 px-2 py-0.5 font-mono text-[11px] uppercase tracking-[1.2px] text-amber"
+        title="Label URL is outside the platform's storage bucket — open it from the vendor's own systems if needed."
+      >
+        Vendor label · external URL
+      </span>
+    );
+  }
+  return (
+    <a
+      href={labelUrl}
+      target="_blank"
+      rel="noreferrer noopener"
+      className="font-mono text-[11px] uppercase tracking-[1.2px] text-amber hover:text-amber-hi"
+    >
+      Open vendor label →
     </a>
   );
 }

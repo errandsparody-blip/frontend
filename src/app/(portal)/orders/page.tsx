@@ -23,6 +23,8 @@ const TONE: Record<OrderStatus, "neutral" | "info" | "success" | "warning" | "er
   SHIPPED: "info",
   IN_TRANSIT: "info",
   DELIVERED: "success",
+  // Migration 0037 — terminal success state for VENDOR_CARRIER orders.
+  HANDED_OFF: "success",
   EXCEPTION: "error",
   CANCELLED: "error",
   RETURNED: "warning",
@@ -136,7 +138,25 @@ export default function OrdersListPage() {
                   <StatusPill tone={TONE[o.status]}>{o.status.replace(/_/g, " ")}</StatusPill>
                 </Td>
                 <Td mono className="text-text-muted">
-                  {o.carrierService ?? "—"}
+                  {o.fulfillmentMode === "VENDOR_CARRIER" ? (
+                    <div className="flex flex-col gap-0.5">
+                      {/* Migration 0037 — make the branch unmistakable in
+                          the vendor's own list. Vendors who use their
+                          own carrier shouldn't be looking for tracking
+                          updates in the platform — the badge tells them
+                          where the responsibility line is. */}
+                      <span className="inline-flex w-fit items-center rounded-sm border border-amber/30 bg-amber/10 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[1.1px] text-amber">
+                        Your carrier
+                      </span>
+                      <span>
+                        {o.vendorCarrierName?.trim() ||
+                          o.carrierService ||
+                          "Your label"}
+                      </span>
+                    </div>
+                  ) : (
+                    (o.carrierService ?? "—")
+                  )}
                 </Td>
                 <Td num>{o.lines.length}</Td>
                 <Td num strong>

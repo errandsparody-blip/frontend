@@ -24,7 +24,14 @@ import {
 } from "@/lib/schemas/orders";
 import { US_STATES } from "@/lib/us-states";
 
-type Step = "lines" | "address" | "rates" | "review";
+// Migration 0037 — new "fulfillment" step splits the flow into two
+// branches after the recipient address is collected. PLATFORM_SHIP
+// (default) continues through "rates" (carrier quote selection) →
+// "review". VENDOR_CARRIER skips "rates" and goes straight to
+// "review" because the vendor's own label / tracking is captured on
+// the fulfillment step itself.
+type Step = "lines" | "address" | "fulfillment" | "rates" | "review";
+type FulfillmentMode = "PLATFORM_SHIP" | "VENDOR_CARRIER";
 
 interface SkuOption {
   id: string;
@@ -107,7 +114,16 @@ export default function NewOrderPage() {
   const [address, setAddress] = useState<RecipientAddress>(EMPTY_ADDRESS);
   const [externalReference, setExternalReference] = useState("");
 
-  // ---- step 3: rates
+  // ---- step 3: fulfillment branch (migration 0037)
+  // Default to PLATFORM_SHIP so existing vendor habits + automation
+  // scripts (anyone POSTing /orders without specifying a mode) keep
+  // hitting the original Shippo-quoted path.
+  const [fulfillmentMode, setFulfillmentMode] = useState<FulfillmentMode>("PLATFORM_SHIP");
+  const [vendorCarrierName, setVendorCarrierName] = useState("");
+  const [vendorTrackingNumber, setVendorTrackingNumber] = useState("");
+  const [vendorLabelUrl, setVendorLabelUrl] = useState("");
+
+  // ---- step 4: rates
   const [insuranceRequested, setInsuranceRequested] = useState(false);
   const [quote, setQuote] = useState<QuoteResult | null>(null);
   const [chosen, setChosen] = useState<QuoteRateOption | null>(null);
@@ -165,22 +181,57 @@ export default function NewOrderPage() {
 
   const submitMut = useMutation({
     mutationFn: async () => {
-      if (!chosen) throw new Error("Pick a carrier service first.");
+      // Branch on fulfillment mode — PLATFORM_SHIP needs a chosen
+      // carrier rate, VENDOR_CARRIER needs vendor-supplied label or
+      // tracking details.
+      if (fulfillmentMode === "PLATFORM_SHIP" && !chosen) {
+        throw new Error("Pick a carrier service first.");
+      }
+      if (fulfillmentMode === "VENDOR_CARRIER") {
+        const hasLabel = vendorLabelUrl.trim().length > 0;
+        const hasManual =
+          vendorCarrierName.trim().length > 0 &&
+          vendorTrackingNumber.trim().length > 0;
+        if (!hasLabel && !hasManual) {
+          throw new Error(
+            "Provide a label URL or both a carrier name and tracking number.",
+          );
+        }
+      }
       const parsed = recipientAddressSchema.safeParse(address);
       if (!parsed.success) throw new Error("Address is invalid.");
       const idempotencyKey =
         typeof crypto !== "undefined" && "randomUUID" in crypto
           ? crypto.randomUUID()
           : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      const payload: CreateOrderInput = {
-        externalReference: externalReference.trim() || undefined,
-        recipient: parsed.data,
-        lines,
-        carrierService: `${chosen.carrier} ${chosen.service}`,
-        insuranceRequested,
-        // Cap at 5% above the quoted total so a stale quote can't surprise the vendor.
-        maxAcceptableTotalCents: Math.ceil(chosen.fees.totalChargedCents * 1.05),
-      };
+      const payload: CreateOrderInput =
+        fulfillmentMode === "VENDOR_CARRIER"
+          ? {
+              externalReference: externalReference.trim() || undefined,
+              recipient: parsed.data,
+              lines,
+              fulfillmentMode: "VENDOR_CARRIER",
+              // carrierService is omitted on the vendor-carrier branch
+              // — the backend's superRefine accepts that combination
+              // when vendorCarrier supplies label/tracking.
+              insuranceRequested,
+              vendorCarrier: {
+                vendorCarrierName: vendorCarrierName.trim() || undefined,
+                vendorTrackingNumber: vendorTrackingNumber.trim() || undefined,
+                vendorLabelUrl: vendorLabelUrl.trim() || undefined,
+              },
+            }
+          : {
+              externalReference: externalReference.trim() || undefined,
+              recipient: parsed.data,
+              lines,
+              fulfillmentMode: "PLATFORM_SHIP",
+              carrierService: `${chosen!.carrier} ${chosen!.service}`,
+              insuranceRequested,
+              // Cap at 5% above the quoted total so a stale quote
+              // can't surprise the vendor.
+              maxAcceptableTotalCents: Math.ceil(chosen!.fees.totalChargedCents * 1.05),
+            };
       return api.post<PublicOrder>("/orders", payload, { idempotencyKey });
     },
     onMutate: () => {
@@ -195,8 +246,11 @@ export default function NewOrderPage() {
 
   function onAction(handler: NonNullable<NonNullable<typeof bannerError>["entry"]["action"]>["handler"]) {
     if (handler === "retry") {
-      if (step === "rates" || step === "address") void quoteMut.mutate();
-      else if (step === "review") void submitMut.mutate();
+      if (step === "rates" || step === "address" || step === "fulfillment") {
+        void quoteMut.mutate();
+      } else if (step === "review") {
+        void submitMut.mutate();
+      }
     } else if (handler === "support") {
       window.location.href = "mailto:hello@myusaerrands.com";
     } else if (handler === "topUp") {
@@ -360,9 +414,49 @@ export default function NewOrderPage() {
             }
             setValidationError(null);
             setAddressErrors({});
-            quoteMut.mutate();
+            // Migration 0037 — after recipient, the vendor picks their
+            // fulfillment path. Quoting only fires if they choose
+            // PLATFORM_SHIP on that step.
+            setStep("fulfillment");
           }}
           quoting={quoteMut.isPending}
+        />
+      ) : null}
+
+      {step === "fulfillment" ? (
+        <FulfillmentStep
+          mode={fulfillmentMode}
+          onChangeMode={setFulfillmentMode}
+          vendorCarrierName={vendorCarrierName}
+          onChangeCarrierName={setVendorCarrierName}
+          vendorTrackingNumber={vendorTrackingNumber}
+          onChangeTrackingNumber={setVendorTrackingNumber}
+          vendorLabelUrl={vendorLabelUrl}
+          onChangeLabelUrl={setVendorLabelUrl}
+          quoting={quoteMut.isPending}
+          onBack={() => setStep("address")}
+          onNext={() => {
+            if (fulfillmentMode === "PLATFORM_SHIP") {
+              // Fetch carrier rates — on success the mutation moves us
+              // to the "rates" step.
+              quoteMut.mutate();
+              return;
+            }
+            // VENDOR_CARRIER — validate vendor-supplied fields up front
+            // so the buyer doesn't reach the review step only to bounce.
+            const hasLabel = vendorLabelUrl.trim().length > 0;
+            const hasManual =
+              vendorCarrierName.trim().length > 0 &&
+              vendorTrackingNumber.trim().length > 0;
+            if (!hasLabel && !hasManual) {
+              setValidationError(
+                "Provide a label URL or both a carrier name and tracking number.",
+              );
+              return;
+            }
+            setValidationError(null);
+            setStep("review");
+          }}
         />
       ) : null}
 
@@ -376,7 +470,7 @@ export default function NewOrderPage() {
           }}
           chosen={chosen}
           onChoose={setChosen}
-          onBack={() => setStep("address")}
+          onBack={() => setStep("fulfillment")}
           onNext={() => {
             if (!chosen) {
               setValidationError("Pick a service.");
@@ -388,7 +482,10 @@ export default function NewOrderPage() {
         />
       ) : null}
 
-      {step === "review" && chosen ? (
+      {/* Review — branches on mode. PLATFORM_SHIP needs `chosen` to
+          render the carrier line + total; VENDOR_CARRIER renders a
+          slimmer summary because there's no rate to show. */}
+      {step === "review" && fulfillmentMode === "PLATFORM_SHIP" && chosen ? (
         <ReviewPanel
           chosen={chosen}
           address={address}
@@ -397,6 +494,19 @@ export default function NewOrderPage() {
           externalReference={externalReference}
           submitting={submitMut.isPending}
           onBack={() => setStep("rates")}
+          onSubmit={() => submitMut.mutate()}
+        />
+      ) : null}
+      {step === "review" && fulfillmentMode === "VENDOR_CARRIER" ? (
+        <VendorCarrierReviewPanel
+          address={address}
+          lineCount={lines.length}
+          externalReference={externalReference}
+          vendorCarrierName={vendorCarrierName}
+          vendorTrackingNumber={vendorTrackingNumber}
+          vendorLabelUrl={vendorLabelUrl}
+          submitting={submitMut.isPending}
+          onBack={() => setStep("fulfillment")}
           onSubmit={() => submitMut.mutate()}
         />
       ) : null}
@@ -410,6 +520,7 @@ function Stepper({ step }: { step: Step }): JSX.Element {
   const steps: Array<{ key: Step; label: string }> = [
     { key: "lines", label: "Lines" },
     { key: "address", label: "Recipient" },
+    { key: "fulfillment", label: "Fulfillment" },
     { key: "rates", label: "Carrier" },
     { key: "review", label: "Review" },
   ];
@@ -877,5 +988,307 @@ function ReviewPanel({
         </Button>
       </div>
     </section>
+  );
+}
+
+// ===========================================================================
+// Migration 0037 — Fulfillment-mode step.
+//
+// Sits between Recipient and Carrier/Review. The vendor picks one of two
+// cards: have USA Errands ship it on a Shippo-bought label, or use their
+// own carrier. The vendor-carrier branch reveals a sub-form for either a
+// pre-paid label URL OR (carrier name + tracking number) — the backend's
+// superRefine on createOrderSchema enforces that at least one is filled.
+// ===========================================================================
+
+function FulfillmentStep({
+  mode,
+  onChangeMode,
+  vendorCarrierName,
+  onChangeCarrierName,
+  vendorTrackingNumber,
+  onChangeTrackingNumber,
+  vendorLabelUrl,
+  onChangeLabelUrl,
+  quoting,
+  onBack,
+  onNext,
+}: {
+  mode: FulfillmentMode;
+  onChangeMode: (m: FulfillmentMode) => void;
+  vendorCarrierName: string;
+  onChangeCarrierName: (v: string) => void;
+  vendorTrackingNumber: string;
+  onChangeTrackingNumber: (v: string) => void;
+  vendorLabelUrl: string;
+  onChangeLabelUrl: (v: string) => void;
+  quoting: boolean;
+  onBack: () => void;
+  onNext: () => void;
+}): JSX.Element {
+  return (
+    <section className="flex flex-col gap-6 rounded-md border border-line bg-white p-8">
+      <header>
+        <h2 className="text-h2 font-semibold text-ink">How should this order ship?</h2>
+        <p className="mt-1 max-w-prose text-body-sm text-text-muted">
+          We can hand it to a carrier on a label we buy for you, or you can drop in your own
+          pre-paid label and we&apos;ll pick + pack + hand it off to whoever you&apos;ve
+          arranged. Either way we still do the warehouse work — only the label changes.
+        </p>
+      </header>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <FulfillmentModeCard
+          active={mode === "PLATFORM_SHIP"}
+          title="USA Errands ships it"
+          eyebrow="Default"
+          description="We quote live rates from USPS / UPS / FedEx, you pick one, we buy + print the label."
+          onClick={() => onChangeMode("PLATFORM_SHIP")}
+        />
+        <FulfillmentModeCard
+          active={mode === "VENDOR_CARRIER"}
+          title="Use my own carrier"
+          eyebrow="Fulfillment only"
+          description="You supply a pre-paid label or carrier + tracking number. We skip the shipping fee and just do pick + pack."
+          onClick={() => onChangeMode("VENDOR_CARRIER")}
+        />
+      </div>
+
+      {mode === "VENDOR_CARRIER" ? (
+        <div className="rounded-md border border-line bg-cream-soft p-6">
+          <div className="mb-4 font-mono text-mono-label uppercase tracking-[1.4px] text-text-muted">
+            Your carrier details
+          </div>
+          <p className="mb-5 text-body-sm text-text-muted">
+            Either upload your pre-paid label (PDF or image, hosted anywhere — Drive, Dropbox,
+            S3, etc.) OR enter the carrier name and tracking number we should record. You
+            don&apos;t need to fill both.
+          </p>
+
+          <Field
+            label="Pre-paid label URL"
+            hint="HTTPS link to your label file. We download and print it at the warehouse."
+          >
+            <Input
+              type="url"
+              placeholder="https://example.com/labels/abc.pdf"
+              value={vendorLabelUrl}
+              onChange={(e) => onChangeLabelUrl(e.target.value)}
+            />
+          </Field>
+
+          <div className="my-4 flex items-center gap-3 text-body-sm text-text-muted">
+            <span className="h-px flex-1 bg-line" />
+            <span className="font-mono text-mono-label uppercase tracking-[1.2px]">OR</span>
+            <span className="h-px flex-1 bg-line" />
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <Field
+              label="Carrier name"
+              hint="e.g. UPS, FedEx, DHL, USPS"
+            >
+              <Input
+                type="text"
+                placeholder="UPS"
+                value={vendorCarrierName}
+                onChange={(e) => onChangeCarrierName(e.target.value)}
+              />
+            </Field>
+            <Field
+              label="Tracking number"
+              hint="Whatever the carrier issued"
+            >
+              <Input
+                type="text"
+                placeholder="1Z999AA10123456784"
+                value={vendorTrackingNumber}
+                onChange={(e) => onChangeTrackingNumber(e.target.value)}
+              />
+            </Field>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="flex items-center justify-between">
+        <Button type="button" variant="outline" size="lg" onClick={onBack}>
+          ← Back
+        </Button>
+        <Button
+          type="button"
+          variant="amber"
+          size="lg"
+          withArrow
+          onClick={onNext}
+          loading={quoting}
+        >
+          {quoting
+            ? "Getting rates…"
+            : mode === "VENDOR_CARRIER"
+              ? "Continue to review"
+              : "Continue to carrier rates"}
+        </Button>
+      </div>
+    </section>
+  );
+}
+
+function FulfillmentModeCard({
+  active,
+  title,
+  eyebrow,
+  description,
+  onClick,
+}: {
+  active: boolean;
+  title: string;
+  eyebrow: string;
+  description: string;
+  onClick: () => void;
+}): JSX.Element {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={
+        active
+          ? "flex flex-col items-start gap-2 rounded-md border-2 border-ink bg-cream-soft p-5 text-left transition"
+          : "flex flex-col items-start gap-2 rounded-md border border-line bg-white p-5 text-left transition hover:border-ink-soft"
+      }
+    >
+      <span
+        className={
+          active
+            ? "rounded-sm bg-ink px-2 py-0.5 font-mono text-[10px] uppercase tracking-[1.4px] text-cream-soft"
+            : "rounded-sm border border-line-strong px-2 py-0.5 font-mono text-[10px] uppercase tracking-[1.4px] text-text-muted"
+        }
+      >
+        {eyebrow}
+      </span>
+      <span className="text-h3 font-semibold text-ink">{title}</span>
+      <span className="text-body-sm text-text-muted">{description}</span>
+    </button>
+  );
+}
+
+// ===========================================================================
+// Vendor-carrier review panel — slim version of ReviewPanel that doesn't
+// need a chosen Shippo rate. Surfaces the vendor-supplied label/carrier so
+// they confirm before the order debits their wallet.
+// ===========================================================================
+
+function VendorCarrierReviewPanel({
+  address,
+  lineCount,
+  externalReference,
+  vendorCarrierName,
+  vendorTrackingNumber,
+  vendorLabelUrl,
+  submitting,
+  onBack,
+  onSubmit,
+}: {
+  address: RecipientAddress;
+  lineCount: number;
+  externalReference: string;
+  vendorCarrierName: string;
+  vendorTrackingNumber: string;
+  vendorLabelUrl: string;
+  submitting: boolean;
+  onBack: () => void;
+  onSubmit: () => void;
+}): JSX.Element {
+  return (
+    <section className="flex flex-col gap-6 rounded-md border border-line bg-white p-8">
+      <header>
+        <h2 className="text-h2 font-semibold text-ink">Review &amp; submit</h2>
+        <p className="mt-1 max-w-prose text-body-sm text-text-muted">
+          You picked <strong>Use my own carrier</strong>. We&apos;ll skip the shipping fee and
+          just pick + pack the order, then hand it off to the carrier you supplied. The
+          handling fee still applies.
+        </p>
+      </header>
+
+      <dl className="grid gap-4 md:grid-cols-2">
+        <SummaryRow label="Recipient" value={address.recipientName || "—"} />
+        <SummaryRow
+          label="Ship to"
+          value={`${address.shipAddressLine1}${
+            address.shipAddressLine2 ? `, ${address.shipAddressLine2}` : ""
+          }, ${address.shipCity}, ${address.shipState} ${address.shipPostalCode}`}
+        />
+        <SummaryRow label="Line items" value={`${lineCount} line${lineCount === 1 ? "" : "s"}`} />
+        {externalReference ? (
+          <SummaryRow label="Your reference" value={externalReference} />
+        ) : null}
+        <SummaryRow
+          label="Carrier"
+          value={vendorCarrierName ? vendorCarrierName : "(via uploaded label)"}
+        />
+        {vendorTrackingNumber ? (
+          <SummaryRow label="Tracking" value={vendorTrackingNumber} mono />
+        ) : null}
+        {vendorLabelUrl ? (
+          <div className="md:col-span-2">
+            <div className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
+              Label
+            </div>
+            <a
+              className="mt-1 block break-all font-mono text-body-sm text-amber underline-offset-2 hover:underline"
+              href={vendorLabelUrl}
+              target="_blank"
+              rel="noopener noreferrer nofollow"
+            >
+              {vendorLabelUrl}
+            </a>
+          </div>
+        ) : null}
+      </dl>
+
+      <div className="flex items-center justify-between">
+        <Button type="button" variant="outline" size="lg" onClick={onBack}>
+          ← Back
+        </Button>
+        <Button
+          type="button"
+          variant="amber"
+          size="lg"
+          withArrow
+          onClick={onSubmit}
+          loading={submitting}
+        >
+          {submitting ? "Submitting…" : "Submit order"}
+        </Button>
+      </div>
+    </section>
+  );
+}
+
+// Small helper shared with the new vendor-carrier review panel. Mirrors
+// the visual treatment used elsewhere in the wizard so the page reads
+// consistently from step to step.
+function SummaryRow({
+  label,
+  value,
+  mono = false,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+}): JSX.Element {
+  return (
+    <div>
+      <dt className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
+        {label}
+      </dt>
+      <dd
+        className={
+          mono ? "mt-1 font-mono text-body-sm text-ink" : "mt-1 text-body-sm text-ink"
+        }
+      >
+        {value}
+      </dd>
+    </div>
   );
 }

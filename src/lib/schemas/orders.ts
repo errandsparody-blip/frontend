@@ -18,6 +18,10 @@ export const ORDER_STATUS = [
   "SHIPPED",
   "IN_TRANSIT",
   "DELIVERED",
+  // Migration 0037 — terminal hand-off status for VENDOR_CARRIER orders.
+  // The platform never observes carrier-side tracking for these, so
+  // "handed off to the vendor's carrier" is as far as we go.
+  "HANDED_OFF",
   "EXCEPTION",
   "CANCELLED",
   "RETURNED",
@@ -145,9 +149,45 @@ export const createOrderSchema = z.object({
     .or(z.literal("").transform(() => undefined)),
   recipient: recipientAddressSchema,
   lines: z.array(orderLineInputSchema).min(1).max(50),
-  carrierService: z.string().trim().min(2).max(60),
+  // Migration 0037 — branches the order pipeline. Mirrors the backend
+  // contract: PLATFORM_SHIP requires `carrierService`; VENDOR_CARRIER
+  // requires `vendorCarrier` with either a label URL or carrier +
+  // tracking. The backend re-validates with the same superRefine — the
+  // frontend version exists so client-side submit blocks fast.
+  fulfillmentMode: z.enum(["PLATFORM_SHIP", "VENDOR_CARRIER"]).default("PLATFORM_SHIP"),
+  carrierService: z
+    .string()
+    .trim()
+    .min(2)
+    .max(60)
+    .optional()
+    .or(z.literal("").transform(() => undefined)),
   insuranceRequested: z.boolean().default(false),
   maxAcceptableTotalCents: z.coerce.number().int().positive().max(50_000_000).optional(),
+  vendorCarrier: z
+    .object({
+      vendorCarrierName: z
+        .string()
+        .trim()
+        .min(2)
+        .max(60)
+        .optional()
+        .or(z.literal("").transform(() => undefined)),
+      vendorTrackingNumber: z
+        .string()
+        .trim()
+        .min(4)
+        .max(80)
+        .optional()
+        .or(z.literal("").transform(() => undefined)),
+      vendorLabelUrl: z
+        .string()
+        .url()
+        .max(2048)
+        .optional()
+        .or(z.literal("").transform(() => undefined)),
+    })
+    .optional(),
 });
 export type CreateOrderInput = z.infer<typeof createOrderSchema>;
 
@@ -203,6 +243,20 @@ export interface PublicOrder {
    * Frontend hides the "Request return" CTA when this is in the past.
    */
   returnableUntil: string | null;
+  /**
+   * Migration 0037 — fulfillment branch:
+   *   PLATFORM_SHIP   USA Errands buys + prints the carrier label.
+   *   VENDOR_CARRIER  Vendor brings their own label / carrier. We
+   *                   store their tracking + optional label URL and
+   *                   skip the Shippo round-trips.
+   * Server defaults to PLATFORM_SHIP for pre-migration rows so this
+   * is always present on the wire.
+   */
+  fulfillmentMode: "PLATFORM_SHIP" | "VENDOR_CARRIER";
+  vendorCarrierName: string | null;
+  vendorTrackingNumber: string | null;
+  vendorLabelUrl: string | null;
+  handedOffAt: string | null;
   lines: Array<{
     id: string;
     skuId: string;

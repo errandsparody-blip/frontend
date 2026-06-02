@@ -21,6 +21,7 @@ interface AdminOrderRow {
     | "SHIPPED"
     | "IN_TRANSIT"
     | "DELIVERED"
+    | "HANDED_OFF"
     | "EXCEPTION"
     | "CANCELLED"
     | "RETURNED";
@@ -34,6 +35,15 @@ interface AdminOrderRow {
   allocatedAt: string | null;
   vendor: { id: string; businessName: string; country: string };
   lines: Array<{ id: string; quantity: number; productName: string }>;
+  /**
+   * Migration 0037 — `PLATFORM_SHIP` is a USA Errands-bought carrier
+   * label; `VENDOR_CARRIER` is the vendor's own label / carrier hand-off.
+   * Older orders pre-migration default to `PLATFORM_SHIP` (server-side
+   * default), so this field is always present on the wire.
+   */
+  fulfillmentMode: "PLATFORM_SHIP" | "VENDOR_CARRIER";
+  vendorCarrierName: string | null;
+  vendorTrackingNumber: string | null;
 }
 
 // Tabs the operator sees, in workflow order. Queue = work in front of you;
@@ -44,6 +54,10 @@ const POST_QUEUE_STATUSES = [
   "SHIPPED",
   "IN_TRANSIT",
   "DELIVERED",
+  // Migration 0037 — terminal status for VENDOR_CARRIER orders. Slotted
+  // next to DELIVERED in the filter row so operators looking up
+  // completed orders find both branches in the same place.
+  "HANDED_OFF",
   "EXCEPTION",
   "CANCELLED",
   "RETURNED",
@@ -57,6 +71,10 @@ const TONE: Record<AdminOrderRow["status"], "info" | "success" | "warning" | "er
   SHIPPED: "info",
   IN_TRANSIT: "info",
   DELIVERED: "success",
+  // Migration 0037 — terminal success state for VENDOR_CARRIER orders.
+  // We don't observe carrier delivery (no Shippo webhook), so "handed
+  // off" is as good as it gets — treated as a success outcome.
+  HANDED_OFF: "success",
   EXCEPTION: "error",
   CANCELLED: "error",
   RETURNED: "warning",
@@ -160,7 +178,25 @@ export default function AdminOrdersQueuePage() {
                   <StatusPill tone={TONE[o.status]}>{o.status.replace(/_/g, " ")}</StatusPill>
                 </Td>
                 <Td mono className="text-text-muted">
-                  {o.carrierService ?? "—"}
+                  {o.fulfillmentMode === "VENDOR_CARRIER" ? (
+                    <div className="flex flex-col gap-0.5">
+                      {/* Migration 0037 — make the branch unmistakable in the
+                          operator queue. We render the vendor's carrier name
+                          if they typed one, but ALWAYS prefix with the badge
+                          so it's never confused with a USA Errands-bought
+                          label. */}
+                      <span className="inline-flex w-fit items-center rounded-sm border border-amber/30 bg-amber/10 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[1.1px] text-amber">
+                        Fulfillment only
+                      </span>
+                      <span>
+                        {o.vendorCarrierName?.trim() ||
+                          o.carrierService ||
+                          "Vendor label"}
+                      </span>
+                    </div>
+                  ) : (
+                    (o.carrierService ?? "—")
+                  )}
                 </Td>
                 <Td num>{o.lines.length}</Td>
                 <Td num strong>
