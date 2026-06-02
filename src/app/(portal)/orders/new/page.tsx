@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
 import { ErrorBanner } from "@/components/errors/error-banner";
+import { AttachmentUploader } from "@/components/portal/attachment-uploader";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -194,7 +195,7 @@ export default function NewOrderPage() {
           vendorTrackingNumber.trim().length > 0;
         if (!hasLabel && !hasManual) {
           throw new Error(
-            "Provide a label URL or both a carrier name and tracking number.",
+            "Upload a pre-paid label, or enter both a carrier name and tracking number.",
           );
         }
       }
@@ -1060,24 +1061,35 @@ function FulfillmentStep({
             Your carrier details
           </div>
           <p className="mb-5 text-body-sm text-text-muted">
-            Either upload your pre-paid label (PDF or image, hosted anywhere — Drive, Dropbox,
-            S3, etc.) OR enter the carrier name and tracking number we should record. You
-            don&apos;t need to fill both.
+            Either upload your pre-paid label (PDF or image, max 25 MB) OR enter the carrier
+            name and tracking number we should record. You don&apos;t need to fill both.
           </p>
 
-          <Field
-            label="Pre-paid label URL"
-            hint="HTTPS link to your label file. We download and print it at the warehouse."
-          >
-            <Input
-              type="url"
-              placeholder="https://example.com/labels/abc.pdf"
-              value={vendorLabelUrl}
-              onChange={(e) => onChangeLabelUrl(e.target.value)}
-            />
-          </Field>
+          <div className="mb-1 font-mono text-mono-label uppercase text-text-muted">
+            Pre-paid label
+          </div>
+          <p className="mb-3 text-body-sm text-text-muted">
+            Drag your label file here or click to browse. We store it securely and print it
+            at the warehouse when the order is picked.
+          </p>
+          {/* Migration 0037 — direct upload to R2 via the new
+              /orders/uploads presign endpoint. AttachmentUploader
+              stores all uploaded URLs in an array; we keep only the
+              most recent (vendors typically only need one label per
+              order) and persist it as vendorLabelUrl. Clearing the
+              uploader (returning an empty array) clears the URL too
+              so the user can switch back to the carrier+tracking
+              path without a stale label hanging around. */}
+          <AttachmentUploader
+            value={vendorLabelUrl ? [vendorLabelUrl] : []}
+            onChange={(urls) => {
+              const latest = urls[urls.length - 1] ?? "";
+              onChangeLabelUrl(latest);
+            }}
+            presignEndpoint="/orders/uploads"
+          />
 
-          <div className="my-4 flex items-center gap-3 text-body-sm text-text-muted">
+          <div className="my-5 flex items-center gap-3 text-body-sm text-text-muted">
             <span className="h-px flex-1 bg-line" />
             <span className="font-mono text-mono-label uppercase tracking-[1.2px]">OR</span>
             <span className="h-px flex-1 bg-line" />
