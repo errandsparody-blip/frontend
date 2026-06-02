@@ -11,7 +11,8 @@
  * and the favicon. Tweak here, every surface inherits.
  *
  * Implementation notes:
- *   - Pure SVG, no images. Scales crisp from 16px favicon to billboard.
+ *   - Renders the brand mark from /public/myusalogo-mark.png (a tightly
+ *     cropped version of the master myusalogo.png).
  *   - Server-component-safe (no client hooks). Drop into any page.
  *   - `tone` prop swaps text colour for dark backgrounds (admin sidebar
  *     is ink-on-ink, marketing header is ink-on-cream).
@@ -29,34 +30,17 @@ interface SiteMarkProps {
 }
 
 /**
- * The mark only — a 100×100 square with a box outline, amber tape
- * stripe, and a forward chevron arrow inside. Lossless at any size.
+ * The mark only — the USA Errands globe-and-parcel logo. Rendered from a
+ * tightly cropped PNG so it fills its box at any header/favicon size.
  */
 export function SiteMark({ className = "h-6 w-6", label = "USA Errands" }: SiteMarkProps): JSX.Element {
   return (
-    <svg
-      viewBox="0 0 100 100"
-      xmlns="http://www.w3.org/2000/svg"
-      role="img"
-      aria-label={label}
-      className={className}
-    >
-      <title>{label}</title>
-      {/* Box body */}
-      <rect x="6" y="22" width="88" height="56" fill="none" stroke="#0A0A0A" strokeWidth="3.5" />
-      {/* Lid seam */}
-      <line x1="6" y1="32" x2="94" y2="32" stroke="#0A0A0A" strokeWidth="2" />
-      {/* Amber packing tape */}
-      <rect x="6" y="28" width="88" height="4" fill="#C99428" />
-      {/* Chevron arrow inside · "out for delivery" */}
-      <path
-        d="M 30 42 L 50 42 L 50 36 L 70 50 L 50 64 L 50 58 L 30 58 Z"
-        fill="#C99428"
-        stroke="#0A0A0A"
-        strokeWidth="2.4"
-        strokeLinejoin="round"
-      />
-    </svg>
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src="/myusalogo-mark.png"
+      alt={label}
+      className={`${className} object-contain`}
+    />
   );
 }
 
