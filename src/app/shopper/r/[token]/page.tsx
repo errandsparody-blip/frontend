@@ -701,6 +701,14 @@ function IdVerificationCard({
 
   const canSubmit = docUrls.length > 0 && selfieUrls.length > 0 && !submit.isPending;
 
+  // Live threshold — admin can change this on the shopper config page;
+  // the server echoes it in the thread snapshot so this copy is always
+  // accurate. Whole-dollar formatting because the threshold is always
+  // a round number in practice; the format string matches the intake
+  // page's `thresholdLabel` so the two surfaces stay consistent.
+  const thresholdLabel = `$${Math.round(
+    request.idVerificationThresholdCents / 100,
+  ).toLocaleString("en-US")}`;
   return (
     <section className="rounded-md border border-line bg-white p-8">
       <div className="mb-4">
@@ -708,9 +716,10 @@ function IdVerificationCard({
           Step 1 — Verify your identity
         </h2>
         <p className="mt-2 text-body-sm text-text-muted">
-          Orders over $1,000 require ID verification. Upload a clear photo of
-          your government-issued ID (passport or driver&apos;s licence) and a
-          selfie of yourself holding it. We review within one business day.
+          Orders over {thresholdLabel} require ID verification. Upload a clear
+          photo of your government-issued ID (passport or driver&apos;s licence)
+          and a selfie of yourself holding it. We review within one business
+          day.
         </p>
       </div>
 

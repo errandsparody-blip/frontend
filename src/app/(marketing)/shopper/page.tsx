@@ -15,7 +15,7 @@
  */
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
@@ -64,21 +64,16 @@ type FormShape = {
   country?: string;
 };
 
-// Migration 0023 — items-subtotal threshold above which the buyer is
-// routed onto the wire-transfer + ID-verification track. The server is
-// authoritative; this constant exists only for the live UI hint. Keep in
-// sync with the `shopper_wire_threshold_cents` configuration default —
-// finance can change the server-side number without a deploy, in which
-// case this hint becomes slightly conservative (some carts that look
-// under the line will still be routed onto WIRE, which is fine).
-// May 2026 — Repurposed from the original Stripe-vs-wire threshold
-// into the ID-verification threshold. Default $10,000 mirrors the
-// backend's WIRE_THRESHOLD_FALLBACK_CENTS; finance can change the
-// server-side number from the admin config page without a deploy, in
-// which case this hint becomes slightly conservative (carts that look
-// under the line client-side will still hit ID review server-side,
-// which is acceptable).
-const WIRE_THRESHOLD_HINT_CENTS = 1_000_000;
+// June 2026 — ID-verification threshold is now read live from the
+// /v1/shopper/config/public endpoint. The fallback below only applies
+// for the first render while the query is in flight; once the
+// response lands we switch to the admin-configured value. This keeps
+// the buyer-facing copy in lockstep with whatever finance set on the
+// admin shopper config page — no deploy needed when the threshold
+// changes. The fallback matches the server's WIRE_THRESHOLD_FALLBACK_CENTS
+// so a transient fetch failure still shows the historical default
+// instead of a misleading $0.
+const WIRE_THRESHOLD_FALLBACK_CENTS = 1_000_000;
 
 const DEFAULT_LINE: LineFormShape = {
   productUrl: "",
@@ -125,6 +120,30 @@ export default function ShopperIntakePage(): JSX.Element {
     if (!Number.isFinite(qty) || !Number.isFinite(cents) || qty <= 0 || cents <= 0) return sum;
     return sum + qty * cents;
   }, 0);
+
+  // Live ID-verification threshold from the admin config. Fetched
+  // once on mount (the endpoint is cheap + public); 5-minute stale
+  // time so a buyer who lingers on the form doesn't re-fetch on
+  // every focus event. Falls back to the compile-time default while
+  // the request is in flight or if it fails — never $0, which would
+  // misleadingly imply every cart needs ID.
+  const publicConfigQ = useQuery({
+    queryKey: ["shopper", "config", "public"],
+    queryFn: () =>
+      api.get<{ idVerificationThresholdCents: number }>(
+        "/shopper/config/public",
+      ),
+    staleTime: 5 * 60_000,
+    retry: 1,
+  });
+  const thresholdCents =
+    publicConfigQ.data?.idVerificationThresholdCents ??
+    WIRE_THRESHOLD_FALLBACK_CENTS;
+  // Whole-dollar formatting because the threshold is always a round
+  // number ($10,000 by default). If a future config row sets a
+  // fractional threshold, swap to .toLocaleString with cents.
+  const thresholdLabel = `$${Math.round(thresholdCents / 100).toLocaleString("en-US")}`;
+  const aboveThreshold = itemsTotalCents >= thresholdCents;
 
   const mutate = useMutation({
     mutationFn: (payload: CreateShopperRequestInput) =>
@@ -270,23 +289,24 @@ export default function ShopperIntakePage(): JSX.Element {
 
         {/* When the cart crosses the ID-verification threshold, surface a
             clear notice so the buyer isn't surprised at submit. The server is
-            authoritative; this hint is purely visual. */}
-        {itemsTotalCents >= WIRE_THRESHOLD_HINT_CENTS ? (
+            authoritative; this hint mirrors the live admin-configured
+            threshold. */}
+        {aboveThreshold ? (
           <div
             role="note"
             className="-mb-2 rounded-md border-l-4 border-amber bg-amber/10 px-5 py-4"
           >
             <div className="font-mono text-mono-label uppercase text-amber">
-              Orders over $10,000 — ID verification required
+              Orders over {thresholdLabel} — ID verification required
             </div>
             <p className="mt-1 text-body-sm text-text">
-              Because your items add up to over $10,000, you&apos;ll be asked to
-              upload a government-issued ID and a selfie holding it before we
-              release payment instructions. All payments are still by wire, ACH,
-              Zelle, or Cash App — only the ID step changes. We&apos;ll email a
-              link to your private order page where you can upload your ID;
-              payment details unlock once we approve it (usually within one
-              business day).
+              Because your items add up to over {thresholdLabel}, you&apos;ll be
+              asked to upload a government-issued ID and a selfie holding it
+              before we release payment instructions. All payments are still
+              by wire, ACH, Zelle, or Cash App — only the ID step changes.
+              We&apos;ll email a link to your private order page where you can
+              upload your ID; payment details unlock once we approve it
+              (usually within one business day).
             </p>
           </div>
         ) : null}
@@ -476,10 +496,10 @@ export default function ShopperIntakePage(): JSX.Element {
 
         {/* Confirm + submit */}
         <section className="rounded-md border border-line bg-cream-soft p-6">
-          {itemsTotalCents >= WIRE_THRESHOLD_HINT_CENTS ? (
+          {aboveThreshold ? (
             <p className="text-body-sm text-text-muted">
               On submit, you&apos;ll land on your private order page. Because
-              this order is over $10,000, you&apos;ll first upload a
+              this order is over {thresholdLabel}, you&apos;ll first upload a
               government-issued ID and a selfie holding it. Once we approve
               your ID (usually within one business day), you&apos;ll see our
               available payment methods (wire, ACH, Zelle, or Cash App) and
@@ -548,7 +568,7 @@ export default function ShopperIntakePage(): JSX.Element {
             >
               {mutate.isPending
                 ? "Redirecting…"
-                : itemsTotalCents >= WIRE_THRESHOLD_HINT_CENTS
+                : aboveThreshold
                   ? "Continue to ID verification"
                   : "Continue to payment"}
             </Button>

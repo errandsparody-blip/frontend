@@ -300,6 +300,15 @@ export interface ShopperRequestSnapshot {
     label: string;
   }>;
   /**
+   * Live ID-verification threshold (cents). Admin sets this on the
+   * shopper config page; the server echoes it here so the buyer
+   * thread renders the right number on the IdVerificationCard
+   * without hardcoding a dollar amount that drifts on every config
+   * change. Always present — falls back to the compiled-in default
+   * server-side if the config row is absent.
+   */
+  idVerificationThresholdCents: number;
+  /**
    * Migration 0027 follow-up — warehouse "Ship From" address sourced
    * from the API's WAREHOUSE_FROM_* env vars. Always present on
    * thread responses (the address isn't sensitive — it's printed on
