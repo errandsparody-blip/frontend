@@ -803,8 +803,24 @@ function WirePaymentCard({
 }): JSX.Element | null {
   const [proofUrls, setProofUrls] = useState<string[]>([]);
   const [selectedMethodCode, setSelectedMethodCode] = useState<string | null>(null);
+  // June 2026 — credentials moved to email. The buyer picks a method
+  // and clicks "Continue to payment"; the server emails the account
+  // details. This component tracks the most-recent successful send so
+  // the UI can switch from picker → confirmation card.
+  //
+  // We track BOTH the code (for stable matching against the live
+  // method list — labels can drift if an admin renames a method
+  // mid-session) AND the label (for display in the confirmation
+  // copy). Matching by code means the confirmation card stays
+  // pinned even if the server's label changes between sends.
+  const [sentCode, setSentCode] = useState<string | null>(null);
+  const [sentLabel, setSentLabel] = useState<string | null>(null);
+  const [sentTo, setSentTo] = useState<string | null>(null);
   const { bannerError, handle, clear } = useApiErrorHandler();
 
+  // Submit the wire-proof upload. Unchanged from the prior version
+  // — this is the buyer's "I paid, here's the screenshot" step that
+  // runs after they've already paid via whichever method they chose.
   const submit = useMutation({
     mutationFn: () =>
       api.post<{ status: string }>(
@@ -818,49 +834,65 @@ function WirePaymentCard({
     onError: (err) => handle(err),
   });
 
-  // Prefer the multi-method list from the server; fall back to the
-  // legacy single `bankInstructions` block (synthesised as a one-entry
-  // "Wire transfer" method) so requests created before this change
-  // keep rendering. Memoised so the effect below sees a stable
-  // reference across renders — without useMemo, the conditional
-  // expression would build a new array every render and re-trigger
-  // the effect unnecessarily.
-  const methods = useMemo<
-    Array<{ code: string; label: string; details: Record<string, string> }>
-  >(() => {
-    if (request.paymentMethods.length > 0) return request.paymentMethods;
-    if (request.bankInstructions) {
-      return [
-        {
-          code: "wire",
-          label: "Wire transfer",
-          details: Object.fromEntries(
-            Object.entries(request.bankInstructions).filter(
-              (entry): entry is [string, string] =>
-                typeof entry[1] === "string" && entry[1].trim().length > 0,
-            ),
-          ),
-        },
-      ];
-    }
-    return [];
-  }, [request.paymentMethods, request.bankInstructions]);
+  // Send the chosen method's details to the buyer's email. The server
+  // re-validates state + method on every call (defence in depth) so
+  // the worst a tampered client can do is request a fresh email — it
+  // cannot lift credentials from the response.
+  const sendInstructions = useMutation({
+    mutationFn: (methodCode: string) =>
+      api.post<{ sentTo: string; methodLabel: string; methodCode: string }>(
+        `/shopper/r/${encodeURIComponent(token)}/payment/send-instructions`,
+        { methodCode },
+      ),
+    onSuccess: (res) => {
+      setSentCode(res.methodCode);
+      setSentLabel(res.methodLabel);
+      setSentTo(res.sentTo);
+    },
+    onError: (err) => handle(err),
+  });
+
+  // The server now ships only `{ code, label }` for each method — the
+  // actual credentials are emailed after the buyer commits. No
+  // legacy-fallback synthesis here either: if the server returns an
+  // empty list we surface the "contact us" copy rather than render a
+  // half-broken picker. Stable reference for the effect below.
+  const methods = useMemo<Array<{ code: string; label: string }>>(
+    () => request.paymentMethods,
+    [request.paymentMethods],
+  );
 
   // Default selection: pick the first method as soon as the list is
   // populated. Effect runs after every render so a server-side change
-  // from 0 → N methods seeds the picker on the next poll. Kept above
-  // the early-return so the hook order is stable across renders.
+  // from 0 → N methods seeds the picker on the next poll.
+  //
+  // Also: if an admin deactivates the currently-selected method
+  // between polls, the picker would otherwise have a stale code and
+  // render nothing as active. Reset to the first available method
+  // and clear the confirmation card since the sent code probably
+  // refers to a method the buyer can no longer pick. Kept above the
+  // early-return so the hook order stays stable across renders.
   useEffect(() => {
-    if (selectedMethodCode === null && methods.length > 0) {
+    if (methods.length === 0) return;
+    const codes = methods.map((m) => m.code);
+    if (selectedMethodCode === null || !codes.includes(selectedMethodCode)) {
       const first = methods[0];
       if (first) setSelectedMethodCode(first.code);
+      // Stale selection → stale confirmation too. Drop it so the
+      // buyer doesn't see "Check your email for Cash App" while the
+      // picker forces them onto Zelle.
+      if (sentCode !== null && !codes.includes(sentCode)) {
+        setSentCode(null);
+        setSentLabel(null);
+        setSentTo(null);
+      }
     }
-  }, [methods, selectedMethodCode]);
+  }, [methods, selectedMethodCode, sentCode]);
 
   // May 2026 — Manual-payment policy. Card renders any time the request
-  // is in a payment-pending or under-review state. The ID-verification
-  // gate is gone (we no longer collect ID). Anything past WIRE_CONFIRMED
-  // is post-payment and renders the existing line/chat sections instead.
+  // is in a payment-pending or under-review state. Anything past
+  // WIRE_CONFIRMED is post-payment and renders the existing line/chat
+  // sections instead.
   const showActiveForm =
     request.status === "QUOTE_SENT" ||
     request.status === "AWAITING_WIRE_PAYMENT";
@@ -872,6 +904,17 @@ function WirePaymentCard({
   const selectedMethod =
     methods.find((m) => m.code === selectedMethodCode) ?? methods[0] ?? null;
   const canSubmit = proofUrls.length > 0 && !submit.isPending;
+  const canSendInstructions =
+    !!selectedMethod && !sendInstructions.isPending && methods.length > 0;
+  // If the buyer already sent themselves the email for a method but
+  // then picked a different one, drop the confirmation state so the
+  // page doesn't claim Cash App when they just picked Zelle. Match
+  // by code, not label — labels can change if an admin renames a
+  // method between polls.
+  const confirmationVisible =
+    sentCode != null &&
+    selectedMethod != null &&
+    selectedMethod.code === sentCode;
 
   return (
     <section className="rounded-md border border-line bg-white p-8">
@@ -880,9 +923,9 @@ function WirePaymentCard({
           Pay {`$${(request.intakeTotalCents / 100).toFixed(2)}`}
         </h2>
         <p className="mt-2 text-body-sm text-text-muted">
-          Choose a payment method below, send your payment, then upload a
-          screenshot or confirmation so we can match it. We&apos;ll start
-          sourcing your items as soon as the payment clears.
+          Choose a payment method below. When you click <strong>Continue to
+          payment</strong>, we&apos;ll email you the account details. Once
+          you&apos;ve paid, upload your confirmation so we can match it.
         </p>
       </div>
 
@@ -898,7 +941,9 @@ function WirePaymentCard({
         <>
           {/* Method picker. Renders as a row of pill buttons when more
               than one is active; collapses to a single header label
-              when only one is enabled. */}
+              when only one is enabled. Picking a different method
+              clears any prior "instructions sent" confirmation so
+              the UI doesn't claim the wrong method. */}
           {methods.length > 1 ? (
             <div className="mb-5">
               <div className="mb-2 font-mono text-mono-label uppercase text-text-muted">
@@ -911,7 +956,18 @@ function WirePaymentCard({
                     type="button"
                     role="tab"
                     aria-selected={selectedMethodCode === m.code}
-                    onClick={() => setSelectedMethodCode(m.code)}
+                    onClick={() => {
+                      if (m.code !== selectedMethodCode) {
+                        // Switching method invalidates the prior
+                        // confirmation. The buyer must click Continue
+                        // again to receive the new method's details.
+                        setSentCode(null);
+                        setSentLabel(null);
+                        setSentTo(null);
+                        clear();
+                      }
+                      setSelectedMethodCode(m.code);
+                    }}
                     className={
                       selectedMethodCode === m.code
                         ? "rounded-sm bg-ink px-4 py-2 font-mono text-mono-label uppercase tracking-[1.2px] text-cream-soft"
@@ -925,28 +981,98 @@ function WirePaymentCard({
             </div>
           ) : null}
 
-          {/* Selected method's details — rendered as a clean label/value
-              grid so any field set we add later works without a template
-              change. Order is whatever the server returned, which mirrors
-              the admin config field order. */}
+          {/* Amount + reference summary. Always visible so the buyer
+              sees what they owe and what reference to put in the memo
+              field even before they click Continue. */}
           {selectedMethod ? (
             <div className="mb-4 rounded-sm border border-line bg-cream-soft p-5">
               <div className="mb-3 font-mono text-mono-label uppercase tracking-[1.4px] text-amber">
                 {selectedMethod.label}
               </div>
               <div className="grid gap-4 md:grid-cols-2">
-                {Object.entries(selectedMethod.details).map(([key, value]) => (
-                  <BankRow
-                    key={key}
-                    label={humanLabel(key)}
-                    value={value}
-                    mono={isMonoField(key)}
-                  />
-                ))}
+                <BankRow
+                  label="Amount due"
+                  value={`$${(request.intakeTotalCents / 100).toFixed(2)}`}
+                  mono
+                />
+                <BankRow
+                  label="Reference"
+                  value={request.reference}
+                  mono
+                />
               </div>
               <div className="mt-4 rounded-sm border border-amber/40 bg-amber/10 px-3 py-2 font-mono text-mono-label uppercase tracking-[1.2px] text-amber">
                 Include reference {request.reference} in your payment note
               </div>
+            </div>
+          ) : null}
+
+          {/* Continue to payment / resend / confirmation block.
+              State transitions:
+                - no email sent yet     → primary "Continue to payment"
+                - email already sent    → success card + "Resend" link
+                - method changed since  → primary button re-appears
+                                          (confirmation hidden by the
+                                          equality check above)
+              The proof uploader below is independent — a buyer can
+              upload proof whether or not they re-emailed themselves. */}
+          {showActiveForm ? (
+            <div className="mb-6">
+              {confirmationVisible ? (
+                <div
+                  role="status"
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-sm border-l-4 border-success bg-success/10 px-4 py-3 text-body-sm"
+                >
+                  <div>
+                    <div className="font-mono text-mono-label uppercase tracking-[1.2px] text-success">
+                      Check your email
+                    </div>
+                    <p className="mt-1 text-text">
+                      We&apos;ve sent the {sentLabel} instructions to{" "}
+                      <strong className="font-mono">{sentTo}</strong>. Once
+                      you&apos;ve paid, upload the confirmation below.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!selectedMethod) return;
+                      clear();
+                      sendInstructions.mutate(selectedMethod.code);
+                    }}
+                    disabled={sendInstructions.isPending}
+                    className="rounded-sm border border-line-strong bg-white px-3 py-1.5 font-mono text-mono-label uppercase tracking-[1.2px] text-ink hover:bg-cream-soft disabled:opacity-60"
+                  >
+                    {sendInstructions.isPending ? "Resending…" : "Resend email"}
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="max-w-md text-body-sm text-text-muted">
+                    We&apos;ll email the account details for{" "}
+                    <strong className="text-ink">
+                      {selectedMethod?.label ?? "your chosen method"}
+                    </strong>{" "}
+                    to <strong className="font-mono">{request.buyerEmail}</strong>.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="amber"
+                    size="md"
+                    disabled={!canSendInstructions}
+                    loading={sendInstructions.isPending}
+                    onClick={() => {
+                      if (!selectedMethod) return;
+                      clear();
+                      sendInstructions.mutate(selectedMethod.code);
+                    }}
+                  >
+                    {sendInstructions.isPending
+                      ? "Sending…"
+                      : "Continue to payment"}
+                  </Button>
+                </div>
+              )}
             </div>
           ) : null}
         </>
@@ -1000,28 +1126,6 @@ function WirePaymentCard({
       ) : null}
     </section>
   );
-}
-
-/**
- * Convert a camelCase detail key into a human-readable label.
- * "accountNumber" → "Account number", "swift" → "Swift".
- */
-function humanLabel(key: string): string {
-  const spaced = key.replace(/([a-z])([A-Z])/g, "$1 $2");
-  return spaced.charAt(0).toUpperCase() + spaced.slice(1).toLowerCase();
-}
-
-/** Fields whose values should render in monospace (account numbers, etc.). */
-function isMonoField(key: string): boolean {
-  const monoKeys = new Set([
-    "accountNumber",
-    "routingNumber",
-    "swift",
-    "iban",
-    "cashtag",
-    "handle",
-  ]);
-  return monoKeys.has(key);
 }
 
 function BankRow({

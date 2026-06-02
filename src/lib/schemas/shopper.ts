@@ -276,30 +276,28 @@ export interface ShopperRequestSnapshot {
   wireProofUploadedAt: string | null;
   wireConfirmedAt: string | null;
   /**
-   * Legacy single bank-instructions block. Kept for back-compat with
-   * the original wire-only flow. New requests use `paymentMethods`
-   * below; this field will be null on any request the admin hasn't
-   * explicitly populated.
+   * Legacy single bank-instructions block was removed from the wire
+   * (June 2026). The browser never receives credential strings any
+   * more — they're emailed to the buyer after they pick a method.
+   * The server now only signals whether the legacy block is
+   * configured (boolean) so historical UI can render an alternate
+   * fallback if no `paymentMethods` came through.
    */
-  bankInstructions: ShopperBankInstructions | null;
+  bankInstructionsAvailable: boolean;
   /**
-   * May 2026 — Multi-method manual payment list. One entry per active
-   * payment channel the admin enabled in shopper config. The buyer
-   * picks one in the UI and pays externally. Empty array means no
-   * methods are configured / active, or the request isn't in a
-   * payment-pending state yet.
+   * June 2026 — Multi-method manual payment list. One entry per
+   * active payment channel the admin enabled in shopper config. The
+   * buyer picks one in the UI, clicks "Continue to payment", and the
+   * server emails the credentials to their address. The browser
+   * never receives the credential `details` — they are intentionally
+   * omitted from this payload to keep account numbers / Zelle
+   * handles / Cash App tags out of the rendered DOM.
    */
   paymentMethods: Array<{
     /** Stable identifier — "wire" | "ach" | "zelle" | "cashapp". */
     code: string;
-    /** Display name shown on the picker card and as the section header. */
+    /** Display name shown on the picker card and on the email. */
     label: string;
-    /**
-     * Generic label → value map. Field set varies per method (see
-     * admin config card). Frontend renders each entry as a labelled
-     * row in the order the server returned them.
-     */
-    details: Record<string, string>;
   }>;
   /**
    * Migration 0027 follow-up — warehouse "Ship From" address sourced
