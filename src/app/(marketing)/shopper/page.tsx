@@ -140,7 +140,7 @@ export default function ShopperIntakePage(): JSX.Element {
     publicConfigQ.data?.idVerificationThresholdCents ??
     WIRE_THRESHOLD_FALLBACK_CENTS;
   // Whole-dollar formatting because the threshold is always a round
-  // number ($10,000 by default). If a future config row sets a
+  // number ($1,000 by default). If a future config row sets a
   // fractional threshold, swap to .toLocaleString with cents.
   const thresholdLabel = `$${Math.round(thresholdCents / 100).toLocaleString("en-US")}`;
   const aboveThreshold = itemsTotalCents >= thresholdCents;

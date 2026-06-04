@@ -315,13 +315,9 @@ function ThreadView({
         ) : null}
       </section>
 
-      {/* May 2026 — All-manual payment policy with threshold-gated ID
-          verification. Above $10k (or whatever the admin set), the
-          buyer must clear ID review BEFORE payment instructions are
-          released. The IdVerificationCard short-circuits to null when
-          idVerificationStatus is "NONE" (below-threshold requests) so
-          we can render it unconditionally here without leaking the
-          card to buyers who don't need to upload anything. */}
+      {/* Threshold-gated ID (admin config). IdVerificationCard hides
+          itself when the cart is under the limit or idVerificationStatus
+          is NONE; we render it for every WIRE request and let it decide. */}
       {r.paymentMethod === "WIRE" ? (
         <>
           <IdVerificationCard request={r} token={token} onRefresh={onRefresh} />
@@ -668,11 +664,16 @@ function IdVerificationCard({
     onError: (err) => handle(err),
   });
 
-  // May 2026 — Threshold-gated ID. When the request was created below
-  // the wire threshold, idVerificationStatus is "NONE" and the buyer
-  // doesn't need to upload anything. Skip rendering entirely so the
-  // page goes straight from "request summary" to the payment picker.
-  if (request.idVerificationStatus === "NONE") return null;
+  // Threshold-gated ID — use quoted actuals when available so a cart
+  // that ends up under the limit after procurement isn't forced through
+  // the uploader. Intake sets idVerificationStatus to "NONE" for
+  // below-threshold orders; this subtotal check covers the rest.
+  const subtotalCents =
+    request.itemsActualSubtotalCents ?? request.itemsSubtotalCents;
+  const idRequired = subtotalCents >= request.idVerificationThresholdCents;
+  // Intake sets NONE for below-threshold carts; also hide when the live
+  // subtotal (post-quote) has dropped under the admin-configured limit.
+  if (!idRequired || request.idVerificationStatus === "NONE") return null;
 
   // States where the buyer either still needs to upload, or just did.
   // Once their ID is APPROVED we render a compact "verified" summary
