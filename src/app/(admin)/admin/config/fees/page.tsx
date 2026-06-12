@@ -47,7 +47,12 @@ interface FeeSchedule {
   monthlyStorage: Record<Tier, number | null>;
   fulfillment: { baseCents: number; perAdditionalUnitCents: number };
   returnsHandlingCents: number;
+  /** Markup on the carrier's quoted shipping cost, in basis points (1000 = 10%). */
+  shippingMarkupBps: number;
 }
+
+/** Default markup for config rows written before the field existed. */
+const DEFAULT_SHIPPING_MARKUP_BPS = 1000;
 
 interface ConfigRow {
   key: string;
@@ -91,6 +96,11 @@ const formSchema = z.object({
     perAdditionalUnitDollars: dollars(10_000),
   }),
   returnsHandlingDollars: dollars(10_000),
+  // Shipping markup entered as a percentage; serialised to basis points.
+  shippingMarkupPercent: z.coerce
+    .number()
+    .nonnegative("Cannot be negative.")
+    .max(100, "Keep the markup at or below 100%."),
 });
 type FormInput = z.infer<typeof formSchema>;
 
@@ -134,6 +144,7 @@ function scheduleToForm(s: FeeSchedule): FormInput {
       perAdditionalUnitDollars: centsToDollars(s.fulfillment.perAdditionalUnitCents),
     },
     returnsHandlingDollars: centsToDollars(s.returnsHandlingCents),
+    shippingMarkupPercent: (s.shippingMarkupBps ?? DEFAULT_SHIPPING_MARKUP_BPS) / 100,
   };
 }
 
@@ -167,6 +178,7 @@ function formToSchedule(v: FormInput): FeeSchedule {
       perAdditionalUnitCents: dollarsToCents(v.fulfillment.perAdditionalUnitDollars),
     },
     returnsHandlingCents: dollarsToCents(v.returnsHandlingDollars),
+    shippingMarkupBps: Math.round(v.shippingMarkupPercent * 100),
   };
 }
 
@@ -462,6 +474,43 @@ export default function FeeScheduleEditorPage(): JSX.Element {
                 {...register("returnsHandlingDollars")}
               />
             </Field>
+          </div>
+        </section>
+
+        {/* ── Shipping markup ─────────────────────────────────────── */}
+        <section className="rounded-md border border-line bg-white p-6">
+          <header className="mb-1 flex flex-wrap items-baseline justify-between gap-3">
+            <h2 className="text-h3 font-semibold text-ink">Shipping markup</h2>
+            <span className="font-mono text-mono-label uppercase text-text-muted">
+              Added to every carrier rate
+            </span>
+          </header>
+          <p className="max-w-prose text-body-sm text-text-muted">
+            Percentage added on top of the carrier&apos;s quoted shipping cost (USPS, UPS, FedEx,
+            and flat rate alike). The marked-up figure is the &ldquo;Shipping&rdquo; line the vendor
+            sees and pays; the raw carrier cost is recorded separately for your margin.
+          </p>
+          <div className="mt-6 max-w-xs">
+            <Field
+              label="Markup"
+              hint="% added to the carrier rate"
+              error={errors.shippingMarkupPercent?.message}
+            >
+              <Input
+                type="number"
+                inputMode="decimal"
+                step="0.1"
+                min={0}
+                {...register("shippingMarkupPercent")}
+              />
+            </Field>
+            <p className="mt-2 text-body-sm text-text-muted">
+              {(() => {
+                const pct = Number(watch("shippingMarkupPercent")) || 0;
+                const billed = (10 * (1 + pct / 100)).toFixed(2);
+                return `At ${pct}%, a $10.00 carrier label bills the vendor $${billed}.`;
+              })()}
+            </p>
           </div>
         </section>
 
