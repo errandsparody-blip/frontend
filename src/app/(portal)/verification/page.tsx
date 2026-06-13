@@ -863,7 +863,37 @@ export default function VerificationPage(): JSX.Element {
         body="Your account is fully verified. You can ship inventory in and place orders."
         tone="success"
         statusLabel={ks}
-      />
+      >
+        <section className="rounded-md border border-line bg-white p-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
+                Vendor onboarding guide
+              </div>
+              <p className="mt-1 max-w-prose text-body-sm text-text-muted">
+                Everything you need to get started — sending inventory in, fees,
+                fulfillment, and how the portal works. View it online or download a copy.
+              </p>
+            </div>
+            <div className="flex shrink-0 flex-wrap gap-3">
+              <a
+                href="/vendor-onboarding-guide.pdf"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Button variant="amber" size="md" withArrow>
+                  View guide
+                </Button>
+              </a>
+              <a href="/vendor-onboarding-guide.pdf" download>
+                <Button variant="outline" size="md">
+                  Download PDF
+                </Button>
+              </a>
+            </div>
+          </div>
+        </section>
+      </StatusPanel>
     );
   }
   if (ks === "IN_PROGRESS") {
@@ -1070,6 +1100,7 @@ function StatusPanel(props: {
   tone: "success" | "warning" | "error";
   statusLabel: string;
   rejectionReason?: string | null;
+  children?: React.ReactNode;
 }): JSX.Element {
   return (
     <div className="flex flex-col gap-6">
@@ -1087,6 +1118,7 @@ function StatusPanel(props: {
           </p>
         </section>
       ) : null}
+      {props.children}
     </div>
   );
 }
