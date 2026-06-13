@@ -850,11 +850,19 @@ function WirePaymentCard({
   // cannot lift credentials from the response.
   const sendInstructions = useMutation({
     mutationFn: (methodCode: string) =>
-      api.post<{ sentTo: string; methodLabel: string; methodCode: string }>(
-        `/shopper/r/${encodeURIComponent(token)}/payment/send-instructions`,
-        { methodCode },
-      ),
+      api.post<{
+        sentTo: string;
+        methodLabel: string;
+        methodCode: string;
+        checkoutUrl?: string;
+      }>(`/shopper/r/${encodeURIComponent(token)}/payment/send-instructions`, { methodCode }),
     onSuccess: (res) => {
+      // Card method: the server returns a hosted Stripe Checkout URL instead
+      // of emailing credentials — send the buyer straight there.
+      if (res.checkoutUrl) {
+        window.location.href = res.checkoutUrl;
+        return;
+      }
       setSentCode(res.methodCode);
       setSentLabel(res.methodLabel);
       setSentTo(res.sentTo);
@@ -1059,11 +1067,20 @@ function WirePaymentCard({
               ) : (
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <p className="max-w-md text-body-sm text-text-muted">
-                    We&apos;ll email the account details for{" "}
-                    <strong className="text-ink">
-                      {selectedMethod?.label ?? "your chosen method"}
-                    </strong>{" "}
-                    to <strong className="font-mono">{request.buyerEmail}</strong>.
+                    {selectedMethod?.code === "stripe" ? (
+                      <>
+                        You&apos;ll be taken to a secure card checkout. A card
+                        processing fee is added at checkout.
+                      </>
+                    ) : (
+                      <>
+                        We&apos;ll email the account details for{" "}
+                        <strong className="text-ink">
+                          {selectedMethod?.label ?? "your chosen method"}
+                        </strong>{" "}
+                        to <strong className="font-mono">{request.buyerEmail}</strong>.
+                      </>
+                    )}
                   </p>
                   <Button
                     type="button"
@@ -1078,8 +1095,12 @@ function WirePaymentCard({
                     }}
                   >
                     {sendInstructions.isPending
-                      ? "Sending…"
-                      : "Continue to payment"}
+                      ? selectedMethod?.code === "stripe"
+                        ? "Redirecting…"
+                        : "Sending…"
+                      : selectedMethod?.code === "stripe"
+                        ? "Continue to card checkout"
+                        : "Continue to payment"}
                   </Button>
                 </div>
               )}

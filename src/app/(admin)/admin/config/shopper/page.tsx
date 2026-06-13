@@ -116,7 +116,7 @@ interface PaymentMethodValue {
 
 interface PaymentMethodSpec {
   /** Lowercase identifier used in the config key suffix. */
-  code: "wire" | "ach" | "zelle" | "cashapp";
+  code: "wire" | "ach" | "zelle" | "cashapp" | "stripe";
   /** Display name shown on the card header and in the buyer picker. */
   label: string;
   /** One-line operator hint shown under the card title. */
@@ -197,6 +197,12 @@ const PAYMENT_METHODS: ReadonlyArray<PaymentMethodSpec> = [
         multiline: true,
       },
     ],
+  },
+  {
+    code: "stripe",
+    label: "Debit / credit card",
+    hint: "Hosted Stripe Checkout. The buyer pays the card processing fee on top — nothing to configure here, just toggle it on. Requires Stripe to be set up on the backend.",
+    fields: [],
   },
 ];
 
