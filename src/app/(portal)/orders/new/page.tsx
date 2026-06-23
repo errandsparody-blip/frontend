@@ -64,6 +64,17 @@ function formatCents(cents: number): string {
   })}`;
 }
 
+/** Shape returned by POST /orders/parse-address (Shippo address parser). */
+type ParsedAddress = {
+  line1: string;
+  line2: string | null;
+  city: string;
+  state: string;
+  postalCode: string;
+  country: string;
+  phone: string | null;
+};
+
 const EMPTY_ADDRESS: RecipientAddress = {
   recipientName: "",
   recipientPhone: undefined,
@@ -743,6 +754,27 @@ function AddressForm({
     onChangeAddress({ ...address, [key]: value });
   }
   const errCount = Object.keys(fieldErrors).length;
+
+  // "Paste a full address" convenience — splits one pasted string into the
+  // fields below via Shippo's address parser. We only fill blanks/parsed
+  // values in a single update (calling patch() per field would clobber, since
+  // each spreads the same stale address). The vendor still reviews + edits.
+  const [pasted, setPasted] = useState("");
+  const parseMut = useMutation({
+    mutationFn: (raw: string) => api.post<ParsedAddress>("/orders/parse-address", { address: raw }),
+    onSuccess: (p) => {
+      onChangeAddress({
+        ...address,
+        shipAddressLine1: p.line1 || address.shipAddressLine1,
+        shipAddressLine2: p.line2 ?? address.shipAddressLine2,
+        shipCity: p.city || address.shipCity,
+        shipState: p.state || address.shipState,
+        shipPostalCode: p.postalCode || address.shipPostalCode,
+        shipCountry: p.country || address.shipCountry,
+        recipientPhone: address.recipientPhone || p.phone || undefined,
+      });
+    },
+  });
   return (
     <section className="flex flex-col gap-5 rounded-md border border-line bg-white p-8">
       <h2 className="text-h2 font-semibold text-ink">Recipient</h2>
@@ -755,6 +787,42 @@ function AddressForm({
           {errCount === 1
             ? "1 field needs your attention before we can quote rates."
             : `${errCount} fields need your attention before we can quote rates.`}
+        </div>
+      ) : null}
+
+      {/* Paste-and-parse shortcut — drop a full address on one line and we
+          split it into the fields below (you can still edit after). */}
+      <Field
+        label="Paste a full address (optional)"
+        hint="e.g. 731 Market St #200, San Francisco, CA 94103 — we'll split it into the fields below"
+      >
+        <div className="flex gap-2">
+          <Input
+            type="text"
+            value={pasted}
+            placeholder="Paste the whole address here…"
+            onChange={(e) => setPasted(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                if (pasted.trim().length >= 3) parseMut.mutate(pasted.trim());
+              }
+            }}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => parseMut.mutate(pasted.trim())}
+            disabled={pasted.trim().length < 3 || parseMut.isPending}
+            loading={parseMut.isPending}
+          >
+            {parseMut.isPending ? "Parsing…" : "Fill fields"}
+          </Button>
+        </div>
+      </Field>
+      {parseMut.isError ? (
+        <div className="-mt-2 text-body-sm text-error">
+          Couldn&apos;t read that address — enter the fields manually below.
         </div>
       ) : null}
 
