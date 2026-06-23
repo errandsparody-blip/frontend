@@ -5,9 +5,12 @@
  *
  * Anyone with the URL can submit — no account required. Submission:
  *   1. Validates locally with Zod (cents, URL shape, length caps).
- *   2. POSTs /v1/shopper which creates the request, mints a magic-link
- *      token, and returns a Stripe Checkout URL.
- *   3. Redirects the buyer to Stripe Checkout for the upfront payment.
+ *   2. POSTs /v1/shopper which creates the request and mints a magic-link
+ *      token for the buyer's private order thread.
+ *   3. Redirects the buyer to that thread (all-manual payment policy,
+ *      May 2026), where they complete any ID verification and pick a
+ *      payment method. The legacy STRIPE branch in onSuccess is retained
+ *      for safety but is no longer reached by the current backend.
  *
  * Address is intentionally optional at intake — the admin captures it in
  * the chat thread if missing. We don't want a busy form to be the reason
@@ -302,11 +305,11 @@ export default function ShopperIntakePage(): JSX.Element {
             <p className="mt-1 text-body-sm text-text">
               Because your items add up to over {thresholdLabel}, you&apos;ll be
               asked to upload a government-issued ID and a selfie holding it
-              before we release payment instructions. All payments are still
-              by wire, ACH, Zelle, or Cash App — only the ID step changes.
-              We&apos;ll email a link to your private order page where you can
-              upload your ID; payment details unlock once we approve it
-              (usually within one business day).
+              before we release payment instructions. You&apos;ll choose how to
+              pay on your private order page — only the ID step changes here.
+              We&apos;ll email a link to that page where you can upload your ID;
+              payment options unlock once we approve it (usually within one
+              business day).
             </p>
           </div>
         ) : null}
