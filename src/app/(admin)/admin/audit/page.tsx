@@ -3,8 +3,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { Fragment, useState } from "react";
 
+import {
+  FilterBar,
+  FilterDateRange,
+  FilterField,
+  FilterSelect,
+} from "@/components/admin/filters";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
 import { DataTable, TBody, THead, Th, TR, Td } from "@/components/ui/table";
 import { api } from "@/lib/api-client";
@@ -49,7 +54,7 @@ export default function AdminAuditPage() {
   const [to, setTo] = useState("");
   const [opened, setOpened] = useState<string | null>(null);
 
-  const { data, isLoading, error, refetch } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ["admin", "audit", { actionFilter, resourceType, from, to }],
     queryFn: () => {
       const params = new URLSearchParams({ limit: "100" });
@@ -69,50 +74,31 @@ export default function AdminAuditPage() {
         description="Every privileged action lands here. The viewer itself is logged — you cannot read this page silently."
       />
 
-      <section className="rounded-md border border-line bg-white p-5">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
-          <div>
-            <div className="font-mono text-mono-label uppercase text-text-muted">Action contains</div>
-            <Input
-              type="text"
-              placeholder="wallet.debit"
-              value={actionFilter}
-              onChange={(e) => setActionFilter(e.target.value)}
-            />
-          </div>
-          <div>
-            <div className="font-mono text-mono-label uppercase text-text-muted">Resource type</div>
-            <select
-              value={resourceType}
-              onChange={(e) => setResourceType(e.target.value)}
-              className="h-11 w-full rounded-sm border border-line-strong bg-white px-3 font-sans text-body text-text outline-none focus:border-ink"
-            >
-              {RESOURCE_TYPES.map((t) => (
-                <option key={t || "all"} value={t}>
-                  {t || "any"}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <div className="font-mono text-mono-label uppercase text-text-muted">From</div>
-            <Input type="datetime-local" value={from} onChange={(e) => setFrom(e.target.value)} />
-          </div>
-          <div>
-            <div className="font-mono text-mono-label uppercase text-text-muted">To</div>
-            <Input type="datetime-local" value={to} onChange={(e) => setTo(e.target.value)} />
-          </div>
-        </div>
-        <div className="mt-3 flex justify-end">
-          <button
-            type="button"
-            onClick={() => refetch()}
-            className="rounded-sm border border-line-strong px-3 py-1 font-mono text-[11px] uppercase tracking-[1.2px] text-text hover:border-ink"
-          >
-            Apply
-          </button>
-        </div>
-      </section>
+      <FilterBar
+        gridClassName="md:grid-cols-[1fr_200px_200px_200px]"
+        onClear={() => {
+          setActionFilter("");
+          setResourceType("");
+          setFrom("");
+          setTo("");
+        }}
+        canClear={actionFilter !== "" || resourceType !== "" || from !== "" || to !== ""}
+      >
+        <FilterField
+          label="Action contains"
+          type="text"
+          value={actionFilter}
+          onChange={setActionFilter}
+          placeholder="wallet.debit"
+        />
+        <FilterSelect
+          label="Resource type"
+          value={resourceType}
+          onChange={setResourceType}
+          options={RESOURCE_TYPES.map((t) => ({ value: t, label: t || "any" }))}
+        />
+        <FilterDateRange from={from} to={to} onFrom={setFrom} onTo={setTo} />
+      </FilterBar>
 
       {isLoading ? (
         <div className="font-mono text-mono-label uppercase text-text-muted">Loading…</div>

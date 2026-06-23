@@ -762,6 +762,7 @@ function AddressForm({
         <Field label="Recipient name" error={fieldErrors.recipientName}>
           <Input
             type="text"
+            autoComplete="shipping name"
             value={address.recipientName}
             invalid={!!fieldErrors.recipientName}
             onChange={(e) => patch("recipientName", e.target.value)}
@@ -778,6 +779,7 @@ function AddressForm({
         <Field label="Phone" error={fieldErrors.recipientPhone}>
           <Input
             type="tel"
+            autoComplete="shipping tel"
             value={address.recipientPhone ?? ""}
             invalid={!!fieldErrors.recipientPhone}
             onChange={(e) => patch("recipientPhone", e.target.value || undefined)}
@@ -786,6 +788,7 @@ function AddressForm({
         <Field label="Email (optional)" error={fieldErrors.recipientEmail}>
           <Input
             type="email"
+            autoComplete="shipping email"
             value={address.recipientEmail ?? ""}
             invalid={!!fieldErrors.recipientEmail}
             onChange={(e) => patch("recipientEmail", e.target.value || undefined)}
@@ -796,6 +799,7 @@ function AddressForm({
       <Field label="Address line 1" error={fieldErrors.shipAddressLine1}>
         <Input
           type="text"
+          autoComplete="shipping address-line1"
           value={address.shipAddressLine1}
           invalid={!!fieldErrors.shipAddressLine1}
           onChange={(e) => patch("shipAddressLine1", e.target.value)}
@@ -804,6 +808,7 @@ function AddressForm({
       <Field label="Address line 2 (optional)" error={fieldErrors.shipAddressLine2}>
         <Input
           type="text"
+          autoComplete="shipping address-line2"
           value={address.shipAddressLine2 ?? ""}
           invalid={!!fieldErrors.shipAddressLine2}
           onChange={(e) => patch("shipAddressLine2", e.target.value || undefined)}
@@ -814,6 +819,7 @@ function AddressForm({
         <Field label="City" error={fieldErrors.shipCity}>
           <Input
             type="text"
+            autoComplete="shipping address-level2"
             value={address.shipCity}
             invalid={!!fieldErrors.shipCity}
             onChange={(e) => patch("shipCity", e.target.value)}
@@ -828,6 +834,7 @@ function AddressForm({
               choice (no silent default to "AL"). */}
           <select
             aria-label="State"
+            autoComplete="shipping address-level1"
             value={address.shipState}
             onChange={(e) => patch("shipState", e.target.value)}
             className={`h-11 w-full rounded-sm border bg-cream-soft px-3 text-body text-text outline-none transition-colors duration-fast ease-out focus:ring-2 focus:ring-ink/10 ${
@@ -845,6 +852,7 @@ function AddressForm({
         <Field label="ZIP" error={fieldErrors.shipPostalCode}>
           <Input
             type="text"
+            autoComplete="shipping postal-code"
             value={address.shipPostalCode}
             invalid={!!fieldErrors.shipPostalCode}
             onChange={(e) => patch("shipPostalCode", e.target.value)}

@@ -12,6 +12,13 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState } from "react";
 
+import {
+  FilterBar,
+  FilterDateRange,
+  FilterField,
+  FilterSelect,
+  type FilterOption,
+} from "@/components/admin/filters";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
@@ -78,11 +85,28 @@ function formatCents(cents: number | null): string {
   return `$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
 type TabValue = "queue" | "all" | ShopperRequestStatus;
+
+const SHOPPER_STATUS_OPTIONS: FilterOption[] = [
+  { value: "queue", label: "Queue (active)" },
+  ...QUEUE_STATUSES.map((s) => ({ value: s, label: s.replace(/_/g, " ") })),
+  ...POST_QUEUE_STATUSES.map((s) => ({ value: s, label: s.replace(/_/g, " ") })),
+  { value: "all", label: "All" },
+];
 
 export default function AdminShopperQueuePage(): JSX.Element {
   const [tab, setTab] = useState<TabValue>("queue");
   const [search, setSearch] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
 
   const params = new URLSearchParams();
   params.set("limit", "100");
@@ -94,9 +118,11 @@ export default function AdminShopperQueuePage(): JSX.Element {
   // Trim before the trip — the API requires min(1) on `search` if present.
   const trimmed = search.trim();
   if (trimmed.length > 0) params.set("search", trimmed);
+  if (from) params.set("from", from);
+  if (to) params.set("to", to);
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["admin", "shopper", { tab, search: trimmed }],
+    queryKey: ["admin", "shopper", { tab, search: trimmed, from, to }],
     queryFn: () =>
       api.get<{ items: AdminShopperRow[]; nextCursor: string | null }>(
         `/admin/shopper?${params.toString()}`,
@@ -124,37 +150,31 @@ export default function AdminShopperQueuePage(): JSX.Element {
         }
       />
 
-      <div className="flex flex-wrap items-center gap-2 font-mono text-mono-label uppercase">
-        <span className="text-text-muted">Filter</span>
-        <TabButton active={tab === "queue"} onClick={() => setTab("queue")}>
-          Queue
-        </TabButton>
-        {QUEUE_STATUSES.map((s) => (
-          <TabButton key={s} active={tab === s} onClick={() => setTab(s)}>
-            {s.replace(/_/g, " ")}
-          </TabButton>
-        ))}
-        <span className="mx-1 h-5 w-px bg-line-strong" aria-hidden />
-        {POST_QUEUE_STATUSES.map((s) => (
-          <TabButton key={s} active={tab === s} onClick={() => setTab(s)}>
-            {s.replace(/_/g, " ")}
-          </TabButton>
-        ))}
-        <span className="mx-1 h-5 w-px bg-line-strong" aria-hidden />
-        <TabButton active={tab === "all"} onClick={() => setTab("all")}>
-          All
-        </TabButton>
-
-        <div className="ml-auto flex items-center gap-2">
-          <input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search email or name…"
-            className="h-9 w-64 rounded-sm border border-line-strong bg-cream-soft px-3 text-body-sm text-text outline-none placeholder:text-text-subtle focus:border-ink focus:ring-2 focus:ring-ink/10"
-          />
-        </div>
-      </div>
+      <FilterBar
+        gridClassName="md:grid-cols-[1fr_220px_200px_200px]"
+        onClear={() => {
+          setTab("queue");
+          setSearch("");
+          setFrom("");
+          setTo("");
+        }}
+        canClear={tab !== "queue" || search !== "" || from !== "" || to !== ""}
+      >
+        <FilterField
+          label="Search"
+          type="search"
+          value={search}
+          onChange={setSearch}
+          placeholder="Search email or name…"
+        />
+        <FilterSelect
+          label="Status"
+          value={tab}
+          onChange={(v) => setTab(v as TabValue)}
+          options={SHOPPER_STATUS_OPTIONS}
+        />
+        <FilterDateRange from={from} to={to} onFrom={setFrom} onTo={setTo} />
+      </FilterBar>
 
       {isLoading ? (
         <div className="font-mono text-mono-label uppercase text-text-muted">Loading…</div>
@@ -175,6 +195,7 @@ export default function AdminShopperQueuePage(): JSX.Element {
         <DataTable>
           <THead>
             <Th>Request</Th>
+            <Th>Date</Th>
             <Th>Buyer</Th>
             <Th>Status</Th>
             <Th align="right">Items</Th>
@@ -194,6 +215,7 @@ export default function AdminShopperQueuePage(): JSX.Element {
                     </span>
                   ) : null}
                 </Td>
+                <Td className="whitespace-nowrap text-text-muted">{formatDate(r.createdAt)}</Td>
                 <Td strong>
                   {r.buyerEmail}
                   {r.buyerName ? (
@@ -242,26 +264,3 @@ function signedToneClass(cents: number | null): string {
   return "text-text-muted";
 }
 
-function TabButton({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}): JSX.Element {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={
-        active
-          ? "rounded-sm bg-ink px-3 py-1 text-text-inv"
-          : "rounded-sm border border-line-strong px-3 py-1 text-text hover:border-ink"
-      }
-    >
-      {children}
-    </button>
-  );
-}

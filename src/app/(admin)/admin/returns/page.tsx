@@ -17,7 +17,14 @@
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useState } from "react";
 
+import {
+  FilterBar,
+  FilterDateRange,
+  FilterSelect,
+  type FilterOption,
+} from "@/components/admin/filters";
 import { ErrorBanner } from "@/components/errors/error-banner";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
@@ -51,16 +58,25 @@ function formatCents(cents: number): string {
   })}`;
 }
 
+const RETURN_STATUS_OPTIONS: FilterOption[] = [
+  { value: "", label: "All statuses" },
+  ...RETURN_STATUS.map((s) => ({ value: s, label: s.replace(/_/g, " ") })),
+];
+
 export default function AdminReturnsPage(): JSX.Element {
   const router = useRouter();
   const searchParams = useSearchParams();
   const statusFilter = (searchParams.get("status") ?? "") as ReturnStatus | "";
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
 
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ["admin", "returns", { status: statusFilter }],
+    queryKey: ["admin", "returns", { status: statusFilter, from, to }],
     queryFn: () => {
       const qs = new URLSearchParams({ limit: "50" });
       if (statusFilter) qs.set("status", statusFilter);
+      if (from) qs.set("from", from);
+      if (to) qs.set("to", to);
       return api.get<ReturnListResponse>(`/admin/returns?${qs.toString()}`);
     },
   });
@@ -82,26 +98,23 @@ export default function AdminReturnsPage(): JSX.Element {
         description="Inbound RMAs across every vendor. Triage with the status filter; click a row to receive or inspect."
       />
 
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="font-mono text-mono-label uppercase text-text-muted">Status</span>
-        <button
-          type="button"
-          onClick={() => setStatus("")}
-          className={chipClass(statusFilter === "")}
-        >
-          All
-        </button>
-        {RETURN_STATUS.map((s) => (
-          <button
-            key={s}
-            type="button"
-            onClick={() => setStatus(s)}
-            className={chipClass(statusFilter === s)}
-          >
-            {s.replace(/_/g, " ")}
-          </button>
-        ))}
-      </div>
+      <FilterBar
+        gridClassName="md:grid-cols-[220px_200px_200px]"
+        onClear={() => {
+          setStatus("");
+          setFrom("");
+          setTo("");
+        }}
+        canClear={statusFilter !== "" || from !== "" || to !== ""}
+      >
+        <FilterSelect
+          label="Status"
+          value={statusFilter}
+          onChange={(v) => setStatus(v as ReturnStatus | "")}
+          options={RETURN_STATUS_OPTIONS}
+        />
+        <FilterDateRange from={from} to={to} onFrom={setFrom} onTo={setTo} />
+      </FilterBar>
 
       {isLoading ? (
         <div className="font-mono text-mono-label uppercase text-text-muted">Loading…</div>
@@ -173,11 +186,3 @@ export default function AdminReturnsPage(): JSX.Element {
   );
 }
 
-function chipClass(active: boolean): string {
-  return [
-    "rounded-sm border px-3 py-1 font-mono text-[10px] uppercase tracking-[1.4px] transition-colors",
-    active
-      ? "border-ink bg-ink text-text-inv"
-      : "border-line bg-cream-soft text-text-muted hover:border-ink hover:text-ink",
-  ].join(" ");
-}

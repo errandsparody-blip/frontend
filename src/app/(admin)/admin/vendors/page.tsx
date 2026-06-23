@@ -12,8 +12,13 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState } from "react";
 
+import {
+  FilterBar,
+  FilterDateRange,
+  FilterField,
+  FilterSelect,
+} from "@/components/admin/filters";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
 import { DataTable, TBody, THead, Th, TR, Td } from "@/components/ui/table";
@@ -57,15 +62,19 @@ function kycPillTone(s: KycStatus): "success" | "error" | "warning" {
 export default function AdminVendorsPage() {
   const [search, setSearch] = useState("");
   const [filterId, setFilterId] = useState<string>("queue");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const filter = FILTER_OPTIONS.find((f) => f.id === filterId)!;
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["admin", "vendors", { filter: filter.id, search }],
+    queryKey: ["admin", "vendors", { filter: filter.id, search, from, to }],
     queryFn: () => {
       const params = new URLSearchParams();
       params.set("limit", "100");
       if (filter.query) params.set("kycStatus", filter.query);
       if (search) params.set("search", search);
+      if (from) params.set("from", from);
+      if (to) params.set("to", to);
       return api.get<{ items: AdminVendorRow[]; nextCursor: string | null }>(
         `/admin/vendors?${params.toString()}`,
       );
@@ -80,40 +89,31 @@ export default function AdminVendorsPage() {
         description="Review pending vendors, verify their public footprint, and approve or reject onboarding."
       />
 
-      <div className="flex flex-wrap items-end gap-4">
-        <div className="flex-1 min-w-[260px] max-w-md">
-          <Input
-            type="text"
-            placeholder="Search by business name…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-
-        <div
-          role="tablist"
-          aria-label="KYC status filter"
-          className="flex flex-wrap gap-1 rounded-sm border border-line p-1"
-        >
-          {FILTER_OPTIONS.map((opt) => (
-            <button
-              key={opt.id}
-              role="tab"
-              type="button"
-              aria-selected={filterId === opt.id}
-              onClick={() => setFilterId(opt.id)}
-              className={
-                "px-3 py-1.5 font-mono text-[11px] uppercase tracking-[1.2px] transition-colors " +
-                (filterId === opt.id
-                  ? "bg-ink text-cream"
-                  : "text-text-muted hover:text-ink")
-              }
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-      </div>
+      <FilterBar
+        gridClassName="md:grid-cols-[1fr_200px_200px_200px]"
+        onClear={() => {
+          setFilterId("queue");
+          setSearch("");
+          setFrom("");
+          setTo("");
+        }}
+        canClear={filterId !== "queue" || search !== "" || from !== "" || to !== ""}
+      >
+        <FilterField
+          label="Search"
+          type="search"
+          value={search}
+          onChange={setSearch}
+          placeholder="Search by business name…"
+        />
+        <FilterSelect
+          label="Status"
+          value={filterId}
+          onChange={setFilterId}
+          options={FILTER_OPTIONS.map((o) => ({ value: o.id, label: o.label }))}
+        />
+        <FilterDateRange from={from} to={to} onFrom={setFrom} onTo={setTo} />
+      </FilterBar>
 
       {isLoading ? (
         <div className="font-mono text-mono-label uppercase text-text-muted">Loading…</div>

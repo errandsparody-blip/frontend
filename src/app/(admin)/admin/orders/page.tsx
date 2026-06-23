@@ -4,6 +4,12 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState } from "react";
 
+import {
+  FilterBar,
+  FilterDateRange,
+  FilterSelect,
+  type FilterOption,
+} from "@/components/admin/filters";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
@@ -44,6 +50,7 @@ interface AdminOrderRow {
   fulfillmentMode: "PLATFORM_SHIP" | "VENDOR_CARRIER";
   vendorCarrierName: string | null;
   vendorTrackingNumber: string | null;
+  createdAt: string;
 }
 
 // Tabs the operator sees, in workflow order. Queue = work in front of you;
@@ -84,11 +91,28 @@ function formatCents(cents: number): string {
   return `$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
 // Tab values: "queue" (default), "all", or any specific status.
 type TabValue = "queue" | "all" | (typeof QUEUE_STATUSES)[number] | (typeof POST_QUEUE_STATUSES)[number];
 
+const ORDER_STATUS_OPTIONS: FilterOption[] = [
+  { value: "queue", label: "Queue (active)" },
+  ...QUEUE_STATUSES.map((s) => ({ value: s, label: s.replace(/_/g, " ") })),
+  ...POST_QUEUE_STATUSES.map((s) => ({ value: s, label: s.replace(/_/g, " ") })),
+  { value: "all", label: "All" },
+];
+
 export default function AdminOrdersQueuePage() {
   const [tab, setTab] = useState<TabValue>("queue");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
 
   const params = new URLSearchParams();
   params.set("limit", "100");
@@ -97,9 +121,11 @@ export default function AdminOrdersQueuePage() {
   } else if (tab !== "queue") {
     params.set("status", tab);
   }
+  if (from) params.set("from", from);
+  if (to) params.set("to", to);
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["admin", "orders", { tab }],
+    queryKey: ["admin", "orders", { tab, from, to }],
     queryFn: () =>
       api.get<{ items: AdminOrderRow[]; nextCursor: string | null }>(
         `/admin/orders?${params.toString()}`,
@@ -114,27 +140,23 @@ export default function AdminOrdersQueuePage() {
         description="Buy labels, pick, pack, and ship. Each transition is captured in the order's append-only timeline."
       />
 
-      <div className="flex flex-wrap items-center gap-2 font-mono text-mono-label uppercase">
-        <span className="text-text-muted">Filter</span>
-        <TabButton active={tab === "queue"} onClick={() => setTab("queue")}>
-          Queue
-        </TabButton>
-        {QUEUE_STATUSES.map((s) => (
-          <TabButton key={s} active={tab === s} onClick={() => setTab(s)}>
-            {s.replace(/_/g, " ")}
-          </TabButton>
-        ))}
-        <span className="mx-1 h-5 w-px bg-line-strong" aria-hidden />
-        {POST_QUEUE_STATUSES.map((s) => (
-          <TabButton key={s} active={tab === s} onClick={() => setTab(s)}>
-            {s.replace(/_/g, " ")}
-          </TabButton>
-        ))}
-        <span className="mx-1 h-5 w-px bg-line-strong" aria-hidden />
-        <TabButton active={tab === "all"} onClick={() => setTab("all")}>
-          All
-        </TabButton>
-      </div>
+      <FilterBar
+        gridClassName="md:grid-cols-[220px_200px_200px]"
+        onClear={() => {
+          setTab("queue");
+          setFrom("");
+          setTo("");
+        }}
+        canClear={tab !== "queue" || from !== "" || to !== ""}
+      >
+        <FilterSelect
+          label="Status"
+          value={tab}
+          onChange={(v) => setTab(v as TabValue)}
+          options={ORDER_STATUS_OPTIONS}
+        />
+        <FilterDateRange from={from} to={to} onFrom={setFrom} onTo={setTo} />
+      </FilterBar>
 
       {isLoading ? (
         <div className="font-mono text-mono-label uppercase text-text-muted">Loading…</div>
@@ -148,6 +170,7 @@ export default function AdminOrdersQueuePage() {
         <DataTable>
           <THead>
             <Th>Order</Th>
+            <Th>Date</Th>
             <Th>Vendor</Th>
             <Th>Recipient</Th>
             <Th>Status</Th>
@@ -167,6 +190,7 @@ export default function AdminOrdersQueuePage() {
                     </div>
                   ) : null}
                 </Td>
+                <Td className="whitespace-nowrap text-text-muted">{formatDate(o.createdAt)}</Td>
                 <Td strong>{o.vendor.businessName}</Td>
                 <Td>
                   {o.recipientName}{" "}
@@ -219,26 +243,3 @@ export default function AdminOrdersQueuePage() {
   );
 }
 
-function TabButton({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}): JSX.Element {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={
-        active
-          ? "rounded-sm bg-ink px-3 py-1 text-text-inv"
-          : "rounded-sm border border-line-strong px-3 py-1 text-text hover:border-ink"
-      }
-    >
-      {children}
-    </button>
-  );
-}

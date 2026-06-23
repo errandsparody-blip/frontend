@@ -28,12 +28,12 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState } from "react";
 
+import { FilterBar, FilterDateRange, FilterSelect } from "@/components/admin/filters";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
 import { DataTable, TBody, THead, Th, TR, Td } from "@/components/ui/table";
 import { api } from "@/lib/api-client";
-import { cn } from "@/lib/utils";
 import type { PsnStatus, PublicPsn } from "@/lib/schemas/psn";
 
 interface AdminPsnRow extends PublicPsn {
@@ -88,16 +88,19 @@ function formatDate(iso: string | null | undefined): string {
 
 export default function AdminPsnQueuePage(): JSX.Element {
   const [tab, setTab] = useState<TabId>("inbox");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["admin", "psns", tab],
+    queryKey: ["admin", "psns", { tab, from, to }],
     queryFn: () => {
       const statusParam = TAB_STATUS[tab];
-      const qs = statusParam
-        ? `limit=100&status=${encodeURIComponent(statusParam)}`
-        : `limit=100`;
+      const params = new URLSearchParams({ limit: "100" });
+      if (statusParam) params.set("status", statusParam);
+      if (from) params.set("from", from);
+      if (to) params.set("to", to);
       return api.get<{ items: AdminPsnRow[]; nextCursor: string | null }>(
-        `/admin/psns?${qs}`,
+        `/admin/psns?${params.toString()}`,
       );
     },
     // Keep previous data while switching tabs so the table doesn't
@@ -119,32 +122,29 @@ export default function AdminPsnQueuePage(): JSX.Element {
         }
       />
 
-      {/* Tab strip — keeps the page within a single route so the
-          operator's bookmarks and the existing sidebar entry both
-          continue to work. */}
-      <div
-        role="tablist"
-        aria-label="Receiving view"
-        className="inline-flex w-fit gap-1 rounded-md border border-line bg-white p-1"
+      {/* View dropdown (inbox / history) + date-range on createdAt. Newest
+          request sorts to the top server-side; these inputs narrow the
+          window. Auto-queries as filters change. */}
+      <FilterBar
+        gridClassName="md:grid-cols-[220px_200px_200px]"
+        onClear={() => {
+          setTab("inbox");
+          setFrom("");
+          setTo("");
+        }}
+        canClear={tab !== "inbox" || from !== "" || to !== ""}
       >
-        {(["inbox", "history"] as TabId[]).map((id) => (
-          <button
-            key={id}
-            type="button"
-            role="tab"
-            aria-selected={tab === id}
-            onClick={() => setTab(id)}
-            className={cn(
-              "rounded-sm px-3 py-1.5 font-mono text-[11px] uppercase tracking-[1.4px] transition",
-              tab === id
-                ? "bg-ink text-cream-soft"
-                : "text-text-muted hover:bg-cream-soft hover:text-ink",
-            )}
-          >
-            {id === "inbox" ? "Inbox" : "History"}
-          </button>
-        ))}
-      </div>
+        <FilterSelect
+          label="View"
+          value={tab}
+          onChange={(v) => setTab(v as TabId)}
+          options={[
+            { value: "inbox", label: "Inbox" },
+            { value: "history", label: "History" },
+          ]}
+        />
+        <FilterDateRange from={from} to={to} onFrom={setFrom} onTo={setTo} />
+      </FilterBar>
 
       {isLoading && !data ? (
         <div className="font-mono text-mono-label uppercase text-text-muted">

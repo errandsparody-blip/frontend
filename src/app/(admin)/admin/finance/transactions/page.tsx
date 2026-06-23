@@ -17,6 +17,11 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState } from "react";
 
+import {
+  FilterBar,
+  FilterDateRange,
+  FilterMulti,
+} from "@/components/admin/filters";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
@@ -158,13 +163,17 @@ function readableError(err: unknown): string {
 export default function AdminTransactionsPage(): JSX.Element {
   // Multi-select filter — empty Set means "all types".
   const [selected, setSelected] = useState<Set<LedgerType>>(new Set());
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
 
   const typeParam = Array.from(selected).join(",");
   const query = useQuery({
-    queryKey: ["admin", "finance", "transactions", typeParam],
+    queryKey: ["admin", "finance", "transactions", { typeParam, from, to }],
     queryFn: () => {
       const params = new URLSearchParams({ limit: "100" });
       if (typeParam) params.set("type", typeParam);
+      if (from) params.set("from", from);
+      if (to) params.set("to", to);
       return api.get<ListResponse>(`/admin/finance/transactions?${params.toString()}`);
     },
   });
@@ -198,39 +207,26 @@ export default function AdminTransactionsPage(): JSX.Element {
         }
       />
 
-      {/* Filter pills. Multi-select; click to toggle. Empty = all. */}
-      <section className="rounded-md border border-line bg-white p-5">
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={clearAll}
-            className={`rounded-sm border px-3 py-1.5 font-mono text-[11px] uppercase tracking-[1.2px] transition-colors ${
-              selected.size === 0
-                ? "border-ink bg-ink text-text-inv"
-                : "border-line-strong bg-white text-text hover:border-ink"
-            }`}
-          >
-            All
-          </button>
-          {TYPES.map((t) => {
-            const on = selected.has(t.value);
-            return (
-              <button
-                key={t.value}
-                type="button"
-                onClick={() => toggle(t.value)}
-                className={`rounded-sm border px-3 py-1.5 font-mono text-[11px] uppercase tracking-[1.2px] transition-colors ${
-                  on
-                    ? "border-amber bg-amber text-ink"
-                    : "border-line-strong bg-white text-text hover:border-ink"
-                }`}
-              >
-                {t.label}
-              </button>
-            );
-          })}
-        </div>
-      </section>
+      {/* Type filter is multi-select (click to toggle, empty = all); date
+          range narrows the window. Auto-queries as filters change. */}
+      <FilterBar
+        gridClassName="md:grid-cols-[200px_200px_1fr]"
+        onClear={() => {
+          clearAll();
+          setFrom("");
+          setTo("");
+        }}
+        canClear={selected.size > 0 || from !== "" || to !== ""}
+      >
+        <FilterMulti
+          label="Type"
+          options={TYPES.map((t) => ({ value: t.value, label: t.label }))}
+          selected={selected}
+          onToggle={(v) => toggle(v as LedgerType)}
+          onClear={clearAll}
+        />
+        <FilterDateRange from={from} to={to} onFrom={setFrom} onTo={setTo} />
+      </FilterBar>
 
       {query.isLoading ? (
         <div className="font-mono text-mono-label uppercase text-text-muted">Loading…</div>

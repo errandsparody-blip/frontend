@@ -17,9 +17,9 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
+import { FilterBar, FilterField, FilterSelect } from "@/components/admin/filters";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Field } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
 import { DataTable, TBody, THead, Th, TR, Td } from "@/components/ui/table";
@@ -119,75 +119,67 @@ export default function AdminInventoryPage(): JSX.Element {
         description="Cross-vendor view of every SKU. Available + reserved counts come straight from the SKU table; movement history per SKU is one click away."
       />
 
-      <section className="rounded-md border border-line bg-white p-5">
-        {/* Filter grid: search takes the remaining flex, vendor + tier + status
-            + zero-only are fixed-width pickers. On mobile they stack. */}
-        <div className="grid gap-4 md:grid-cols-[1fr_220px_180px_180px_140px]">
-          <Field label="Search" hint="By SKU id, product, or vendor name">
-            <Input
-              type="search"
-              placeholder="UER-… / Adela / WRTF"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+      <FilterBar
+        gridClassName="md:grid-cols-[1fr_220px_180px_180px_140px]"
+        onClear={() => {
+          setSearch("");
+          setVendorId("");
+          setTier("");
+          setStatus("");
+          setZeroOnly(false);
+        }}
+        canClear={
+          search !== "" || vendorId !== "" || tier !== "" || status !== "" || zeroOnly
+        }
+      >
+        <FilterField
+          label="Search"
+          hint="By SKU id, product, or vendor name"
+          type="search"
+          value={search}
+          onChange={setSearch}
+          placeholder="UER-… / Adela / WRTF"
+        />
+        <FilterSelect
+          label="Vendor"
+          value={vendorId}
+          onChange={setVendorId}
+          disabled={vendorsQ.isLoading}
+          options={[
+            { value: "", label: "All vendors" },
+            ...vendorOptions.map((v) => ({ value: v.id, label: v.businessName })),
+          ]}
+        />
+        <FilterSelect
+          label="Storage tier"
+          value={tier}
+          onChange={(v) => setTier(v as Tier | "")}
+          options={[
+            { value: "", label: "All tiers" },
+            ...TIERS.map((t) => ({ value: t, label: t.replace("_", "-") })),
+          ]}
+        />
+        <FilterSelect
+          label="Status"
+          value={status}
+          onChange={(v) => setStatus(v as Status | "")}
+          options={[
+            { value: "", label: "All statuses" },
+            ...STATUSES.map((s) => ({ value: s, label: s.replace(/_/g, " ") })),
+          ]}
+        />
+        <Field label="Zero stock">
+          <label className="flex h-11 items-center gap-2 rounded-sm border border-line-strong bg-white px-3 text-body-sm text-text">
+            <input
+              type="checkbox"
+              checked={zeroOnly}
+              onChange={(e) => setZeroOnly(e.target.checked)}
+              className="h-4 w-4"
             />
-          </Field>
-          <Field label="Vendor">
-            <select
-              value={vendorId}
-              onChange={(e) => setVendorId(e.target.value)}
-              className="h-11 w-full rounded-sm border border-line-strong bg-white px-3 font-sans text-body text-text outline-none focus:border-ink"
-              disabled={vendorsQ.isLoading}
-              aria-label="Filter by vendor"
-            >
-              <option value="">All vendors</option>
-              {vendorOptions.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.businessName}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Storage tier">
-            <select
-              value={tier}
-              onChange={(e) => setTier(e.target.value as Tier | "")}
-              className="h-11 rounded-sm border border-line-strong bg-white px-3 font-sans text-body text-text outline-none focus:border-ink"
-            >
-              <option value="">All tiers</option>
-              {TIERS.map((t) => (
-                <option key={t} value={t}>
-                  {t.replace("_", "-")}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Status">
-            <select
-              value={status}
-              onChange={(e) => setStatus(e.target.value as Status | "")}
-              className="h-11 rounded-sm border border-line-strong bg-white px-3 font-sans text-body text-text outline-none focus:border-ink"
-            >
-              <option value="">All statuses</option>
-              {STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {s.replace(/_/g, " ")}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Zero stock">
-            <label className="flex h-11 items-center gap-2 rounded-sm border border-line-strong bg-white px-3 text-body-sm text-text">
-              <input
-                type="checkbox"
-                checked={zeroOnly}
-                onChange={(e) => setZeroOnly(e.target.checked)}
-                className="h-4 w-4"
-              />
-              Show zero-only
-            </label>
-          </Field>
-        </div>
-      </section>
+            Show zero-only
+          </label>
+        </Field>
+      </FilterBar>
 
       {listQ.isLoading ? (
         <div className="font-mono text-mono-label uppercase text-text-muted">Loading…</div>

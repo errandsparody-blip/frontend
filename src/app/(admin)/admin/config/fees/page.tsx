@@ -45,11 +45,14 @@ type OnboardingTier =
 interface FeeSchedule {
   onboarding: Record<Tier, OnboardingTier>;
   monthlyStorage: Record<Tier, number | null>;
-  fulfillment: { baseCents: number; perAdditionalUnitCents: number };
+  fulfillment: { baseCents: number; perAdditionalUnitCents: number; maxCents: number };
   returnsHandlingCents: number;
   /** Markup on the carrier's quoted shipping cost, in basis points (1000 = 10%). */
   shippingMarkupBps: number;
 }
+
+/** Default fulfillment-fee cap for config rows written before the field existed. */
+const DEFAULT_FULFILLMENT_MAX_CENTS = 1099;
 
 /** Default markup for config rows written before the field existed. */
 const DEFAULT_SHIPPING_MARKUP_BPS = 1000;
@@ -94,6 +97,7 @@ const formSchema = z.object({
   fulfillment: z.object({
     baseDollars: dollars(10_000),
     perAdditionalUnitDollars: dollars(10_000),
+    maxDollars: dollars(10_000),
   }),
   returnsHandlingDollars: dollars(10_000),
   // Shipping markup entered as a percentage; serialised to basis points.
@@ -142,6 +146,7 @@ function scheduleToForm(s: FeeSchedule): FormInput {
     fulfillment: {
       baseDollars: centsToDollars(s.fulfillment.baseCents),
       perAdditionalUnitDollars: centsToDollars(s.fulfillment.perAdditionalUnitCents),
+      maxDollars: centsToDollars(s.fulfillment.maxCents ?? DEFAULT_FULFILLMENT_MAX_CENTS),
     },
     returnsHandlingDollars: centsToDollars(s.returnsHandlingCents),
     shippingMarkupPercent: (s.shippingMarkupBps ?? DEFAULT_SHIPPING_MARKUP_BPS) / 100,
@@ -176,6 +181,7 @@ function formToSchedule(v: FormInput): FeeSchedule {
     fulfillment: {
       baseCents: dollarsToCents(v.fulfillment.baseDollars),
       perAdditionalUnitCents: dollarsToCents(v.fulfillment.perAdditionalUnitDollars),
+      maxCents: dollarsToCents(v.fulfillment.maxDollars),
     },
     returnsHandlingCents: dollarsToCents(v.returnsHandlingDollars),
     shippingMarkupBps: Math.round(v.shippingMarkupPercent * 100),
@@ -419,9 +425,10 @@ export default function FeeScheduleEditorPage(): JSX.Element {
           </header>
           <p className="max-w-prose text-body-sm text-text-muted">
             Pick + pack + label-prep. Base covers the first unit; the per-additional-unit rate
-            applies to every unit after that.
+            applies to every unit after that. The total per order never exceeds the cap below —
+            e.g. at $2.99 + $0.99 with a $10.99 cap, a 10-item order pays $10.99, not $11.90.
           </p>
-          <div className="mt-6 grid gap-4 md:grid-cols-2">
+          <div className="mt-6 grid gap-4 md:grid-cols-3">
             <Field
               label="Base fee"
               hint="$ for the first unit on the order"
@@ -446,6 +453,19 @@ export default function FeeScheduleEditorPage(): JSX.Element {
                 step="0.01"
                 min={0}
                 {...register("fulfillment.perAdditionalUnitDollars")}
+              />
+            </Field>
+            <Field
+              label="Max per order"
+              hint="$ cap on total fulfillment fee"
+              error={errors.fulfillment?.maxDollars?.message}
+            >
+              <Input
+                type="number"
+                inputMode="decimal"
+                step="0.01"
+                min={0}
+                {...register("fulfillment.maxDollars")}
               />
             </Field>
           </div>
