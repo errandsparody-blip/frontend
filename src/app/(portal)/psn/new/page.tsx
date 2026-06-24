@@ -63,6 +63,19 @@ export default function NewPsnPage() {
     staleTime: 60_000,
   });
 
+  // First-PSN waiver: a vendor's first ever submitted PSN has all receiving
+  // (stocking) fees knocked off — only storage is due. We detect "first" by
+  // checking whether the vendor has any previously-submitted PSN. The actual
+  // waiver is applied server-side at submit; this just keeps the preview honest.
+  const priorPsnsQ = useQuery({
+    queryKey: ["psns", "submitted-check"],
+    queryFn: () => api.get<{ items: PublicPsn[] }>("/psns?limit=50"),
+    staleTime: 60_000,
+  });
+  const hasSubmittedBefore = priorPsnsQ.data
+    ? priorPsnsQ.data.items.some((p) => p.submittedAt != null)
+    : null;
+
   const form = useForm<CreatePsnInput>({
     resolver: zodResolver(createPsnSchema),
     defaultValues: {
@@ -274,6 +287,27 @@ export default function NewPsnPage() {
         return acc + perBox * count;
       }, 0)
     : null;
+  // Waivable receiving (stocking) portion of the preview — everything that is
+  // NOT storage. Pallet first-month storage is excluded; box stocking in every
+  // mode is included. Mirrors computeOnboardingFeeCents's `stockingCents`.
+  const previewStockingCents = onboardingFees
+    ? TIERS.reduce((acc, tier) => {
+        if (tier === "PALLET") return acc; // pallet line is storage
+        const count = Number(declaredBoxCounts?.[tier] ?? 0);
+        if (count <= 0) return acc;
+        const entry = onboardingFees[tier];
+        if (!entry || ("negotiated" in entry && entry.negotiated)) return acc;
+        return acc + entry.stockingCents * count;
+      }, 0)
+    : null;
+  // Apply the first-PSN waiver to the displayed estimate when the vendor has
+  // no prior submitted PSN. Falls back to the full total while the check loads.
+  const firstPsnWaiver = hasSubmittedBefore === false;
+  const previewChargedCents =
+    previewFeeCents !== null && firstPsnWaiver && previewStockingCents !== null
+      ? previewFeeCents - previewStockingCents
+      : previewFeeCents;
+
   // ADD_TO_PALLET savings hint — what the vendor would have paid in LOOSE
   // mode for the same boxes, so we can show the delta on the preview.
   // Only meaningful in ADD_TO_PALLET mode; null otherwise.
@@ -691,9 +725,16 @@ export default function NewPsnPage() {
                   : "Estimated onboarding fee"}
             </span>
             <span className="font-mono text-h2 tabular-nums">
-              {previewIsLive && previewFeeCents !== null ? (
+              {previewIsLive && previewChargedCents !== null ? (
                 <>
-                  ${(previewFeeCents / 100).toFixed(2)}
+                  {firstPsnWaiver &&
+                  previewFeeCents !== null &&
+                  previewChargedCents !== previewFeeCents ? (
+                    <span className="mr-2 font-mono text-body-sm text-text-subtle line-through">
+                      ${(previewFeeCents / 100).toFixed(2)}
+                    </span>
+                  ) : null}
+                  ${(previewChargedCents / 100).toFixed(2)}
                   {hasNegotiatedDeclared ? (
                     <span className="ml-2 font-mono text-body-sm text-amber">
                       + negotiated tier quote
@@ -712,6 +753,14 @@ export default function NewPsnPage() {
               )}
             </span>
           </div>
+          {firstPsnWaiver &&
+          previewStockingCents !== null &&
+          previewStockingCents > 0 ? (
+            <p className="mt-2 text-caption text-success">
+              First PSN — receiving fees waived (${(previewStockingCents / 100).toFixed(2)} off).
+              Only storage is due on your first shipment.
+            </p>
+          ) : null}
           {shippingMode === "PALLET" && palletSummary.validPallets > 0 ? (
             <p className="mt-2 text-caption text-text-muted">
               Pallet mode: stocking fees apply per box on every pallet; per-box
