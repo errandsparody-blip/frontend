@@ -68,8 +68,8 @@ export default function HomePage() {
       {/* STATS BAR */}
       <section className="border-y border-line">
         <div className="mx-auto grid max-w-[84rem] grid-cols-2 lg:grid-cols-4">
-          <Stat value="1" label="Inventory value managed" />
-          <Stat value="1" label="Vendors trust the system" />
+          <Stat value="6000" label="Inventory value managed" />
+          <Stat value="75" label="Vendors trust the system" />
           <Stat value="4.2 days" label="Average inbound onboarding" amber />
           <Stat value="99.97%" label="Uptime. Not rounded" />
         </div>
