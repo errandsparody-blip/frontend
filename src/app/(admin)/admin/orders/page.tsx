@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -10,16 +10,19 @@ import {
   FilterSelect,
   type FilterOption,
 } from "@/components/admin/filters";
+import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
 import { DataTable, TBody, THead, Th, TR, Td } from "@/components/ui/table";
+import { useToast } from "@/components/ui/toast";
 import { api } from "@/lib/api-client";
 
 interface AdminOrderRow {
   id: string;
   orderNumber: number;
   status:
+    | "ON_HOLD"
     | "ALLOCATED"
     | "LABEL_PURCHASED"
     | "PICKING"
@@ -50,6 +53,11 @@ interface AdminOrderRow {
   fulfillmentMode: "PLATFORM_SHIP" | "VENDOR_CARRIER";
   vendorCarrierName: string | null;
   vendorTrackingNumber: string | null;
+  // Migration 0038 — storefront-integration provenance + hold lifecycle.
+  // source = "API" for orders pushed from a vendor's website; holdReason is
+  // set only while status = ON_HOLD.
+  source: "MANUAL" | "API";
+  holdReason: string | null;
   createdAt: string;
 }
 
@@ -71,6 +79,7 @@ const POST_QUEUE_STATUSES = [
 ] as const;
 
 const TONE: Record<AdminOrderRow["status"], "info" | "success" | "warning" | "error" | "neutral"> = {
+  ON_HOLD: "warning",
   ALLOCATED: "info",
   LABEL_PURCHASED: "info",
   PICKING: "warning",
@@ -100,14 +109,29 @@ function formatDate(iso: string): string {
 }
 
 // Tab values: "queue" (default), "all", or any specific status.
-type TabValue = "queue" | "all" | (typeof QUEUE_STATUSES)[number] | (typeof POST_QUEUE_STATUSES)[number];
+type TabValue =
+  | "queue"
+  | "all"
+  | "ON_HOLD"
+  | (typeof QUEUE_STATUSES)[number]
+  | (typeof POST_QUEUE_STATUSES)[number];
 
 const ORDER_STATUS_OPTIONS: FilterOption[] = [
   { value: "queue", label: "Queue (active)" },
+  // Migration 0038 — storefront orders parked awaiting a fix (funds / mapping).
+  { value: "ON_HOLD", label: "Held (storefront)" },
   ...QUEUE_STATUSES.map((s) => ({ value: s, label: s.replace(/_/g, " ") })),
   ...POST_QUEUE_STATUSES.map((s) => ({ value: s, label: s.replace(/_/g, " ") })),
   { value: "all", label: "All" },
 ];
+
+// Human-readable hold reasons for the operator queue.
+const HOLD_REASON_LABEL: Record<string, string> = {
+  INSUFFICIENT_FUNDS: "Low wallet — will auto-release on top-up",
+  UNMAPPED_SKU: "Unmatched SKU — fix the product code",
+  INSUFFICIENT_STOCK: "Not enough stock on hand",
+  ADDRESS_INVALID: "Address couldn't be verified",
+};
 
 export default function AdminOrdersQueuePage() {
   const [tab, setTab] = useState<TabValue>("queue");
@@ -124,12 +148,34 @@ export default function AdminOrdersQueuePage() {
   if (from) params.set("from", from);
   if (to) params.set("to", to);
 
+  const qc = useQueryClient();
+  const toast = useToast();
+
   const { data, isLoading, error } = useQuery({
     queryKey: ["admin", "orders", { tab, from, to }],
     queryFn: () =>
       api.get<{ items: AdminOrderRow[]; nextCursor: string | null }>(
         `/admin/orders?${params.toString()}`,
       ),
+  });
+
+  // Migration 0038 — retry allocation on a held storefront order after the
+  // blocker is resolved (funds added, SKU received, address fixed).
+  const releaseMut = useMutation({
+    mutationFn: (id: string) =>
+      api.post<{ released: boolean; status: string; holdReason: string | null }>(
+        `/admin/orders/${id}/release`,
+      ),
+    onSuccess: async (res) => {
+      await qc.invalidateQueries({ queryKey: ["admin", "orders"] });
+      toast.show({
+        title: res.released
+          ? "Order released into fulfillment."
+          : `Still held: ${HOLD_REASON_LABEL[res.holdReason ?? ""] ?? res.holdReason ?? "unresolved"}`,
+        severity: res.released ? "success" : "warning",
+      });
+    },
+    onError: () => toast.show({ title: "Couldn't release the order.", severity: "error" }),
   });
 
   return (
@@ -200,6 +246,16 @@ export default function AdminOrdersQueuePage() {
                 </Td>
                 <Td>
                   <StatusPill tone={TONE[o.status]}>{o.status.replace(/_/g, " ")}</StatusPill>
+                  {o.source === "API" && o.status !== "ON_HOLD" ? (
+                    <div className="mt-1 font-mono text-[10px] uppercase tracking-[1.1px] text-text-muted">
+                      Storefront
+                    </div>
+                  ) : null}
+                  {o.status === "ON_HOLD" && o.holdReason ? (
+                    <div className="mt-1 max-w-[180px] text-caption text-amber">
+                      {HOLD_REASON_LABEL[o.holdReason] ?? o.holdReason}
+                    </div>
+                  ) : null}
                 </Td>
                 <Td mono className="text-text-muted">
                   {o.fulfillmentMode === "VENDOR_CARRIER" ? (
@@ -227,12 +283,24 @@ export default function AdminOrdersQueuePage() {
                   {formatCents(o.totalChargedCents)}
                 </Td>
                 <Td align="right">
-                  <Link
-                    href={`/admin/orders/${o.id}`}
-                    className="font-mono text-[11px] uppercase tracking-[1.2px] text-amber hover:text-amber-hi"
-                  >
-                    Open →
-                  </Link>
+                  <div className="flex items-center justify-end gap-3">
+                    {o.status === "ON_HOLD" ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        loading={releaseMut.isPending && releaseMut.variables === o.id}
+                        onClick={() => releaseMut.mutate(o.id)}
+                      >
+                        Release
+                      </Button>
+                    ) : null}
+                    <Link
+                      href={`/admin/orders/${o.id}`}
+                      className="font-mono text-[11px] uppercase tracking-[1.2px] text-amber hover:text-amber-hi"
+                    >
+                      Open →
+                    </Link>
+                  </div>
                 </Td>
               </TR>
             ))}

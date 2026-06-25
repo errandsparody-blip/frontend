@@ -22,6 +22,11 @@ const ABOUT_ITEMS = [
     description: "Buy anything from any U.S. store. We handle the rest.",
   },
   {
+    href: "/integrations",
+    label: "Store integration",
+    description: "Connect your online store so orders fulfill themselves.",
+  },
+  {
     href: "/security",
     label: "Security & compliance",
     description: "How we protect your data and your buyer's money.",
@@ -127,6 +132,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
             <FooterCol heading="Sellers">
               <FooterLink href="/how-it-works">How it works</FooterLink>
               <FooterLink href="/pricing">Pricing</FooterLink>
+              <FooterLink href="/integrations">Store integration</FooterLink>
               <FooterLink href="/signup">Get started</FooterLink>
             </FooterCol>
             <FooterCol heading="Buyers">
