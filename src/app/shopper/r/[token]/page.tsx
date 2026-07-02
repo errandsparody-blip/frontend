@@ -93,6 +93,11 @@ function dollars(cents: number | null | undefined): string {
   return `$${(cents / 100).toFixed(2)}`;
 }
 
+/** Format a percentage without trailing zeros: 10 → "10", 8.25 → "8.25". */
+function formatPct(pct: number): string {
+  return Number(pct.toFixed(2)).toString();
+}
+
 function fmtTime(iso: string): string {
   // Avoid hydration mismatch — UTC time consistent across server + client.
   const d = new Date(iso);
@@ -280,12 +285,19 @@ function ThreadView({
 
         <div className="mt-6 grid gap-4 border-t border-line pt-6 md:grid-cols-4">
           <Stat label="Items estimate" value={dollars(r.itemsSubtotalCents)} />
-          <Stat label="Service fee" value={dollars(r.commissionCents)} />
+          <Stat
+            label={
+              r.itemsSubtotalCents > 0
+                ? `Service fee (${formatPct((r.commissionCents / r.itemsSubtotalCents) * 100)}%)`
+                : "Service fee"
+            }
+            value={dollars(r.commissionCents)}
+          />
           <Stat
             label={
               r.effectiveTaxState
-                ? `Est. ${r.effectiveTaxState} sales tax`
-                : "Est. sales tax"
+                ? `${r.effectiveTaxState} sales tax (${formatPct(r.estimatedTaxRateBps / 100)}%)`
+                : `Sales tax (${formatPct(r.estimatedTaxRateBps / 100)}%)`
             }
             value={dollars(r.estimatedTaxCents)}
           />
