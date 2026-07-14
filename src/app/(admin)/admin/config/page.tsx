@@ -46,14 +46,10 @@ const FRIENDLY_EDITORS: Record<string, { href: string; label: string }> = {
     href: "/admin/config/shipping-point-ranges",
     label: "Edit shipping ranges →",
   },
-  // Migration 0041 — Fulfillment v2 master switch. Toggling to true
-  // only affects orders CREATED after the flip; existing orders keep
-  // their workflowVersion (never mutated post-create). The friendly
-  // editor spells out what enabling the flag actually does.
-  fulfillment_v2_enabled: {
-    href: "/admin/config/fulfillment-v2",
-    label: "Toggle fulfillment v2 →",
-  },
+  // Migration 0047 — Fulfillment v1 abolished. The
+  // `fulfillment_v2_enabled` config row is retained in the DB as a
+  // read-only tombstone (see migration 0047) but no longer has a UI
+  // toggle. Every order is v2 unconditionally.
 };
 
 // Editors that live under /admin/config but are NOT backed by rows in

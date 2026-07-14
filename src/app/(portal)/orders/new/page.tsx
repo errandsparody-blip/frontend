@@ -140,26 +140,14 @@ export default function NewOrderPage() {
   const [quote, setQuote] = useState<QuoteResult | null>(null);
   const [chosen, setChosen] = useState<QuoteRateOption | null>(null);
 
-  // Migration 0041 — Fulfillment v2 config bit. When true, the wizard
-  // drops the Carrier rates step entirely for PLATFORM_SHIP: the
-  // vendor pays only the fulfillment fee at submit and sees a
-  // shipping-points-based ESTIMATE range instead of picking a Shippo
-  // rate. When false (default until the SUPER_ADMIN flips the
-  // fulfillment_v2_enabled config row), the legacy quote-a-rate
-  // flow stays in effect. Cached for the session; the flag isn't
-  // going to flip mid-wizard.
-  //
-  // Declared BEFORE fulfillmentEstimateQ / walletBalanceQ /
-  // shippingEstimateQ because those queries gate their `enabled`
-  // flag off of the v2 bit — TS enforces the ordering (block-scoped).
-  const v2ConfigQ = useQuery({
-    queryKey: ["orders", "fulfillment-config"],
-    queryFn: () =>
-      api.get<{ v2Enabled: boolean }>("/orders/fulfillment-config"),
-    staleTime: 60 * 60_000,
-    retry: 1,
-  });
-  const v2Enabled = v2ConfigQ.data?.v2Enabled === true;
+  // Migration 0047 — Fulfillment v1 abolished per spec ("Studio mvp
+  // task 71326.pdf", page 8: "WE ARE ABOLISHING THIS FLOW ENTIRELY").
+  // v2Enabled stays as a local constant (rather than being deleted)
+  // so the surrounding wizard branches keep reading a boolean symbol;
+  // the dead v1 branches are being removed progressively. Backend
+  // /orders/fulfillment-config also always returns { v2Enabled: true }
+  // now, so an older cached web build won't misbehave either.
+  const v2Enabled = true;
 
   // Migration 0037 — live fulfillment-cost estimate for the
   // VENDOR_CARRIER branch. We don't quote carrier rates on this path
