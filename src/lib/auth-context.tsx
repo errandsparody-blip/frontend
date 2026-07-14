@@ -16,7 +16,17 @@ import { api, setAccessToken } from "@/lib/api-client";
 export interface AuthUser {
   id: string;
   email: string;
-  role: "VENDOR" | "VENDOR_SUB_USER" | "WAREHOUSE_OPERATOR" | "FINANCE_ADMIN" | "SUPER_ADMIN";
+  // Migration 0039 — ADMIN is a general-purpose admin whose page-
+  // level access is configurable by SUPER_ADMIN via
+  // /admin/config/admin-permissions. Home route below routes them
+  // to /admin the same as the other admin flavours.
+  role:
+    | "VENDOR"
+    | "VENDOR_SUB_USER"
+    | "WAREHOUSE_OPERATOR"
+    | "FINANCE_ADMIN"
+    | "ADMIN"
+    | "SUPER_ADMIN";
   vendorId: string | null;
   mfaEnrolled: boolean;
   emailVerified: boolean;
@@ -36,7 +46,12 @@ export function homeForRole(user: { role: AuthUser["role"] }): string {
   if (
     user.role === "SUPER_ADMIN" ||
     user.role === "FINANCE_ADMIN" ||
-    user.role === "WAREHOUSE_OPERATOR"
+    user.role === "WAREHOUSE_OPERATOR" ||
+    // Migration 0039 — new ADMIN role lands on the admin dashboard
+    // the same as the other admin flavours. Their sidebar is
+    // filtered by page permissions, but the landing route is the
+    // same.
+    user.role === "ADMIN"
   ) {
     return "/admin";
   }

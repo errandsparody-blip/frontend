@@ -22,6 +22,25 @@ export const ORDER_STATUS = [
   // The platform never observes carrier-side tracking for these, so
   // "handed off to the vendor's carrier" is as far as we go.
   "HANDED_OFF",
+  // Migration 0041 — Fulfillment v2 lifecycle statuses. These sit
+  // between SUBMITTED and LABEL_PURCHASED for workflowVersion=2 orders
+  // only. Legacy (v1) orders never enter them.
+  //
+  //   PENDING_PACKING              Warehouse hasn't started packing.
+  //   PACKING_COMPLETED            Real box dimensions captured; ready
+  //                                for a live Shippo rates fetch.
+  //   AWAITING_SHIPPING_SELECTION  Admin has rates on screen and needs
+  //                                to pick one.
+  //   AWAITING_WALLET_FUNDING      Vendor's wallet can't cover the
+  //                                selected shipping — surfacing an
+  //                                "Add funds" nudge in the portal.
+  //   SHIPPING_PAID                Shipping wallet debit succeeded;
+  //                                LABEL_PURCHASED follows shortly.
+  "PENDING_PACKING",
+  "PACKING_COMPLETED",
+  "AWAITING_SHIPPING_SELECTION",
+  "AWAITING_WALLET_FUNDING",
+  "SHIPPING_PAID",
   "EXCEPTION",
   "CANCELLED",
   "RETURNED",
@@ -257,6 +276,24 @@ export interface PublicOrder {
   vendorTrackingNumber: string | null;
   vendorLabelUrl: string | null;
   handedOffAt: string | null;
+  /**
+   * Migration 0041 — Fulfillment workflow version:
+   *   1 = legacy (vendor picks Shippo rate + wallet debit for full charge at submit)
+   *   2 = v2 (vendor pays fulfillment fee only at submit; shipping debited at pack)
+   * Set once at create time, never mutated. UI branches on this to
+   * decide whether to render the shipping-estimate range strip and to
+   * suppress the carrier line on submissions that never chose one.
+   */
+  workflowVersion: number;
+  /**
+   * Migration 0041 — shipping-points ESTIMATE snapshot captured at
+   * submit for workflowVersion=2. Immutable — the actual shipping
+   * charge (once determined at pack time) lives in shippingCostCents.
+   * Null on legacy orders and on VENDOR_CARRIER v2 orders (nothing to
+   * estimate; the vendor handles shipping themselves).
+   */
+  estimatedShippingMinCents: number | null;
+  estimatedShippingMaxCents: number | null;
   lines: Array<{
     id: string;
     skuId: string;

@@ -25,6 +25,14 @@ const TONE: Record<OrderStatus, "neutral" | "info" | "success" | "warning" | "er
   DELIVERED: "success",
   // Migration 0037 — terminal success state for VENDOR_CARRIER orders.
   HANDED_OFF: "success",
+  // Migration 0041 — v2 lifecycle states. All treated as "in progress"
+  // from the vendor's viewpoint — none are terminal. AWAITING_WALLET_FUNDING
+  // is amber-tinted (warning) so the vendor notices they need to act.
+  PENDING_PACKING: "info",
+  PACKING_COMPLETED: "info",
+  AWAITING_SHIPPING_SELECTION: "info",
+  AWAITING_WALLET_FUNDING: "warning",
+  SHIPPING_PAID: "info",
   EXCEPTION: "error",
   CANCELLED: "error",
   RETURNED: "warning",
@@ -64,6 +72,13 @@ export default function OrdersListPage() {
             >
               Download CSV
             </button>
+            {/* Migration 0046 — vendor CSV bulk import. */}
+            <Link
+              href="/orders/import"
+              className="font-mono text-[11px] uppercase tracking-[1.2px] text-text-muted hover:text-ink"
+            >
+              Bulk import →
+            </Link>
             <Link href="/orders/new">
               <Button variant="amber" withArrow>
                 New order

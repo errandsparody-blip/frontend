@@ -36,12 +36,24 @@ const TONE: Record<OrderStatus, "neutral" | "info" | "success" | "warning" | "er
   DELIVERED: "success",
   // Migration 0037 — terminal success state for VENDOR_CARRIER orders.
   HANDED_OFF: "success",
+  // Migration 0041 — v2 lifecycle states (see schemas/orders.ts).
+  PENDING_PACKING: "info",
+  PACKING_COMPLETED: "info",
+  AWAITING_SHIPPING_SELECTION: "info",
+  AWAITING_WALLET_FUNDING: "warning",
+  SHIPPING_PAID: "info",
   EXCEPTION: "error",
   CANCELLED: "error",
   RETURNED: "warning",
 };
 
-const CANCELLABLE: OrderStatus[] = ["DRAFT", "SUBMITTED", "ALLOCATED"];
+// Migration 0041 — extend the cancellable set for v2 orders so vendors
+// can still bail out while the order is waiting on the warehouse.
+// The backend v2 cancel path (createV2 refund) refunds the fulfillment
+// fee, releases the reservation, and moves the order to CANCELLED.
+// PACKING_COMPLETED onwards is a WAREHOUSE-side hold — cancels there
+// must go through support (the box is already assembled).
+const CANCELLABLE: OrderStatus[] = ["DRAFT", "SUBMITTED", "ALLOCATED", "PENDING_PACKING"];
 // Server-side rule (return.service.ts:68): an RMA can only be opened
 // against orders the carrier has confirmed as DELIVERED, or that hit
 // EXCEPTION (delivery problem). Anything earlier in the lifecycle goes
@@ -204,6 +216,14 @@ export default function OrderDetailPage() {
           ) : null}
         </div>
 
+        {/* Migration 0041 — user-friendly narration of where a v2 order
+            is in the pack-then-ship lifecycle. The status pill above
+            uses machine terms; this line tells the vendor what those
+            terms MEAN and what (if anything) they need to do. */}
+        {o.workflowVersion === 2 ? (
+          <V2StatusNotice status={o.status} />
+        ) : null}
+
         <div className="mt-6 grid grid-cols-2 gap-6">
           <div>
             <div className="font-mono text-mono-label uppercase text-text-muted">Ship to</div>
@@ -218,8 +238,27 @@ export default function OrderDetailPage() {
           <div>
             <div className="font-mono text-mono-label uppercase text-text-muted">Money</div>
             <dl className="mt-1 grid grid-cols-2 gap-y-1 font-mono text-body-sm">
-              <dt className="text-text-muted">Shipping</dt>
-              <dd className="text-right text-text">{formatCents(o.shippingFeeCents)}</dd>
+              {/* Migration 0041 — v2 orders in early lifecycle (before
+                  SHIPPING_PAID) show the shipping estimate RANGE instead
+                  of the final shipping fee. Once shipping is paid, we
+                  fall through to the actual number stored on the row. */}
+              {o.workflowVersion === 2 &&
+              o.estimatedShippingMinCents !== null &&
+              o.estimatedShippingMaxCents !== null &&
+              o.shippingFeeCents === 0 ? (
+                <>
+                  <dt className="text-text-muted">Shipping (est.)</dt>
+                  <dd className="text-right text-text-muted">
+                    {formatCents(o.estimatedShippingMinCents)} –{" "}
+                    {formatCents(o.estimatedShippingMaxCents)}
+                  </dd>
+                </>
+              ) : (
+                <>
+                  <dt className="text-text-muted">Shipping</dt>
+                  <dd className="text-right text-text">{formatCents(o.shippingFeeCents)}</dd>
+                </>
+              )}
               <dt className="text-text-muted">Fulfillment</dt>
               <dd className="text-right text-text">{formatCents(o.fulfillmentFeeCents)}</dd>
               <dt className="text-text-muted">Insurance</dt>
@@ -233,11 +272,22 @@ export default function OrderDetailPage() {
                   </dd>
                 </>
               ) : null}
-              <dt className="text-h3 font-semibold text-ink">Total charged</dt>
+              <dt className="text-h3 font-semibold text-ink">
+                {o.workflowVersion === 2 && o.shippingFeeCents === 0
+                  ? "Charged so far"
+                  : "Total charged"}
+              </dt>
               <dd className="text-right text-h3 font-semibold text-ink">
                 {formatCents(o.totalChargedCents)}
               </dd>
             </dl>
+            {o.workflowVersion === 2 && o.shippingFeeCents === 0 ? (
+              <p className="mt-2 text-body-xs text-text-muted">
+                Shipping is charged after the warehouse packs the order and we
+                buy a real carrier label. The final amount will fall inside
+                the estimated range above.
+              </p>
+            ) : null}
           </div>
         </div>
       </section>
@@ -621,5 +671,74 @@ function VendorLabelLink({ labelUrl }: { labelUrl: string }): JSX.Element {
     >
       Open your label →
     </a>
+  );
+}
+
+/**
+ * Migration 0041 — human-readable v2 lifecycle explainer.
+ *
+ * Rendered under the status pill only for workflowVersion=2 orders and
+ * only for the states where the vendor might otherwise wonder "what
+ * happens next?". Copy is intentionally short and action-oriented:
+ * either "we're on it" or "you need to do X".
+ *
+ * A single switch keeps the mapping in one place so a new status added
+ * to the enum is caught by TS via exhaustive checking (default = null
+ * so an unlisted status renders nothing rather than crashing).
+ */
+function V2StatusNotice({ status }: { status: OrderStatus }): JSX.Element | null {
+  let title: string | null = null;
+  let body: string | null = null;
+  let tone: "info" | "warning" = "info";
+
+  switch (status) {
+    case "PENDING_PACKING":
+      title = "Waiting on the warehouse";
+      body =
+        "Your order is in the queue. The warehouse team will pack it and capture real box dimensions before we quote shipping.";
+      break;
+    case "PACKING_COMPLETED":
+      title = "Packed — pricing shipping";
+      body =
+        "Your order is packed. We're fetching live carrier rates against the actual box dimensions right now.";
+      break;
+    case "AWAITING_SHIPPING_SELECTION":
+      title = "Rates in — admin is picking a carrier";
+      body =
+        "Live rates are back. An admin is choosing the carrier + service that best fits your order.";
+      break;
+    case "AWAITING_WALLET_FUNDING":
+      title = "Add funds to release this shipment";
+      body =
+        "Your wallet doesn't currently cover the selected shipping cost. Top up and we'll buy the label as soon as the funds land.";
+      tone = "warning";
+      break;
+    case "SHIPPING_PAID":
+      title = "Shipping paid — buying label";
+      body =
+        "The shipping fee has been debited from your wallet. We're buying the label now — tracking will follow shortly.";
+      break;
+    default:
+      return null;
+  }
+
+  const classes =
+    tone === "warning"
+      ? "mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-body-sm text-amber-900"
+      : "mt-3 rounded-md border border-line bg-cream-soft p-3 text-body-sm text-text";
+
+  return (
+    <div role="status" className={classes}>
+      <div className="font-semibold">{title}</div>
+      <p className="mt-1 text-body-sm text-text-muted">{body}</p>
+      {tone === "warning" ? (
+        <a
+          href="/wallet/fund"
+          className="mt-2 inline-block rounded-md border border-amber-400 bg-white px-3 py-1.5 text-body-sm font-semibold text-amber-900 hover:bg-amber-100"
+        >
+          Add funds →
+        </a>
+      ) : null}
+    </div>
   );
 }

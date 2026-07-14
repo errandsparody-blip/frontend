@@ -140,6 +140,27 @@ export default function NewOrderPage() {
   const [quote, setQuote] = useState<QuoteResult | null>(null);
   const [chosen, setChosen] = useState<QuoteRateOption | null>(null);
 
+  // Migration 0041 — Fulfillment v2 config bit. When true, the wizard
+  // drops the Carrier rates step entirely for PLATFORM_SHIP: the
+  // vendor pays only the fulfillment fee at submit and sees a
+  // shipping-points-based ESTIMATE range instead of picking a Shippo
+  // rate. When false (default until the SUPER_ADMIN flips the
+  // fulfillment_v2_enabled config row), the legacy quote-a-rate
+  // flow stays in effect. Cached for the session; the flag isn't
+  // going to flip mid-wizard.
+  //
+  // Declared BEFORE fulfillmentEstimateQ / walletBalanceQ /
+  // shippingEstimateQ because those queries gate their `enabled`
+  // flag off of the v2 bit — TS enforces the ordering (block-scoped).
+  const v2ConfigQ = useQuery({
+    queryKey: ["orders", "fulfillment-config"],
+    queryFn: () =>
+      api.get<{ v2Enabled: boolean }>("/orders/fulfillment-config"),
+    staleTime: 60 * 60_000,
+    retry: 1,
+  });
+  const v2Enabled = v2ConfigQ.data?.v2Enabled === true;
+
   // Migration 0037 — live fulfillment-cost estimate for the
   // VENDOR_CARRIER branch. We don't quote carrier rates on this path
   // (the vendor brings their own label), but the vendor still pays
@@ -168,12 +189,64 @@ export default function NewOrderPage() {
         insuranceFeeCents: number;
         totalCents: number;
       }>("/orders/fulfillment-estimate", { lines, insuranceRequested }),
-    enabled: fulfillmentMode === "VENDOR_CARRIER" && lines.length > 0,
+    // Migration 0041 — v2 + PLATFORM_SHIP also needs the fulfillment
+    // fee for the wallet-cover check on Review, so include that branch.
+    enabled:
+      lines.length > 0 &&
+      (fulfillmentMode === "VENDOR_CARRIER" ||
+        (fulfillmentMode === "PLATFORM_SHIP" && v2Enabled)),
     // Stale-time keeps the cost stable across step transitions for a
     // few seconds — switching from Recipient back to Lines without
     // editing shouldn't show a flicker.
     staleTime: 30_000,
   });
+
+  // Migration 0041 — wallet snapshot for the v2 review gate. The
+  // v2 backend refuses to submit unless walletBalance >=
+  // fulfillmentFee + estimatedShippingMax. We mirror that check
+  // client-side so the user sees the "add funds" prompt BEFORE
+  // clicking Submit rather than after a 402. Only fetched on v2 +
+  // PLATFORM_SHIP; the legacy path handles its own funding checks
+  // as part of the quote/submit round-trip. staleTime is short —
+  // the balance can move while the wizard is open (top-up, credit).
+  const walletBalanceQ = useQuery({
+    queryKey: ["orders", "wallet-balance"],
+    queryFn: () => api.get<{ balanceCents: number }>("/wallet"),
+    enabled:
+      fulfillmentMode === "PLATFORM_SHIP" && v2Enabled && lines.length > 0,
+    staleTime: 15_000,
+    refetchOnWindowFocus: true,
+  });
+
+  // Migration 0041 — shipping-points ESTIMATE preview for v2 +
+  // PLATFORM_SHIP. Gates the Review step's wallet-cover check and
+  // renders the "estimated shipping" strip. Never fires under
+  // VENDOR_CARRIER (that branch has no platform shipping to
+  // estimate) or under the legacy flow.
+  const shippingEstimateQ = useQuery({
+    queryKey: [
+      "orders",
+      "shipping-estimate",
+      [...lines]
+        .map((l) => `${l.skuId}:${l.quantity}`)
+        .sort()
+        .join(","),
+    ],
+    queryFn: () =>
+      api.post<{
+        totalPoints: number;
+        allAssigned: boolean;
+        missingProductIds: string[];
+        estimateMinCents: number;
+        estimateMaxCents: number;
+      }>("/orders/shipping-estimate", { lines }),
+    enabled:
+      v2Enabled &&
+      fulfillmentMode === "PLATFORM_SHIP" &&
+      lines.length > 0,
+    staleTime: 30_000,
+  });
+
   // Local validation messages (not API errors — those go through the banner).
   // Two flavours: a top-level message ("Add at least one line.") and a
   // per-field map for the address step so we can light up individual inputs.
@@ -228,10 +301,14 @@ export default function NewOrderPage() {
 
   const submitMut = useMutation({
     mutationFn: async () => {
-      // Branch on fulfillment mode — PLATFORM_SHIP needs a chosen
-      // carrier rate, VENDOR_CARRIER needs vendor-supplied label or
-      // tracking details.
-      if (fulfillmentMode === "PLATFORM_SHIP" && !chosen) {
+      // Branch on fulfillment mode + workflow version:
+      //  • v1 PLATFORM_SHIP → needs a chosen carrier rate + label cap
+      //  • v2 PLATFORM_SHIP → no rate picked; warehouse packs first,
+      //    admin picks label later. Only the fulfillment fee is
+      //    committed at submit.
+      //  • VENDOR_CARRIER (either version) → vendor supplies label OR
+      //    carrier+tracking.
+      if (fulfillmentMode === "PLATFORM_SHIP" && !v2Enabled && !chosen) {
         throw new Error("Pick a carrier service first.");
       }
       if (fulfillmentMode === "VENDOR_CARRIER") {
@@ -251,34 +328,49 @@ export default function NewOrderPage() {
         typeof crypto !== "undefined" && "randomUUID" in crypto
           ? crypto.randomUUID()
           : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      const payload: CreateOrderInput =
-        fulfillmentMode === "VENDOR_CARRIER"
-          ? {
-              externalReference: externalReference.trim() || undefined,
-              recipient: parsed.data,
-              lines,
-              fulfillmentMode: "VENDOR_CARRIER",
-              // carrierService is omitted on the vendor-carrier branch
-              // — the backend's superRefine accepts that combination
-              // when vendorCarrier supplies label/tracking.
-              insuranceRequested,
-              vendorCarrier: {
-                vendorCarrierName: vendorCarrierName.trim() || undefined,
-                vendorTrackingNumber: vendorTrackingNumber.trim() || undefined,
-                vendorLabelUrl: vendorLabelUrl.trim() || undefined,
-              },
-            }
-          : {
-              externalReference: externalReference.trim() || undefined,
-              recipient: parsed.data,
-              lines,
-              fulfillmentMode: "PLATFORM_SHIP",
-              carrierService: `${chosen!.carrier} ${chosen!.service}`,
-              insuranceRequested,
-              // Cap at 5% above the quoted total so a stale quote
-              // can't surprise the vendor.
-              maxAcceptableTotalCents: Math.ceil(chosen!.fees.totalChargedCents * 1.05),
-            };
+      let payload: CreateOrderInput;
+      if (fulfillmentMode === "VENDOR_CARRIER") {
+        payload = {
+          externalReference: externalReference.trim() || undefined,
+          recipient: parsed.data,
+          lines,
+          fulfillmentMode: "VENDOR_CARRIER",
+          // carrierService is omitted on the vendor-carrier branch
+          // — the backend's superRefine accepts that combination
+          // when vendorCarrier supplies label/tracking.
+          insuranceRequested,
+          vendorCarrier: {
+            vendorCarrierName: vendorCarrierName.trim() || undefined,
+            vendorTrackingNumber: vendorTrackingNumber.trim() || undefined,
+            vendorLabelUrl: vendorLabelUrl.trim() || undefined,
+          },
+        };
+      } else if (v2Enabled) {
+        // Fulfillment v2 — no carrier rate at submit. The backend's
+        // createV2 path debits only the fulfillment fee and moves
+        // the order to PENDING_PACKING. `carrierService`,
+        // `maxAcceptableTotalCents` and `insuranceRequested` are
+        // omitted; v2 also defers insurance to the pack step.
+        payload = {
+          externalReference: externalReference.trim() || undefined,
+          recipient: parsed.data,
+          lines,
+          fulfillmentMode: "PLATFORM_SHIP",
+          insuranceRequested: false,
+        };
+      } else {
+        payload = {
+          externalReference: externalReference.trim() || undefined,
+          recipient: parsed.data,
+          lines,
+          fulfillmentMode: "PLATFORM_SHIP",
+          carrierService: `${chosen!.carrier} ${chosen!.service}`,
+          insuranceRequested,
+          // Cap at 5% above the quoted total so a stale quote
+          // can't surprise the vendor.
+          maxAcceptableTotalCents: Math.ceil(chosen!.fees.totalChargedCents * 1.05),
+        };
+      }
       return api.post<PublicOrder>("/orders", payload, { idempotencyKey });
     },
     onMutate: () => {
@@ -498,8 +590,17 @@ export default function NewOrderPage() {
           onBack={() => setStep("address")}
           onNext={() => {
             if (fulfillmentMode === "PLATFORM_SHIP") {
-              // Fetch carrier rates — on success the mutation moves us
-              // to the "rates" step.
+              // Migration 0041 — v2 kills the rate-picker step.
+              // Vendor commits to the fulfillment fee + estimate
+              // range and lands directly on Review. Actual carrier
+              // rate is chosen at pack time by admin.
+              if (v2Enabled) {
+                setValidationError(null);
+                setStep("review");
+                return;
+              }
+              // Legacy: fetch carrier rates — on success the mutation
+              // moves us to the "rates" step.
               quoteMut.mutate();
               return;
             }
@@ -548,10 +649,12 @@ export default function NewOrderPage() {
         />
       ) : null}
 
-      {/* Review — branches on mode. PLATFORM_SHIP needs `chosen` to
-          render the carrier line + total; VENDOR_CARRIER renders a
-          slimmer summary because there's no rate to show. */}
-      {step === "review" && fulfillmentMode === "PLATFORM_SHIP" && chosen ? (
+      {/* Review — branches on mode + fulfillment version:
+          • v1 + PLATFORM_SHIP: needs `chosen` (a Shippo rate).
+          • v2 + PLATFORM_SHIP: shows fulfillment fee + estimate range.
+            No rate is picked at submit — that happens at pack time.
+          • VENDOR_CARRIER (either version): slim summary. */}
+      {step === "review" && fulfillmentMode === "PLATFORM_SHIP" && !v2Enabled && chosen ? (
         <ReviewPanel
           chosen={chosen}
           address={address}
@@ -560,6 +663,22 @@ export default function NewOrderPage() {
           externalReference={externalReference}
           submitting={submitMut.isPending}
           onBack={() => setStep("rates")}
+          onSubmit={() => submitMut.mutate()}
+        />
+      ) : null}
+      {step === "review" && fulfillmentMode === "PLATFORM_SHIP" && v2Enabled ? (
+        <V2ReviewPanel
+          address={address}
+          lineCount={lines.length}
+          externalReference={externalReference}
+          fulfillmentFeeCents={fulfillmentEstimateQ.data?.fulfillmentFeeCents ?? null}
+          feeLoading={fulfillmentEstimateQ.isLoading}
+          shippingEstimate={shippingEstimateQ.data ?? null}
+          shippingLoading={shippingEstimateQ.isLoading}
+          walletBalanceCents={walletBalanceQ.data?.balanceCents ?? null}
+          walletLoading={walletBalanceQ.isLoading}
+          submitting={submitMut.isPending}
+          onBack={() => setStep("fulfillment")}
           onSubmit={() => submitMut.mutate()}
         />
       ) : null}
@@ -1507,6 +1626,253 @@ function VendorCarrierReviewPanel({
           // to. Once we have an estimate (or the parent's submit
           // validation fires), the button enables.
           disabled={submitting || (costLoading && !costEstimate)}
+        >
+          {submitting ? "Submitting…" : "Submit order"}
+        </Button>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Migration 0041 — Fulfillment v2 review panel.
+ *
+ * v2 flips the money model: the vendor commits ONLY the fulfillment
+ * fee at submit. Shipping is quoted and debited later, when the
+ * warehouse packs the order with real box dimensions. So this panel
+ * has no carrier line — instead it shows:
+ *
+ *   • Recipient + line summary (same shape as the other review panels)
+ *   • Fulfillment fee (charged now)
+ *   • Estimated shipping range (charged later, from the shipping-points
+ *     bucket table — display only)
+ *   • Wallet balance + a cover check (walletBalance >=
+ *     fulfillmentFee + estimatedShippingMax). If the wallet cannot
+ *     cover the WORST-CASE shipping charge, we block Submit with an
+ *     Add-funds nudge. This mirrors the backend gate in createV2 so
+ *     the vendor never sees a 402 mid-submit.
+ *
+ * Guardrails:
+ *   • If a line's product has no shipping-points assigned yet, we
+ *     surface a clear warning and disable Submit. The backend enforces
+ *     the same check server-side (`shipping_points_missing`), but the
+ *     UI check saves a round-trip and gives a friendlier message.
+ *   • While any of the three inputs (fee, estimate, balance) is
+ *     loading, Submit stays disabled so the vendor doesn't click
+ *     through a half-loaded screen.
+ */
+function V2ReviewPanel({
+  address,
+  lineCount,
+  externalReference,
+  fulfillmentFeeCents,
+  feeLoading,
+  shippingEstimate,
+  shippingLoading,
+  walletBalanceCents,
+  walletLoading,
+  submitting,
+  onBack,
+  onSubmit,
+}: {
+  address: RecipientAddress;
+  lineCount: number;
+  externalReference: string;
+  fulfillmentFeeCents: number | null;
+  feeLoading: boolean;
+  shippingEstimate: {
+    totalPoints: number;
+    allAssigned: boolean;
+    missingProductIds: string[];
+    estimateMinCents: number;
+    estimateMaxCents: number;
+  } | null;
+  shippingLoading: boolean;
+  walletBalanceCents: number | null;
+  walletLoading: boolean;
+  submitting: boolean;
+  onBack: () => void;
+  onSubmit: () => void;
+}): JSX.Element {
+  const dollars = (cents: number | null | undefined): string =>
+    cents == null
+      ? "—"
+      : `$${(cents / 100).toLocaleString("en-US", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })}`;
+
+  // Wallet-cover gate — MAX side of the estimate. Never use MIN here;
+  // that would let a vendor submit with a wallet that covers the best
+  // case but not the worst, resulting in a stuck order at label-buy
+  // time. Backend enforces the same rule; we mirror it for UX.
+  const maxCharge =
+    (fulfillmentFeeCents ?? 0) + (shippingEstimate?.estimateMaxCents ?? 0);
+  const walletCovers =
+    walletBalanceCents !== null && walletBalanceCents >= maxCharge;
+  const missingPoints = shippingEstimate ? !shippingEstimate.allAssigned : false;
+  const loading = feeLoading || shippingLoading || walletLoading;
+  const canSubmit =
+    !submitting &&
+    !loading &&
+    !missingPoints &&
+    walletCovers &&
+    shippingEstimate !== null &&
+    fulfillmentFeeCents !== null;
+
+  return (
+    <section className="flex flex-col gap-6 rounded-md border border-line bg-white p-8">
+      <header>
+        <h2 className="text-h2 font-semibold text-ink">Review &amp; submit</h2>
+        <p className="mt-1 max-w-prose text-body-sm text-text-muted">
+          We&apos;ll debit only the <strong>fulfillment fee</strong> now. The
+          warehouse packs your order with real box dimensions, then charges
+          the actual shipping cost against your wallet before we buy the
+          label. Shipping is currently an estimate — the final amount will
+          fall inside the range below.
+        </p>
+      </header>
+
+      <dl className="grid gap-4 md:grid-cols-2">
+        <SummaryRow label="Recipient" value={address.recipientName || "—"} />
+        <SummaryRow
+          label="Ship to"
+          value={`${address.shipAddressLine1}${
+            address.shipAddressLine2 ? `, ${address.shipAddressLine2}` : ""
+          }, ${address.shipCity}, ${address.shipState} ${address.shipPostalCode}`}
+        />
+        <SummaryRow
+          label="Line items"
+          value={`${lineCount} line${lineCount === 1 ? "" : "s"}`}
+        />
+        {externalReference ? (
+          <SummaryRow label="Your reference" value={externalReference} />
+        ) : null}
+      </dl>
+
+      {/* Missing-points warning — soft red banner so the vendor sees it
+          before scrolling to the disabled Submit button. Backend
+          enforces the same rule with `shipping_points_missing`; we
+          echo it here for a friendlier UX. */}
+      {missingPoints ? (
+        <div
+          role="alert"
+          className="rounded-md border border-red-200 bg-red-50 p-4 text-body-sm text-red-800"
+        >
+          <div className="font-semibold">Shipping points not set on some products</div>
+          <p className="mt-1">
+            One or more products in this order don&apos;t have shipping points
+            assigned yet, so we can&apos;t estimate shipping. Please contact
+            support — they&apos;ll set the points on your product catalog and
+            you can retry.
+          </p>
+        </div>
+      ) : null}
+
+      {/* Money breakdown — mirrors the VENDOR_CARRIER panel's structure
+          so the vendor reads familiar rows. The key visual difference:
+          "Shipping (estimated)" shows a range, and it's excluded from
+          the "You'll be charged now" total. */}
+      <div className="rounded-md border border-line bg-cream-soft p-5">
+        <div className="mb-3 font-mono text-mono-label uppercase tracking-[1.4px] text-amber">
+          You&apos;ll be charged now
+        </div>
+        <dl className="grid grid-cols-2 gap-y-1 font-mono text-body-sm">
+          <dt className="text-text-muted">Fulfillment fee</dt>
+          <dd className="text-right text-text">
+            {feeLoading && fulfillmentFeeCents === null
+              ? "Calculating…"
+              : dollars(fulfillmentFeeCents)}
+          </dd>
+          <dt className="border-t border-line pt-2 text-h3 font-semibold text-ink">
+            Total now
+          </dt>
+          <dd className="border-t border-line pt-2 text-right text-h3 font-semibold text-ink">
+            {feeLoading && fulfillmentFeeCents === null
+              ? "Calculating…"
+              : dollars(fulfillmentFeeCents)}
+          </dd>
+        </dl>
+
+        <div className="mt-4 rounded-md border border-line bg-white p-3">
+          <div className="font-mono text-mono-label uppercase tracking-[1.4px] text-text-muted">
+            Shipping (estimated — charged later)
+          </div>
+          <div className="mt-1 font-mono text-body-sm text-ink">
+            {shippingLoading && !shippingEstimate
+              ? "Calculating…"
+              : shippingEstimate
+                ? `${dollars(shippingEstimate.estimateMinCents)} – ${dollars(
+                    shippingEstimate.estimateMaxCents,
+                  )}`
+                : "—"}
+          </div>
+          <p className="mt-1 text-body-xs text-text-muted">
+            Based on {shippingEstimate?.totalPoints ?? "—"} shipping points.
+            Final shipping is quoted from real box dimensions at pack time.
+          </p>
+        </div>
+      </div>
+
+      {/* Wallet-cover strip — the key v2 gate. Green when the wallet
+          covers fulfillment + WORST-CASE shipping; amber warning
+          otherwise with an Add-funds CTA. */}
+      <div
+        className={
+          walletCovers
+            ? "rounded-md border border-green-200 bg-green-50 p-4"
+            : "rounded-md border border-amber-200 bg-amber-50 p-4"
+        }
+      >
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <div>
+            <div className="font-mono text-mono-label uppercase tracking-[1.4px] text-text-muted">
+              Wallet balance
+            </div>
+            <div className="mt-1 font-mono text-h3 font-semibold text-ink">
+              {walletLoading && walletBalanceCents === null
+                ? "Loading…"
+                : dollars(walletBalanceCents)}
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="font-mono text-mono-label uppercase tracking-[1.4px] text-text-muted">
+              Needed (worst case)
+            </div>
+            <div className="mt-1 font-mono text-h3 font-semibold text-ink">
+              {loading ? "Calculating…" : dollars(maxCharge)}
+            </div>
+          </div>
+        </div>
+        {!walletCovers && !loading ? (
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <p className="text-body-sm text-amber-900">
+              Your wallet needs to cover the fulfillment fee <em>and</em> the
+              upper end of the shipping estimate before we can accept the
+              order. Add funds to continue.
+            </p>
+            <Link
+              href="/wallet/fund"
+              className="rounded-md border border-amber-400 bg-white px-3 py-1.5 text-body-sm font-semibold text-amber-900 hover:bg-amber-100"
+            >
+              Add funds →
+            </Link>
+          </div>
+        ) : null}
+      </div>
+
+      <div className="flex items-center justify-between">
+        <Button type="button" variant="outline" size="lg" onClick={onBack}>
+          ← Back
+        </Button>
+        <Button
+          type="button"
+          variant="amber"
+          size="lg"
+          withArrow
+          onClick={onSubmit}
+          loading={submitting}
+          disabled={!canSubmit}
         >
           {submitting ? "Submitting…" : "Submit order"}
         </Button>

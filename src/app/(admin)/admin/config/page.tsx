@@ -31,7 +31,49 @@ const FRIENDLY_EDITORS: Record<string, { href: string; label: string }> = {
   shopper_warehouse_state: { href: "/admin/config/shopper", label: "Edit shopper →" },
   shopper_tax_rates: { href: "/admin/config/shopper", label: "Edit shopper →" },
   shopper_freight_rates: { href: "/admin/config/shopper", label: "Edit shopper →" },
+  // Migration 0039 — dedicated matrix editor for the ADMIN role's
+  // page permissions. Backed by the sanitising service; the raw
+  // JSON is discouraged but still editable via the generic
+  // /admin/config/:key path for emergencies.
+  admin_role_page_permissions: {
+    href: "/admin/config/admin-permissions",
+    label: "Edit admin access →",
+  },
+  // Migration 0040 — Fulfillment v2 shipping-point range table.
+  // The friendly editor validates coherence (no overlap, ordered
+  // buckets, dollars-min ≤ dollars-max) before saving.
+  shipping_point_estimate_ranges: {
+    href: "/admin/config/shipping-point-ranges",
+    label: "Edit shipping ranges →",
+  },
+  // Migration 0041 — Fulfillment v2 master switch. Toggling to true
+  // only affects orders CREATED after the flip; existing orders keep
+  // their workflowVersion (never mutated post-create). The friendly
+  // editor spells out what enabling the flag actually does.
+  fulfillment_v2_enabled: {
+    href: "/admin/config/fulfillment-v2",
+    label: "Toggle fulfillment v2 →",
+  },
 };
+
+// Editors that live under /admin/config but are NOT backed by rows in
+// the `configuration` table. Rendered as a separate card above the
+// generic config list so they're discoverable even before their
+// underlying table has any rows.
+const VIRTUAL_EDITORS: Array<{ href: string; title: string; description: string }> = [
+  {
+    href: "/admin/config/packaging",
+    title: "Packaging library",
+    description:
+      "Preset boxes and mailers the warehouse can pick during the pack step. Deactivated presets stay in the DB but no longer appear in the picker.",
+  },
+  {
+    href: "/admin/config/inventory-locations",
+    title: "Inventory locations",
+    description:
+      "Warehouse locations (aisle / bay / shelf / bin) that SKUs can be assigned to. Shown to operators on pack + PSN receive so they can walk to the item.",
+  },
+];
 
 export default function AdminConfigPage() {
   const { data, isLoading } = useQuery({
@@ -46,6 +88,30 @@ export default function AdminConfigPage() {
         title="Platform configuration"
         description="Fee schedule, tier dimensions, repackaging fees. Every change is captured in the audit log with the full before/after JSON."
       />
+
+      {/* Migration 0043 — links to editors that don't correspond to
+          rows in the configuration table (e.g. packaging_options is
+          its own model). Kept separate from the generic list below so
+          they're always visible. */}
+      <section className="rounded-md border border-line bg-cream-soft p-4">
+        <div className="mb-2 font-mono text-mono-label uppercase tracking-[1.4px] text-amber">
+          Editors
+        </div>
+        <div className="grid gap-3 md:grid-cols-2">
+          {VIRTUAL_EDITORS.map((e) => (
+            <Link
+              key={e.href}
+              href={e.href}
+              className="block rounded-md border border-line bg-white p-3 hover:bg-cream-soft"
+            >
+              <div className="font-semibold text-ink">{e.title}</div>
+              <div className="mt-1 text-body-sm text-text-muted">
+                {e.description}
+              </div>
+            </Link>
+          ))}
+        </div>
+      </section>
 
       {isLoading ? (
         <div className="font-mono text-mono-label uppercase text-text-muted">Loading…</div>

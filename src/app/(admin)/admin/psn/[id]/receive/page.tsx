@@ -13,6 +13,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
 import { DataTable, TBody, THead, Th, TR, Td } from "@/components/ui/table";
 import { api } from "@/lib/api-client";
+import { useAuth } from "@/lib/auth-context";
 import { normalizeError, useApiErrorHandler } from "@/lib/errors";
 import { cn } from "@/lib/utils";
 
@@ -62,6 +63,10 @@ interface AdminPsn {
     // can render a "Tier size" column. Older PSNs missing it default to
     // SMALL on the Product side, so this is always defined at runtime.
     product?: {
+      // Migration 0040 — product `id` is now surfaced so the admin
+      // receive UI can PATCH shipping points against the specific
+      // product from the inline editor without a second lookup.
+      id?: string;
       code: string;
       name: string;
       variant: string;
@@ -72,6 +77,14 @@ interface AdminPsn {
        * catalogued. Null when the vendor never uploaded one.
        */
       imageUrl?: string | null;
+      /**
+       * Migration 0040 — Fulfillment v2 shipping-cost proxy. Set by
+       * super admin at receive time. `null` means unassigned, which
+       * blocks Complete Receiving until every product on the PSN has
+       * a value. Decimal at the DB layer; arrives here as a plain
+       * number after Prisma's Decimal-to-number round trip.
+       */
+      shippingPoints?: number | null;
     };
   }>;
   exceptions: Array<{ id: string; resolution: string; notes: string | null }>;
@@ -99,6 +112,128 @@ interface ReceivingState {
   damagedQty: number;
   missingQty: number;
   notes: string;
+}
+
+/**
+ * Migration 0040 — inline shipping-points cell for the admin PSN
+ * receive UI. Renders as one of three states:
+ *
+ *   1. SUPER_ADMIN, no value set → tight inline input + Save button.
+ *   2. SUPER_ADMIN, value set → chip showing the current value +
+ *      "Edit" affordance that swaps to the input.
+ *   3. Non-super-admin, any state → read-only chip. If unset,
+ *      shows an amber "Not set" state so the operator knows they
+ *      can't finish the receive until a super admin fills it in.
+ *
+ * Controlled by the parent (edit buffer + onSave callback) so state
+ * lives in one place — a per-cell useState would go stale on
+ * refetch and desync from the persisted value.
+ */
+function ShippingPointsCell({
+  productId,
+  currentValue,
+  isSuperAdmin,
+  editValue,
+  onEditChange,
+  onSave,
+  saving,
+}: {
+  productId: string;
+  currentValue: number | null;
+  isSuperAdmin: boolean;
+  editValue: string;
+  onEditChange: (v: string) => void;
+  onSave: (points: number) => void;
+  saving: boolean;
+}): JSX.Element {
+  const [editing, setEditing] = useState(currentValue === null);
+
+  // Value the input starts at when the super admin clicks Edit —
+  // the current value formatted as a bare decimal string. Falls
+  // back to the local edit buffer if the user has already typed.
+  const seedString =
+    editValue || (currentValue !== null ? String(currentValue) : "");
+
+  // Non-super-admin view — read-only chip. Amber when unset so the
+  // gap is visible.
+  if (!isSuperAdmin) {
+    return currentValue !== null ? (
+      <div
+        className="mt-1 inline-flex items-center gap-1 rounded-sm border border-line bg-cream-soft px-2 py-0.5 font-mono text-[10px] uppercase tracking-[1.2px] text-text-muted"
+        title="Shipping points assigned by super admin. Used for the vendor-facing estimate at order submit."
+      >
+        SP · {currentValue}
+      </div>
+    ) : (
+      <div
+        className="mt-1 inline-flex items-center gap-1 rounded-sm border border-amber/40 bg-amber/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-[1.2px] text-amber"
+        title="Super admin has not set shipping points for this product yet. Receive cannot complete."
+      >
+        SP · Not set
+      </div>
+    );
+  }
+
+  // Super-admin, viewing a saved value — chip with an Edit affordance.
+  if (!editing) {
+    return (
+      <div className="mt-1 flex items-center gap-2">
+        <div className="inline-flex items-center gap-1 rounded-sm border border-line bg-cream-soft px-2 py-0.5 font-mono text-[10px] uppercase tracking-[1.2px] text-text-muted">
+          SP · {currentValue}
+        </div>
+        <button
+          type="button"
+          onClick={() => setEditing(true)}
+          className="font-mono text-[10px] uppercase tracking-[1.2px] text-amber hover:text-amber-hi"
+        >
+          Edit
+        </button>
+      </div>
+    );
+  }
+
+  // Super-admin, editing — input + Save. Parses on save so a bad
+  // string doesn't submit a NaN through the API.
+  return (
+    <div className="mt-1 flex items-center gap-2">
+      <Input
+        type="number"
+        step="0.25"
+        min={0}
+        max={100}
+        placeholder="e.g. 1.5"
+        value={seedString}
+        onChange={(e) => onEditChange(e.target.value)}
+        className="h-7 w-20 py-0 font-mono text-[11px]"
+        aria-label={`Shipping points for product ${productId}`}
+      />
+      <button
+        type="button"
+        disabled={saving}
+        onClick={() => {
+          const n = Number(seedString);
+          if (!Number.isFinite(n) || n < 0) return;
+          onSave(n);
+          setEditing(false);
+        }}
+        className="font-mono text-[10px] uppercase tracking-[1.2px] text-amber hover:text-amber-hi disabled:opacity-50"
+      >
+        {saving ? "Saving…" : "Save"}
+      </button>
+      {currentValue !== null ? (
+        <button
+          type="button"
+          onClick={() => {
+            onEditChange("");
+            setEditing(false);
+          }}
+          className="font-mono text-[10px] uppercase tracking-[1.2px] text-text-muted hover:text-text"
+        >
+          Cancel
+        </button>
+      ) : null}
+    </div>
+  );
 }
 
 export default function ReceivePsnPage() {
@@ -196,6 +331,52 @@ export default function ReceivePsnPage() {
     },
     onError: (err) => handle(err),
   });
+
+  // Migration 0040 — Fulfillment v2. Per-product shipping-points
+  // editor. Only SUPER_ADMIN can save; every other admin role sees
+  // the current value as read-only. The receive completion is
+  // gated (backend AND frontend) on every product having a
+  // non-null value.
+  const { user } = useAuth();
+  const isSuperAdmin = user?.role === "SUPER_ADMIN";
+
+  // Local edit buffer per product id — populated when a super admin
+  // types into the inline input; cleared after a successful save so
+  // the row reflects the freshly-persisted value from the refetched
+  // PSN. Keyed by productId (not lineId) because two PSN lines could
+  // point at the same product — one edit updates both rows.
+  const [shippingPointsEdits, setShippingPointsEdits] = useState<
+    Record<string, string>
+  >({});
+
+  const savePointsMut = useMutation({
+    mutationFn: async (input: { productId: string; points: number }) =>
+      api.patch<{ id: string; shippingPoints: number }>(
+        `/admin/products/${input.productId}/shipping-points`,
+        { shippingPoints: input.points },
+      ),
+    onSuccess: async (_res, vars) => {
+      // Clear the local edit for this product; the row re-reads its
+      // current value from the refetched PSN payload.
+      setShippingPointsEdits((prev) => {
+        const next = { ...prev };
+        delete next[vars.productId];
+        return next;
+      });
+      await qc.invalidateQueries({ queryKey: ["admin", "psns", params.id] });
+    },
+    onError: (err) => handle(err),
+  });
+
+  // Which lines are still blocking receive completion? Read straight
+  // from the PSN payload so no stale local state can hide a gate.
+  const unassignedPointsLines = psn
+    ? psn.lines.filter((l) => {
+        const val = l.product?.shippingPoints;
+        return val === undefined || val === null;
+      })
+    : [];
+  const hasUnassignedPoints = unassignedPointsLines.length > 0;
 
   // Phase 2 — alternative outcomes. Each dialog has its own simple form
   // wrapped in a mutation; on success we invalidate the same query keys
@@ -438,6 +619,41 @@ export default function ReceivePsnPage() {
           they start receiving line items. */}
       <DeclaredBoxesPanel counts={psn.declaredBoxCounts} />
 
+      {/* Migration 0040 — banner surfaces the shipping-points gate.
+          Renders whenever any product on the PSN lacks points. For
+          SUPER_ADMIN: reminder to fill in the inline inputs below.
+          For everyone else: a nudge to escalate — they can't set the
+          value themselves. Kept above the table so it's the first
+          thing an operator sees when they realise Accept is
+          disabled. */}
+      {hasUnassignedPoints ? (
+        <div
+          role="note"
+          className="rounded-md border-l-4 border-amber bg-amber/10 px-5 py-4"
+        >
+          <div className="font-mono text-mono-label uppercase tracking-[1.2px] text-amber">
+            Shipping points required
+          </div>
+          <p className="mt-1 text-body-sm text-text">
+            {isSuperAdmin ? (
+              <>
+                {unassignedPointsLines.length} product
+                {unassignedPointsLines.length === 1 ? " needs" : "s need"} a
+                shipping-points value before this PSN can be sealed. Use the
+                inline editor on each row below.
+              </>
+            ) : (
+              <>
+                {unassignedPointsLines.length} product
+                {unassignedPointsLines.length === 1 ? " is" : "s are"} missing
+                a shipping-points value. Only a super admin can set this —
+                please escalate before completing this receive.
+              </>
+            )}
+          </p>
+        </div>
+      ) : null}
+
       {/* Per-line entry table */}
       <DataTable>
         <THead>
@@ -514,6 +730,38 @@ export default function ReceivePsnPage() {
                         <div className="font-mono text-[11px] text-text-muted">
                           {l.product.code} · {l.product.variant || "STD"}
                         </div>
+                        {/* Migration 0040 — Fulfillment v2 shipping-cost
+                            proxy. Read-only chip for non-super-admin;
+                            inline editor for super admin. Kept inside
+                            the Product cell so the value is
+                            colocated with what it applies to and
+                            operators can eyeball it while entering
+                            counts. */}
+                        <ShippingPointsCell
+                          productId={l.product.id ?? l.productId}
+                          currentValue={l.product.shippingPoints ?? null}
+                          isSuperAdmin={isSuperAdmin}
+                          editValue={
+                            shippingPointsEdits[l.product.id ?? l.productId] ?? ""
+                          }
+                          onEditChange={(v) =>
+                            setShippingPointsEdits((prev) => ({
+                              ...prev,
+                              [l.product!.id ?? l.productId]: v,
+                            }))
+                          }
+                          onSave={(points) =>
+                            savePointsMut.mutate({
+                              productId: l.product!.id ?? l.productId,
+                              points,
+                            })
+                          }
+                          saving={
+                            savePointsMut.isPending &&
+                            savePointsMut.variables?.productId ===
+                              (l.product.id ?? l.productId)
+                          }
+                        />
                       </div>
                     </div>
                   ) : (
@@ -645,7 +893,12 @@ export default function ReceivePsnPage() {
                 submitMut.mutate();
               }}
               loading={submitMut.isPending}
-              disabled={hasOverReceive || !hasAnyEntry}
+              // Migration 0040 — receive completion is gated on every
+              // product having shipping points. Backend enforces the
+              // same rule; disabling here surfaces the block up-front
+              // instead of after the click. The inline banner up top
+              // explains WHY the button is disabled.
+              disabled={hasOverReceive || !hasAnyEntry || hasUnassignedPoints}
             >
               <CheckCircle2 className="h-4 w-4" />
               {hasAnyEntry ? "Edit & accept" : "Accept declared"}

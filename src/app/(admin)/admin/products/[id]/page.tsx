@@ -372,7 +372,184 @@ export default function AdminProductEditPage(): JSX.Element {
           </Button>
         </div>
       </form>
+
+      {/* Migration 0044 — barcode manager. Rendered OUTSIDE the form
+          above so it doesn't hijack the audit-reason requirement.
+          Each barcode add/remove is its own SUPER_ADMIN-audited
+          write; reads are open to any admin. */}
+      <BarcodeManager productId={params.id} />
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Barcode manager (Migration 0044)
+// ---------------------------------------------------------------------------
+
+interface AdminBarcode {
+  id: string;
+  productId: string;
+  barcode: string;
+  symbology: "EAN13" | "UPC_A" | "CODE128" | "GTIN14" | "OTHER";
+  isPrimary: boolean;
+  createdAt: string;
+}
+
+function BarcodeManager({ productId }: { productId: string }): JSX.Element {
+  const qc = useQueryClient();
+  const listQ = useQuery({
+    queryKey: ["admin", "product-barcodes", productId],
+    queryFn: () =>
+      api.get<{ items: AdminBarcode[] }>(
+        `/admin/products/${productId}/barcodes`,
+      ),
+    staleTime: 30_000,
+  });
+
+  const [barcode, setBarcode] = useState("");
+  const [symbology, setSymbology] =
+    useState<AdminBarcode["symbology"]>("OTHER");
+  const [isPrimary, setIsPrimary] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const registerMut = useMutation({
+    mutationFn: async () => {
+      const trimmed = barcode.trim();
+      if (trimmed.length < 1 || trimmed.length > 48) {
+        throw new Error("Barcode must be 1..48 printable ASCII characters.");
+      }
+      if (!/^[!-~]+$/.test(trimmed)) {
+        throw new Error("Barcode must contain only printable ASCII (no whitespace).");
+      }
+      return api.post<AdminBarcode>(
+        `/admin/products/${productId}/barcodes`,
+        { barcode: trimmed, symbology, isPrimary },
+      );
+    },
+    onMutate: () => setError(null),
+    onSuccess: async () => {
+      await qc.invalidateQueries({
+        queryKey: ["admin", "product-barcodes", productId],
+      });
+      setBarcode("");
+      setSymbology("OTHER");
+      setIsPrimary(false);
+    },
+    onError: (err) =>
+      setError(err instanceof Error ? err.message : "Failed to register barcode."),
+  });
+
+  const removeMut = useMutation({
+    mutationFn: async (id: string) =>
+      api.delete<void>(`/admin/product-barcodes/${id}`),
+    onSuccess: async () => {
+      await qc.invalidateQueries({
+        queryKey: ["admin", "product-barcodes", productId],
+      });
+    },
+  });
+
+  return (
+    <section className="mt-8 flex flex-col gap-4 rounded-md border border-line bg-white p-6">
+      <div>
+        <h2 className="text-h3 font-semibold text-ink">Barcodes</h2>
+        <p className="mt-1 text-body-sm text-text-muted">
+          Register the retailer UPC, GTIN14, or any internal Code128 label
+          that identifies this product. The warehouse pack scanner will
+          resolve a scanned code back to this product; if a barcode is
+          already tied to a different product globally, the server refuses
+          the write.
+        </p>
+      </div>
+
+      {listQ.isLoading ? (
+        <div className="text-body-sm text-text-muted">Loading barcodes…</div>
+      ) : (listQ.data?.items ?? []).length === 0 ? (
+        <div className="rounded-md border border-line bg-cream-soft p-3 text-body-sm text-text-muted">
+          No barcodes registered yet.
+        </div>
+      ) : (
+        <ul className="divide-y divide-line">
+          {(listQ.data?.items ?? []).map((b) => (
+            <li key={b.id} className="flex items-center justify-between py-2">
+              <div>
+                <div className="font-mono text-body text-ink">{b.barcode}</div>
+                <div className="mt-0.5 font-mono text-[11px] uppercase tracking-[1.2px] text-text-muted">
+                  {b.symbology}
+                  {b.isPrimary ? " · primary" : ""}
+                </div>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => removeMut.mutate(b.id)}
+                loading={removeMut.isPending && removeMut.variables === b.id}
+                disabled={removeMut.isPending}
+              >
+                Remove
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="flex flex-wrap items-end gap-3 border-t border-line pt-4">
+        <label className="flex flex-col gap-1">
+          <span className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
+            Barcode
+          </span>
+          <input
+            type="text"
+            value={barcode}
+            onChange={(e) => setBarcode(e.target.value)}
+            className="w-56 rounded-sm border border-line-strong bg-white px-3 py-2 font-mono text-body text-text outline-none focus:border-ink focus:ring-2 focus:ring-ink/10"
+            placeholder="e.g. 012345678905"
+          />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
+            Symbology
+          </span>
+          <select
+            value={symbology}
+            onChange={(e) =>
+              setSymbology(e.target.value as AdminBarcode["symbology"])
+            }
+            className="rounded-sm border border-line-strong bg-white px-3 py-2 text-body text-text"
+          >
+            <option value="OTHER">Other</option>
+            <option value="EAN13">EAN13</option>
+            <option value="UPC_A">UPC-A</option>
+            <option value="GTIN14">GTIN14</option>
+            <option value="CODE128">Code128</option>
+          </select>
+        </label>
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={isPrimary}
+            onChange={(e) => setIsPrimary(e.target.checked)}
+          />
+          <span className="text-body-sm text-text">Set as primary</span>
+        </label>
+        <Button
+          type="button"
+          variant="primary"
+          size="md"
+          onClick={() => registerMut.mutate()}
+          loading={registerMut.isPending}
+          disabled={registerMut.isPending || barcode.trim().length === 0}
+        >
+          Register barcode
+        </Button>
+      </div>
+      {error ? (
+        <div className="rounded-md border border-red-200 bg-red-50 p-2 text-body-sm text-red-800">
+          {error}
+        </div>
+      ) : null}
+    </section>
   );
 }
 

@@ -2,6 +2,7 @@
 
 import {
   Bell,
+  Boxes,
   Building2,
   ClipboardCheck,
   ClipboardList,
@@ -19,12 +20,15 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { SiteLogo } from "@/components/brand/site-logo";
+import { useAuth } from "@/lib/auth-context";
 import { cn } from "@/lib/utils";
 import {
   useMarkCategoryRead,
   useUnreadCounts,
   type NotificationCategory,
 } from "@/lib/notifications";
+import { usePagePermissions } from "@/lib/page-permissions";
+import type { PageKey } from "@/lib/schemas/page-permissions";
 
 import { useSidebar } from "./sidebar-context";
 
@@ -40,30 +44,69 @@ interface NavItem {
    * the bell's overall unread count, not a single category.
    */
   category?: NotificationCategory | "__total__";
+  /**
+   * Migration 0039 — the page-permission key that gates this item
+   * for the ADMIN role. Items with a key are hidden when
+   * permissions[key] is false. SUPER_ADMIN and the legacy admin
+   * roles always see items (server returns all-true for them).
+   */
+  pageKey?: PageKey;
+  /**
+   * Migration 0039 — items reachable only by SUPER_ADMIN. Filtered
+   * out for every other role. Used for the config editors that
+   * never appear on the ADMIN registry (no page key can grant
+   * them).
+   */
+  superAdminOnly?: boolean;
 }
 
 const NAV: NavItem[] = [
-  { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/admin/psn", label: "Receiving", icon: ClipboardCheck, category: "psn" },
-  { href: "/admin/vendors", label: "Vendors", icon: Building2, category: "vendor" },
-  { href: "/admin/inventory", label: "Inventory", icon: Package },
-  { href: "/admin/orders", label: "Orders", icon: ClipboardList, category: "order" },
-  { href: "/admin/returns", label: "Returns", icon: Undo2, category: "return" },
-  { href: "/admin/shopper", label: "Shopper", icon: ShoppingBag, category: "shopper" },
-  { href: "/admin/finance", label: "Finance", icon: CreditCard, category: "wallet" },
+  { href: "/admin", label: "Dashboard", icon: LayoutDashboard, pageKey: "admin.dashboard" },
+  // Phase H — SUPER_ADMIN-only platform dashboard (finance-sensitive
+  // aggregates: revenue, wallet totals, warehouse KPIs).
+  {
+    href: "/admin/super-dashboard",
+    label: "Super dashboard",
+    icon: LayoutDashboard,
+    superAdminOnly: true,
+  },
+  { href: "/admin/psn", label: "Receiving", icon: ClipboardCheck, category: "psn", pageKey: "admin.psn.read" },
+  { href: "/admin/vendors", label: "Vendors", icon: Building2, category: "vendor", pageKey: "admin.vendors.read" },
+  { href: "/admin/inventory", label: "Inventory", icon: Package, pageKey: "admin.inventory.read" },
+  { href: "/admin/orders", label: "Orders", icon: ClipboardList, category: "order", pageKey: "admin.orders.read" },
+  // Migration 0042 — Fulfillment v2 pack queue. Same page-permission
+  // gate as legacy orders because packing IS an order-write action;
+  // any operator who can pick/pack today can also record v2 dimensions.
+  { href: "/admin/pack", label: "Pack (v2)", icon: Boxes, pageKey: "admin.orders.write" },
+  { href: "/admin/returns", label: "Returns", icon: Undo2, category: "return", pageKey: "admin.returns.read" },
+  { href: "/admin/shopper", label: "Shopper", icon: ShoppingBag, category: "shopper", pageKey: "admin.shopper.read" },
+  { href: "/admin/finance", label: "Finance", icon: CreditCard, category: "wallet", pageKey: "admin.finance.read" },
   {
     href: "/admin/notifications",
     label: "Notifications",
     icon: Bell,
     category: "__total__",
+    pageKey: "admin.notifications.read",
   },
-  { href: "/admin/config/fees", label: "Pricing (Fulfillment)", icon: Tag },
+  // Migration 0039 — SUPER_ADMIN-only. Manages who has which admin
+  // role, including promoting an operator to the new ADMIN role
+  // whose per-page access is configured separately.
+  {
+    href: "/admin/users",
+    label: "Admin users",
+    icon: Building2,
+    superAdminOnly: true,
+  },
+  // Migration 0039 — pricing / config editors are SUPER_ADMIN-only.
+  // No page key on the ADMIN registry maps to these, so the sidebar
+  // hides them entirely for other roles.
+  { href: "/admin/config/fees", label: "Pricing (Fulfillment)", icon: Tag, superAdminOnly: true },
   // Shopper has its own commission + freight + tax editor — separate
   // from the fulfillment fee schedule above. Dedicated entry so admins don't
   // have to drill through the generic Config table to find it.
-  { href: "/admin/config/shopper", label: "Pricing (Shopper)", icon: ShoppingBag },
-  { href: "/admin/audit", label: "Audit log", icon: ScrollText },
-  { href: "/admin/config", label: "Config", icon: Settings },
+  { href: "/admin/config/shopper", label: "Pricing (Shopper)", icon: ShoppingBag, superAdminOnly: true },
+  { href: "/admin/audit", label: "Audit log", icon: ScrollText, pageKey: "admin.audit.read" },
+  { href: "/admin/config", label: "Config", icon: Settings, superAdminOnly: true },
 ];
 
 export function AdminSidebar(): JSX.Element {
@@ -78,6 +121,24 @@ export function AdminSidebar(): JSX.Element {
   // about to be looking at the relevant page, so the unread state has
   // already served its purpose.
   const markCategoryRead = useMarkCategoryRead();
+
+  // Migration 0039 — sidebar filtering. Two independent filters:
+  //   1. `pageKey` items → hidden when permissions[key] is false.
+  //      For non-ADMIN admin roles the server returns all-true so
+  //      nothing gets hidden from them; for ADMIN the server maps
+  //      the config row + defaults. Legacy sidebar behaviour is
+  //      preserved for everyone except ADMIN.
+  //   2. `superAdminOnly` items → hidden for every non-SUPER_ADMIN
+  //      role. Pricing / config editors live here.
+  // Items with neither flag are always shown.
+  const { user } = useAuth();
+  const { permissions } = usePagePermissions();
+  const isSuperAdmin = user?.role === "SUPER_ADMIN";
+  const visibleNav = NAV.filter((item) => {
+    if (item.superAdminOnly && !isSuperAdmin) return false;
+    if (item.pageKey && !permissions[item.pageKey]) return false;
+    return true;
+  });
 
   function badgeFor(item: NavItem): number {
     if (!item.category || !counts) return 0;
@@ -137,7 +198,7 @@ export function AdminSidebar(): JSX.Element {
       </div>
 
       <nav className="flex-1 overflow-y-auto px-3 py-4">
-        {NAV.map((item) => {
+        {visibleNav.map((item) => {
           const Icon = item.icon;
           // Exact match for /admin and the parent /admin/config item so
           // the dedicated child links (/admin/config/fees,
