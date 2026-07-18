@@ -262,6 +262,13 @@ interface BarcodeLookupMatch {
   productCode: string;
   variant: string;
   symbology: string;
+  /**
+   * Set only when the lookup fell through to a SKU-ID match (Avery
+   * label printed from /admin/inventory/[skuId]/label). Null when
+   * the match came from a registered product_barcodes row (retail
+   * UPC/EAN). Scanner uses this to match at SKU level per spec.
+   */
+  skuId: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -580,12 +587,21 @@ function PackDialog({
         });
         return;
       }
-      // Match must belong to this order's vendor AND a line on this order.
-      const line = lines.find((l) => l.productId === res.match!.productId);
+      // Match at SKU level when the lookup fell through to a SKU-ID
+      // barcode (the Avery labels printed from
+      // /admin/inventory/[skuId]/label). That's the spec's requirement
+      // — "Match the barcode to an expected SKU". When the lookup came
+      // from a registered product_barcodes row, skuId is null and we
+      // fall back to product-level matching (a single retail UPC can
+      // cover multiple variants of the same product).
+      const match = res.match!;
+      const line = match.skuId
+        ? lines.find((l) => l.skuId === match.skuId)
+        : lines.find((l) => l.productId === match.productId);
       if (!line) {
         setScanFeedback({
           tone: "error",
-          message: `${res.match.productName} is not on order #${row.orderNumber}.`,
+          message: `${match.productName} is not on order #${row.orderNumber}.`,
         });
         return;
       }
