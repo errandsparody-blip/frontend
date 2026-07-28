@@ -747,20 +747,29 @@ function PackDialog({
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
     >
       <EscapeKeyHandler enabled={!submitting} onEscape={onCancel} />
-      <div className="w-full max-w-xl rounded-md border border-line bg-white p-6 shadow-lg">
-        <div className="flex items-baseline justify-between">
-          <h2 id="pack-dialog-title" className="text-h2 font-semibold text-ink">
-            Pack order <span className="font-mono">#{row.orderNumber}</span>
-          </h2>
-          <span className="font-mono text-body-sm text-text-muted">
-            {row.vendorBusinessName}
-          </span>
+      {/* Container clamps at 90vh; header stays pinned, body scrolls
+          internally, footer stays pinned so Cancel/Record pack are
+          always reachable regardless of viewport height. flex column
+          + min-h-0 on the scroll region is what lets overflow-y
+          actually kick in inside a flex parent. */}
+      <div className="flex max-h-[90vh] w-full max-w-xl flex-col rounded-md border border-line bg-white shadow-lg">
+        <div className="border-b border-line px-6 pb-4 pt-6">
+          <div className="flex items-baseline justify-between">
+            <h2 id="pack-dialog-title" className="text-h2 font-semibold text-ink">
+              Pack order <span className="font-mono">#{row.orderNumber}</span>
+            </h2>
+            <span className="font-mono text-body-sm text-text-muted">
+              {row.vendorBusinessName}
+            </span>
+          </div>
+          <p className="mt-1 text-body-sm text-text-muted">
+            Measure the outside of the box, then weigh the packed parcel on
+            the platform scale. These numbers feed the live carrier rate
+            request in the next step.
+          </p>
         </div>
-        <p className="mt-1 text-body-sm text-text-muted">
-          Measure the outside of the box, then weigh the packed parcel on
-          the platform scale. These numbers feed the live carrier rate
-          request in the next step.
-        </p>
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-4 pt-4">
 
         {/* Migration 0044 — scan-to-verify panel. Each scanned barcode
             is resolved to a product; the operator can only advance
@@ -884,7 +893,12 @@ function PackDialog({
           </Field>
         </div>
 
-        <div className="mt-6 flex items-center justify-end gap-3">
+        </div>
+
+        {/* Pinned footer — stays visible no matter how tall the body
+            content grows. Border-top separates it from the scrolling
+            region above. */}
+        <div className="flex items-center justify-end gap-3 border-t border-line px-6 py-4">
           <Button
             type="button"
             variant="outline"
