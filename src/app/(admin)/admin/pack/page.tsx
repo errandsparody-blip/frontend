@@ -61,6 +61,29 @@ interface PackagingPreset {
   widthIn: number;
   heightIn: number;
   tareWeightOz: number;
+  // Phase N — set on library presets that map to a Shippo carrier
+  // template (e.g. seeded USPS flat-rate presets). Absent for custom
+  // presets. Not exposed as user input on this tab — presence flows
+  // through to the server automatically via packagingOptionId.
+  packagingType?: "POLY_MAILER" | "BOX";
+  shippoTemplate?: string | null;
+}
+
+/**
+ * Phase N — Shippo carrier template (Option A in the spec). Static
+ * list served from `/admin/packaging-options/carrier`. Selecting one
+ * at pack time unlocks flat-rate / one-rate / simple-rate pricing at
+ * the Shippo rate request.
+ */
+interface CarrierTemplate {
+  carrier: "USPS" | "UPS" | "FEDEX";
+  template: string;
+  label: string;
+  lengthIn: number;
+  widthIn: number;
+  heightIn: number;
+  packagingType: "POLY_MAILER" | "BOX";
+  tareWeightOz: number;
 }
 
 interface RecordPackResponse {
@@ -111,6 +134,17 @@ export default function AdminPackQueuePage(): JSX.Element {
         "/admin/packaging-options/active",
       ),
     staleTime: 5 * 60_000,
+  });
+
+  // Phase N — Shippo carrier templates. Static registry on the backend
+  // so this is effectively cache-forever from the browser's viewpoint.
+  const carrierTemplatesQ = useQuery({
+    queryKey: ["admin", "packaging-options", "carrier"],
+    queryFn: () =>
+      api.get<{ items: CarrierTemplate[] }>(
+        "/admin/packaging-options/carrier",
+      ),
+    staleTime: 24 * 60 * 60_000,
   });
 
   const recordMut = useMutation({
