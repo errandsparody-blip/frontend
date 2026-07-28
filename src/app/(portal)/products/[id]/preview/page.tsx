@@ -166,8 +166,7 @@ export default function ProductPreviewPage(): JSX.Element {
             <p className="text-body-sm text-text">
               The image, name, code, and details above are exactly what
               admin operators see when picking and packing this product.
-              Once a public catalog ships, the same image and copy will
-              appear to buyers.
+            
             </p>
           </div>
         </div>
