@@ -157,6 +157,7 @@ export default function AdminPackQueuePage(): JSX.Element {
         weightOz: number;
         notes?: string;
         packagingOptionId?: string;
+        shippoTemplate?: string;
       };
     }) =>
       api.post<RecordPackResponse>(`/admin/pack/${input.id}/record`, input.payload),
@@ -244,6 +245,8 @@ export default function AdminPackQueuePage(): JSX.Element {
           row={selected}
           presets={presetsQ.data?.items ?? []}
           presetsLoading={presetsQ.isLoading}
+          carrierTemplates={carrierTemplatesQ.data?.items ?? []}
+          carrierTemplatesLoading={carrierTemplatesQ.isLoading}
           submitting={recordMut.isPending}
           onCancel={() => setSelected(null)}
           onSubmit={(payload) =>
@@ -543,10 +546,30 @@ function ScanPanel({
  * "1." don't coerce to NaN. Parsed on submit; validation errors surface
  * inline. Cancel + Escape close without submitting.
  */
+/**
+ * Phase N — packaging tab. Determines which source of truth the pack
+ * form uses for dimensions:
+ *   * "carrier"  — pick a Shippo carrier template (Option A). Dims
+ *                  auto-populate, disabled. Weight = goods only.
+ *   * "library"  — pick a saved library preset. Dims auto-populate,
+ *                  disabled. Weight = goods only.
+ *   * "adhoc"    — type dimensions manually. Poly Mailer / Box
+ *                  toggle (Option B). Mailer needs L+W; Box needs
+ *                  L+W+H. Weight = full parcel weight.
+ * All three tabs converge on the same POST payload — only which
+ * fields the payload carries differs.
+ */
+type PackTab = "carrier" | "library" | "adhoc";
+
+/** Sub-mode inside the ad-hoc tab. */
+type AdhocPackagingType = "POLY_MAILER" | "BOX";
+
 function PackDialog({
   row,
   presets,
   presetsLoading,
+  carrierTemplates,
+  carrierTemplatesLoading,
   submitting,
   onCancel,
   onSubmit,
@@ -554,6 +577,8 @@ function PackDialog({
   row: QueueRow;
   presets: PackagingPreset[];
   presetsLoading: boolean;
+  carrierTemplates: CarrierTemplate[];
+  carrierTemplatesLoading: boolean;
   submitting: boolean;
   onCancel: () => void;
   onSubmit: (payload: {
@@ -563,6 +588,7 @@ function PackDialog({
     weightOz: number;
     notes?: string;
     packagingOptionId?: string;
+    shippoTemplate?: string;
   }) => void;
 }): JSX.Element {
   const [form, setForm] = useState<PackFormState>({
@@ -575,14 +601,22 @@ function PackDialog({
   const [errors, setErrors] = useState<Partial<Record<keyof PackFormState, string>>>(
     {},
   );
-  // Migration 0043 — selected packaging preset. Empty string = ad-hoc
-  // (operator will type dimensions manually). When set, the dims
+  // Phase N — active packaging tab. Defaults to "carrier" because it
+  // maps directly onto the spec's Option A (fastest UX: pick, weigh,
+  // submit — and unlocks flat-rate pricing).
+  const [tab, setTab] = useState<PackTab>("carrier");
+  const [carrierTemplateId, setCarrierTemplateId] = useState<string>("");
+  const chosenCarrier =
+    carrierTemplates.find((t) => t.template === carrierTemplateId) ?? null;
+  // Migration 0043 — selected packaging preset. Empty string = no
+  // preset (unused when tab !== "library"). When set, the dims
   // fields are pre-filled AND disabled — the preset's dims are
   // authoritative and any local edit would just be discarded server-side.
-  // The weightOz field remains editable: it's the GOODS weight, and
-  // the tare weight is added on the server.
   const [presetId, setPresetId] = useState<string>("");
   const chosenPreset = presets.find((p) => p.id === presetId) ?? null;
+  // Phase N — Poly Mailer vs Box toggle for the ad-hoc tab. Poly
+  // mailer only requires L+W; box requires all three dims.
+  const [adhocType, setAdhocType] = useState<AdhocPackagingType>("BOX");
 
   // Migration 0044 — fetch this order's line items so the scan panel
   // can validate scans against them. Cached across modal remounts by
@@ -703,13 +737,35 @@ function PackDialog({
   // When a preset is picked, mirror its dims into the form so the
   // user SEES what will be sent. Weight stays as goods weight; the
   // dialog's tare hint shows what's added on the server.
+  // Phase N — mirror dims from whichever source the active tab uses:
+  //   * Carrier tab → the chosen carrier template's canonical dims.
+  //   * Library tab → the chosen library preset's dims.
+  //   * Ad-hoc tab → nothing (operator types the values).
+  // Also clears any inline errors on the dim fields when a source is
+  // picked, since they'll be overwritten anyway.
   useEffect(() => {
-    if (chosenPreset) {
+    const source =
+      tab === "carrier"
+        ? chosenCarrier
+          ? {
+              lengthIn: chosenCarrier.lengthIn,
+              widthIn: chosenCarrier.widthIn,
+              heightIn: chosenCarrier.heightIn,
+            }
+          : null
+        : tab === "library" && chosenPreset
+          ? {
+              lengthIn: chosenPreset.lengthIn,
+              widthIn: chosenPreset.widthIn,
+              heightIn: chosenPreset.heightIn,
+            }
+          : null;
+    if (source) {
       setForm((f) => ({
         ...f,
-        lengthIn: String(chosenPreset.lengthIn),
-        widthIn: String(chosenPreset.widthIn),
-        heightIn: String(chosenPreset.heightIn),
+        lengthIn: String(source.lengthIn),
+        widthIn: String(source.widthIn),
+        heightIn: String(source.heightIn),
       }));
       setErrors((e) => ({
         ...e,
@@ -718,7 +774,7 @@ function PackDialog({
         heightIn: undefined,
       }));
     }
-  }, [chosenPreset]);
+  }, [tab, chosenCarrier, chosenPreset]);
 
   function set<K extends keyof PackFormState>(key: K, value: string): void {
     setForm((f) => ({ ...f, [key]: value }));
@@ -734,9 +790,26 @@ function PackDialog({
       weightOz: number;
       notes?: string;
       packagingOptionId?: string;
+      shippoTemplate?: string;
     };
   } | { ok: false } {
     const next: Partial<Record<keyof PackFormState, string>> = {};
+
+    // Phase N — tab-specific gate. Carrier and Library both require a
+    // selection before submit; ad-hoc requires typed dims (L+W always;
+    // H only when the packaging type is BOX). The three converge on
+    // the same numeric-parsing helpers below.
+    if (tab === "carrier" && !chosenCarrier) {
+      next.lengthIn = "Pick a carrier packaging option above.";
+      setErrors(next);
+      return { ok: false };
+    }
+    if (tab === "library" && !chosenPreset) {
+      next.lengthIn = "Pick a library preset above.";
+      setErrors(next);
+      return { ok: false };
+    }
+    const heightRequired = !(tab === "adhoc" && adhocType === "POLY_MAILER");
 
     const parseDim = (name: keyof PackFormState, label: string): number | null => {
       const raw = form[name].trim();
@@ -776,7 +849,18 @@ function PackDialog({
 
     const lengthIn = parseDim("lengthIn", "Length");
     const widthIn = parseDim("widthIn", "Width");
-    const heightIn = parseDim("heightIn", "Height");
+    // Height is only required for boxes and for carrier/library
+    // sources (which always have all three). For poly-mailer ad-hoc,
+    // default to a 0.5-in floor to satisfy the server's positive-dims
+    // DB CHECK — Shippo treats sub-inch heights as flat rate anyway.
+    const heightInParsed = heightRequired
+      ? parseDim("heightIn", "Height")
+      : (() => {
+          const raw = form.heightIn.trim();
+          if (raw === "") return 0.5;
+          const n = Number(raw);
+          return Number.isFinite(n) && n > 0 && n <= MAX_DIM_IN ? n : 0.5;
+        })();
     const weightOz = parseWeight();
 
     const notesTrim = form.notes.trim();
@@ -788,17 +872,24 @@ function PackDialog({
       setErrors(next);
       return { ok: false };
     }
-    // At this point all four numbers passed — the checks above return
-    // null on failure, so a non-null value is safe to assert.
+    // At this point all required numbers passed — the checks above
+    // return null on failure, so a non-null value is safe to assert.
     return {
       ok: true,
       payload: {
         lengthIn: lengthIn as number,
         widthIn: widthIn as number,
-        heightIn: heightIn as number,
+        heightIn: heightInParsed as number,
         weightOz: weightOz as number,
         notes: notesTrim.length > 0 ? notesTrim : undefined,
-        packagingOptionId: chosenPreset ? chosenPreset.id : undefined,
+        // Tab-specific identifier flows through. Server dispatches on
+        // whichever is set. Both are omitted for pure ad-hoc packaging.
+        packagingOptionId:
+          tab === "library" && chosenPreset ? chosenPreset.id : undefined,
+        shippoTemplate:
+          tab === "carrier" && chosenCarrier
+            ? chosenCarrier.template
+            : undefined,
       },
     };
   }
@@ -854,53 +945,193 @@ function PackDialog({
           locations={locationsQ.data ?? {}}
         />
 
-        {/* Migration 0043 — packaging preset selector. When a preset
-            is chosen the dimensions are pinned to the preset's values;
-            weight remains the operator-entered goods weight and the
-            server adds the tare on top. */}
+        {/* Phase N — 3-tab packaging chooser (Option A / Library /
+            Option B in the spec). Only ONE tab is active at a time;
+            all three converge on the same POST payload. Dims fields
+            below are disabled unless the ad-hoc tab is active — the
+            server treats the carrier / library selections as
+            authoritative and would discard client-supplied dims. */}
         <div className="mt-5">
-          <Field label="Packaging preset (optional)">
-            <select
-              value={presetId}
-              onChange={(e) => setPresetId(e.target.value)}
-              disabled={submitting || presetsLoading || presets.length === 0}
-              className="w-full rounded-md border border-line bg-white p-2 text-body-sm text-ink"
-            >
-              <option value="">
-                {presetsLoading
-                  ? "Loading presets…"
-                  : presets.length === 0
-                    ? "No presets — enter dimensions manually"
-                    : "— Ad-hoc dimensions (type below) —"}
-              </option>
-              {presets.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.label} · {p.lengthIn} × {p.widthIn} × {p.heightIn} in
-                  {p.tareWeightOz > 0 ? ` · tare ${p.tareWeightOz} oz` : ""}
-                </option>
-              ))}
-            </select>
-          </Field>
-          {chosenPreset ? (
-            <p className="mt-1 text-body-xs text-text-muted">
-              Dimensions are locked to <strong>{chosenPreset.label}</strong>.
-              Enter the <em>goods</em> weight below;{" "}
-              {chosenPreset.tareWeightOz > 0
-                ? `${chosenPreset.tareWeightOz} oz`
-                : "0 oz"}{" "}
-              of packaging tare is added on the server.
-            </p>
+          <div className="mb-2 flex gap-1 border-b border-line">
+            {(
+              [
+                { key: "carrier", label: "Carrier packaging" },
+                { key: "library", label: "From library" },
+                { key: "adhoc", label: "Ad-hoc" },
+              ] as Array<{ key: PackTab; label: string }>
+            ).map((t) => (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => setTab(t.key)}
+                disabled={submitting}
+                className={
+                  tab === t.key
+                    ? "border-b-2 border-amber px-3 py-2 font-mono text-mono-label uppercase tracking-[1.4px] text-amber"
+                    : "border-b-2 border-transparent px-3 py-2 font-mono text-mono-label uppercase tracking-[1.4px] text-text-muted hover:text-ink"
+                }
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          {tab === "carrier" ? (
+            <div className="pt-3">
+              <Field label="Shippo carrier template">
+                <select
+                  value={carrierTemplateId}
+                  onChange={(e) => setCarrierTemplateId(e.target.value)}
+                  disabled={
+                    submitting ||
+                    carrierTemplatesLoading ||
+                    carrierTemplates.length === 0
+                  }
+                  className="w-full rounded-md border border-line bg-white p-2 text-body-sm text-ink"
+                >
+                  <option value="">
+                    {carrierTemplatesLoading
+                      ? "Loading carrier templates…"
+                      : "— Pick a carrier packaging option —"}
+                  </option>
+                  {(["USPS", "UPS", "FEDEX"] as const).map((c) => {
+                    const inCarrier = carrierTemplates.filter(
+                      (t) => t.carrier === c,
+                    );
+                    if (inCarrier.length === 0) return null;
+                    return (
+                      <optgroup key={c} label={c}>
+                        {inCarrier.map((t) => (
+                          <option key={t.template} value={t.template}>
+                            {t.label} · {t.lengthIn} × {t.widthIn} ×{" "}
+                            {t.heightIn} in
+                            {t.tareWeightOz > 0
+                              ? ` · tare ${t.tareWeightOz} oz`
+                              : ""}
+                          </option>
+                        ))}
+                      </optgroup>
+                    );
+                  })}
+                </select>
+              </Field>
+              {chosenCarrier ? (
+                <p className="mt-1 text-body-xs text-text-muted">
+                  Dimensions locked to <strong>{chosenCarrier.label}</strong>.
+                  Passed to Shippo as{" "}
+                  <span className="font-mono">{chosenCarrier.template}</span> to
+                  unlock flat-rate / one-rate / simple-rate pricing. Enter the{" "}
+                  <em>goods</em> weight below;{" "}
+                  {chosenCarrier.tareWeightOz > 0
+                    ? `${chosenCarrier.tareWeightOz} oz`
+                    : "0 oz"}{" "}
+                  of packaging tare is added on the server.
+                </p>
+              ) : (
+                <p className="mt-1 text-body-xs text-text-muted">
+                  Option A in the spec — pick a Shippo template and Shippo
+                  returns flat-rate pricing at the rate step.
+                </p>
+              )}
+            </div>
+          ) : null}
+
+          {tab === "library" ? (
+            <div className="pt-3">
+              <Field label="Library preset">
+                <select
+                  value={presetId}
+                  onChange={(e) => setPresetId(e.target.value)}
+                  disabled={submitting || presetsLoading || presets.length === 0}
+                  className="w-full rounded-md border border-line bg-white p-2 text-body-sm text-ink"
+                >
+                  <option value="">
+                    {presetsLoading
+                      ? "Loading presets…"
+                      : presets.length === 0
+                        ? "No presets — switch to Ad-hoc or ask a super admin to create one"
+                        : "— Pick a saved preset —"}
+                  </option>
+                  {presets.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.label} · {p.lengthIn} × {p.widthIn} × {p.heightIn} in
+                      {p.tareWeightOz > 0 ? ` · tare ${p.tareWeightOz} oz` : ""}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              {chosenPreset ? (
+                <p className="mt-1 text-body-xs text-text-muted">
+                  Dimensions locked to <strong>{chosenPreset.label}</strong>.
+                  {chosenPreset.shippoTemplate ? (
+                    <>
+                      {" "}
+                      Maps to Shippo template{" "}
+                      <span className="font-mono">
+                        {chosenPreset.shippoTemplate}
+                      </span>{" "}
+                      — flat-rate pricing will be requested.
+                    </>
+                  ) : null}{" "}
+                  Enter the <em>goods</em> weight below;{" "}
+                  {chosenPreset.tareWeightOz > 0
+                    ? `${chosenPreset.tareWeightOz} oz`
+                    : "0 oz"}{" "}
+                  of packaging tare is added on the server.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
+          {tab === "adhoc" ? (
+            <div className="pt-3">
+              <div className="mb-2 flex gap-2">
+                {(
+                  [
+                    { key: "BOX", label: "Box (L × W × H)" },
+                    { key: "POLY_MAILER", label: "Poly mailer (L × W)" },
+                  ] as Array<{ key: AdhocPackagingType; label: string }>
+                ).map((t) => (
+                  <button
+                    key={t.key}
+                    type="button"
+                    onClick={() => setAdhocType(t.key)}
+                    disabled={submitting}
+                    className={
+                      adhocType === t.key
+                        ? "rounded-sm border border-amber bg-amber/10 px-3 py-1 font-mono text-[11px] uppercase tracking-[1.2px] text-amber"
+                        : "rounded-sm border border-line bg-white px-3 py-1 font-mono text-[11px] uppercase tracking-[1.2px] text-text-muted hover:text-ink"
+                    }
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-body-xs text-text-muted">
+                Option B in the spec — type the measured outside dims of the
+                parcel. Weight-based pricing at the rate step.
+              </p>
+            </div>
           ) : null}
         </div>
 
-        <div className="mt-4 grid grid-cols-3 gap-4">
+        {/* Dim inputs — always visible. Disabled + auto-filled on the
+            carrier / library tabs; editable on ad-hoc. Height hidden
+            for the ad-hoc poly-mailer sub-mode (server floors to 0.5). */}
+        <div
+          className={
+            tab === "adhoc" && adhocType === "POLY_MAILER"
+              ? "mt-4 grid grid-cols-2 gap-4"
+              : "mt-4 grid grid-cols-3 gap-4"
+          }
+        >
           <Field label="Length (in)" error={errors.lengthIn}>
             <Input
               type="text"
               inputMode="decimal"
               value={form.lengthIn}
               onChange={(e) => set("lengthIn", e.target.value)}
-              disabled={submitting || chosenPreset !== null}
+              disabled={submitting || tab !== "adhoc"}
               // First input focused via useEffect below rather than the
               // autoFocus prop (jsx-a11y flags autoFocus as an
               // accessibility antipattern; a controlled focus lets us
@@ -914,18 +1145,20 @@ function PackDialog({
               inputMode="decimal"
               value={form.widthIn}
               onChange={(e) => set("widthIn", e.target.value)}
-              disabled={submitting || chosenPreset !== null}
+              disabled={submitting || tab !== "adhoc"}
             />
           </Field>
-          <Field label="Height (in)" error={errors.heightIn}>
-            <Input
-              type="text"
-              inputMode="decimal"
-              value={form.heightIn}
-              onChange={(e) => set("heightIn", e.target.value)}
-              disabled={submitting || chosenPreset !== null}
-            />
-          </Field>
+          {tab === "adhoc" && adhocType === "POLY_MAILER" ? null : (
+            <Field label="Height (in)" error={errors.heightIn}>
+              <Input
+                type="text"
+                inputMode="decimal"
+                value={form.heightIn}
+                onChange={(e) => set("heightIn", e.target.value)}
+                disabled={submitting || tab !== "adhoc"}
+              />
+            </Field>
+          )}
         </div>
 
         <div className="mt-4 grid grid-cols-2 gap-4">

@@ -294,6 +294,61 @@ export default function OrderDetailPage() {
         );
       })()}
 
+      {/* Phase O — vendor-visible packaging summary. Rendered only
+          once the warehouse has recorded the pack (packedAt !== null).
+          Read-only: vendors can't influence packaging, but knowing
+          what physically shipped helps them plan the next inbound
+          and reconcile carrier issues. */}
+      {o.packedAt ? (
+        <section className="rounded-md border border-line bg-white p-6">
+          <h2 className="font-mono text-mono-label uppercase text-text-muted">
+            Packaging
+          </h2>
+          <dl className="mt-3 grid grid-cols-2 gap-y-1 font-mono text-body-sm md:grid-cols-4">
+            {o.packagingLabel ? (
+              <>
+                <dt className="text-text-muted md:col-span-1">Packaging</dt>
+                <dd className="text-text md:col-span-3">
+                  {o.packagingLabel}
+                </dd>
+              </>
+            ) : (
+              <>
+                <dt className="text-text-muted md:col-span-1">Packaging</dt>
+                <dd className="text-text-muted md:col-span-3">
+                  Custom (no preset)
+                </dd>
+              </>
+            )}
+            {o.packedLengthIn !== null &&
+            o.packedWidthIn !== null &&
+            o.packedHeightIn !== null ? (
+              <>
+                <dt className="text-text-muted">Box (L × W × H)</dt>
+                <dd className="text-text">
+                  {o.packedLengthIn} × {o.packedWidthIn} × {o.packedHeightIn} in
+                </dd>
+              </>
+            ) : null}
+            {o.packedWeightOz !== null ? (
+              <>
+                <dt className="text-text-muted">Weight</dt>
+                <dd className="text-text">
+                  {o.packedWeightOz} oz
+                  {o.packedWeightOz >= 16
+                    ? ` (~${(o.packedWeightOz / 16).toFixed(1)} lb)`
+                    : ""}
+                </dd>
+              </>
+            ) : null}
+            <dt className="text-text-muted">Packed at</dt>
+            <dd className="text-text-muted">
+              {new Date(o.packedAt).toLocaleString()}
+            </dd>
+          </dl>
+        </section>
+      ) : null}
+
       <section className="rounded-md border border-line bg-white p-6">
         <h2 className="font-mono text-mono-label uppercase text-text-muted">Lines</h2>
         <div className="mt-3">

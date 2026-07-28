@@ -294,6 +294,20 @@ export interface PublicOrder {
    */
   estimatedShippingMinCents: number | null;
   estimatedShippingMaxCents: number | null;
+  /**
+   * Phase O — vendor-visible packaging summary. All null until the
+   * warehouse records pack. `packagingLabel` reads either the library
+   * preset's label, the Shippo carrier template's friendly name
+   * ("USPS Medium Flat Rate Box"), or null for pure ad-hoc packaging.
+   * Displayed on the order detail page so vendors know what physically
+   * shipped.
+   */
+  packedLengthIn: number | null;
+  packedWidthIn: number | null;
+  packedHeightIn: number | null;
+  packedWeightOz: number | null;
+  packedAt: string | null;
+  packagingLabel: string | null;
   lines: Array<{
     id: string;
     skuId: string;
