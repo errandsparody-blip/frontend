@@ -68,7 +68,7 @@ export default function ProductPreviewPage(): JSX.Element {
       <PageHeader
         eyebrow={`  Catalogue / ${product.code} / Preview`}
         title={`Preview: ${product.name}`}
-        description="This is how your product looks to admin operators and (when the public catalog ships) buyers. Edit the product to change the image, name, or details."
+        description="This is how your product looks to admin operators"
         actions={
           <div className="flex items-center gap-3">
             {/* Preview is the success state of the create flow, so the
@@ -151,10 +151,7 @@ export default function ProductPreviewPage(): JSX.Element {
                   : "Not set"
               }
             />
-            <Stat
-              label="Storage tier"
-              value={product.storageTier.replace("_", "-")}
-            />
+           
             <Stat
               label="HS code"
               value={product.hsCode ?? "—"}
