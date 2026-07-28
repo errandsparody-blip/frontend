@@ -415,13 +415,43 @@ function ScanPanel({
             const done = count >= l.quantity;
             const loc = locations[l.skuId];
             return (
-              <li key={l.id} className="flex items-center justify-between py-2">
-                <div>
+              <li key={l.id} className="flex items-start justify-between gap-3 py-2">
+                <div className="min-w-0 flex-1">
                   <div className="text-body-sm font-medium text-ink">
                     {l.productName}
                   </div>
                   <div className="font-mono text-[11px] uppercase tracking-[1.2px] text-text-muted">
                     {l.productCode} · {l.variant}
+                  </div>
+                  {/* Phase L — screen-visible SKU code. This is the same
+                      string the Avery label from /admin/inventory/[skuId]/label
+                      encodes as CODE128. Warehouse operators can eyeball
+                      it as a fallback when the physical scanner won't
+                      cooperate, or click "Scan +1" below to increment
+                      the counter through the same server pipeline. */}
+                  <div className="mt-1 flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void navigator.clipboard
+                          ?.writeText(l.skuId)
+                          .catch(() => undefined);
+                      }}
+                      title="Copy SKU code"
+                      className="break-all rounded-sm border border-line bg-white px-2 py-0.5 font-mono text-[11px] text-ink hover:bg-cream-soft"
+                    >
+                      {l.skuId}
+                    </button>
+                    {!done ? (
+                      <button
+                        type="button"
+                        onClick={() => onScan(l.skuId)}
+                        title="Register a scan for this SKU without using the scanner"
+                        className="rounded-sm border border-amber bg-amber/10 px-2 py-0.5 font-mono text-[11px] uppercase tracking-[1.2px] text-amber hover:bg-amber/20"
+                      >
+                        Scan +1
+                      </button>
+                    ) : null}
                   </div>
                   {/* Migration 0045 — SKU location chip. */}
                   {loc ? (
@@ -437,7 +467,7 @@ function ScanPanel({
                     </div>
                   )}
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex shrink-0 items-center gap-3">
                   <span className="font-mono text-body-sm text-text">
                     {Math.min(count, l.quantity)} / {l.quantity}
                   </span>
