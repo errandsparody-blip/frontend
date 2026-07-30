@@ -44,6 +44,7 @@ import { useEffect, useState } from "react";
 import { ErrorBanner } from "@/components/errors/error-banner";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
 import { DataTable, TBody, THead, Th, TR, Td } from "@/components/ui/table";
@@ -74,14 +75,49 @@ interface RateOption {
   fetchedAt: string;
 }
 
+/**
+ * Phase P-D — order detail projection used by the rate picker's edit
+ * panel. Only the fields the panel reads; the full admin order shape
+ * is bigger.
+ */
+interface PackOrderDetail {
+  id: string;
+  status: string;
+  recipientName: string;
+  shipAddressLine1: string;
+  shipAddressLine2: string | null;
+  shipCity: string;
+  shipState: string;
+  shipPostalCode: string;
+  packedLengthIn: number | null;
+  packedWidthIn: number | null;
+  packedHeightIn: number | null;
+  packedWeightOz: number | null;
+  packingNotes: string | null;
+  packagingLabel: string | null;
+}
+
+interface EditPackPayload {
+  lengthIn: number;
+  widthIn: number;
+  heightIn: number;
+  weightOz: number;
+  notes?: string;
+}
+
 type SelectRateResponse =
   | {
-      outcome: "SHIPPING_PAID";
+      // Phase P-C — the click also purchases the label in one shot
+      // (spec Step 7). SHIPPING_PAID is no longer a terminal client-
+      // observable outcome; LABEL_PURCHASED is.
+      outcome: "LABEL_PURCHASED";
       balanceAfterCents: number;
       shippingCostCents: number;
       carrier: string;
       service: string;
       rateProviderRef: string;
+      trackingNumber: string;
+      labelUrl: string;
     }
   | {
       outcome: "AWAITING_WALLET_FUNDING";
@@ -142,6 +178,44 @@ export default function AdminRatePickerPage(): JSX.Element {
     staleTime: 10_000,
   });
 
+  // Phase P-D — order detail fetch so the right panel can surface
+  // packed dims, weight, packaging, address, and (via the "Edit"
+  // action) let the operator correct any of them BEFORE the label
+  // is bought. Guarded on selectedId; short stale time so an edit
+  // shows up immediately.
+  const orderQ = useQuery({
+    queryKey: ["admin", "pack", "order-detail", selectedId],
+    queryFn: () =>
+      api.get<PackOrderDetail>(`/admin/orders/${selectedId}`),
+    enabled: selectedId !== null,
+    staleTime: 10_000,
+  });
+
+  const [showEdit, setShowEdit] = useState(false);
+  const editMut = useMutation({
+    mutationFn: async (payload: EditPackPayload) => {
+      if (!selectedId) throw new Error("No order selected.");
+      return api.patch<{
+        orderId: string;
+        status: string;
+      }>(`/admin/pack/${selectedId}/pack-details`, payload);
+    },
+    onMutate: () => clear(),
+    onSuccess: async () => {
+      setShowEdit(false);
+      // Rate cache was dropped server-side; wipe the local cache too
+      // and refresh the order detail + queue.
+      qc.setQueryData(["admin", "pack", "rate-options", selectedId], {
+        items: [],
+      });
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["admin", "pack", "order-detail", selectedId] }),
+        qc.invalidateQueries({ queryKey: ["admin", "pack", "rate-queue"] }),
+      ]);
+    },
+    onError: (err) => handle(err),
+  });
+
   const fetchMut = useMutation({
     mutationFn: async () => {
       if (!selectedId) throw new Error("No order selected.");
@@ -177,7 +251,7 @@ export default function AdminRatePickerPage(): JSX.Element {
     onSuccess: async (data) => {
       setLastResult(data);
       await qc.invalidateQueries({ queryKey: ["admin", "pack", "rate-queue"] });
-      if (data.outcome === "SHIPPING_PAID") {
+      if (data.outcome === "LABEL_PURCHASED") {
         // Order left this queue — clear the picked ref and select the
         // next row so the operator flows through their batch.
         setPickedRef(null);
@@ -285,6 +359,15 @@ export default function AdminRatePickerPage(): JSX.Element {
                     type="button"
                     variant="outline"
                     size="sm"
+                    onClick={() => setShowEdit(true)}
+                    disabled={editMut.isPending}
+                  >
+                    Edit pack details
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
                     onClick={() => fetchMut.mutate()}
                     loading={fetchMut.isPending}
                     disabled={fetchMut.isPending}
@@ -295,6 +378,62 @@ export default function AdminRatePickerPage(): JSX.Element {
                   </Button>
                 </div>
               </div>
+
+              {/* Phase P-D — pack details summary. Renders read-only
+                  data from the order detail so the operator can see
+                  what was packed (and where it's going) alongside the
+                  rate options. Edit button opens the modal below. */}
+              {orderQ.data ? (
+                <div className="mt-4 rounded-md border border-line bg-cream-soft p-3 text-body-sm">
+                  <div className="grid gap-x-4 gap-y-1 md:grid-cols-2">
+                    <div>
+                      <span className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
+                        Ship to
+                      </span>{" "}
+                      {orderQ.data.recipientName} · {orderQ.data.shipAddressLine1}
+                      {orderQ.data.shipAddressLine2
+                        ? `, ${orderQ.data.shipAddressLine2}`
+                        : ""}
+                      , {orderQ.data.shipCity} {orderQ.data.shipState}{" "}
+                      {orderQ.data.shipPostalCode}
+                    </div>
+                    <div>
+                      <span className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
+                        Packaging
+                      </span>{" "}
+                      {orderQ.data.packagingLabel ?? "Custom (no preset)"}
+                    </div>
+                    {orderQ.data.packedLengthIn !== null &&
+                    orderQ.data.packedWidthIn !== null &&
+                    orderQ.data.packedHeightIn !== null ? (
+                      <div>
+                        <span className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
+                          Box
+                        </span>{" "}
+                        {orderQ.data.packedLengthIn} ×{" "}
+                        {orderQ.data.packedWidthIn} ×{" "}
+                        {orderQ.data.packedHeightIn} in
+                      </div>
+                    ) : null}
+                    {orderQ.data.packedWeightOz !== null ? (
+                      <div>
+                        <span className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
+                          Weight
+                        </span>{" "}
+                        {orderQ.data.packedWeightOz} oz
+                      </div>
+                    ) : null}
+                    {orderQ.data.packingNotes ? (
+                      <div className="md:col-span-2">
+                        <span className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
+                          Notes
+                        </span>{" "}
+                        {orderQ.data.packingNotes}
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
 
               {selectedRow.status === "AWAITING_WALLET_FUNDING" ? (
                 <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-body-sm text-amber-900">
@@ -362,19 +501,31 @@ export default function AdminRatePickerPage(): JSX.Element {
               {lastResult ? (
                 <div
                   className={
-                    lastResult.outcome === "SHIPPING_PAID"
+                    lastResult.outcome === "LABEL_PURCHASED"
                       ? "mt-6 rounded-md border border-green-200 bg-green-50 p-3 text-body-sm text-green-800"
                       : "mt-6 rounded-md border border-amber-200 bg-amber-50 p-3 text-body-sm text-amber-900"
                   }
                 >
-                  {lastResult.outcome === "SHIPPING_PAID" ? (
+                  {lastResult.outcome === "LABEL_PURCHASED" ? (
                     <>
-                      <div className="font-semibold">Wallet debited</div>
+                      <div className="font-semibold">Label purchased</div>
                       <p className="mt-1">
                         Charged {dollars(lastResult.shippingCostCents)} for{" "}
-                        {lastResult.carrier} {lastResult.service}. Vendor balance
-                        is now {dollars(lastResult.balanceAfterCents)}. Label
-                        purchase queued.
+                        {lastResult.carrier} {lastResult.service}. Vendor
+                        balance is now {dollars(lastResult.balanceAfterCents)}.
+                        Tracking:{" "}
+                        <span className="font-mono">
+                          {lastResult.trackingNumber}
+                        </span>
+                        .{" "}
+                        <a
+                          href={lastResult.labelUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="underline"
+                        >
+                          Open label →
+                        </a>
                       </p>
                     </>
                   ) : (
@@ -410,6 +561,225 @@ export default function AdminRatePickerPage(): JSX.Element {
             </>
           )}
         </section>
+      </div>
+
+      {/* Phase P-D — edit-pack-details modal. Rendered outside the
+          panels so it overlays the whole page. Reuses the current
+          order-detail data as initial values. Submitting patches
+          /admin/pack/:id/pack-details, which drops the cached rate
+          options and reverts status to PACKING_COMPLETED — the
+          operator then re-fetches rates before picking again. */}
+      {showEdit && orderQ.data ? (
+        <EditPackDetailsDialog
+          initial={orderQ.data}
+          submitting={editMut.isPending}
+          onCancel={() => setShowEdit(false)}
+          onSubmit={(payload) => editMut.mutate(payload)}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+
+/**
+ * Compact modal for editing packed dimensions + weight + notes before
+ * the label is purchased. Scoped down from the full pack modal — no
+ * scan panel (barcodes were already verified at pack time) and no
+ * packaging-tab picker (that's a fuller re-pack, out of scope for the
+ * quick-correction flow). Carrier / library edits can be done by
+ * re-packing from the pack queue if the item is regressed there.
+ */
+function EditPackDetailsDialog({
+  initial,
+  submitting,
+  onCancel,
+  onSubmit,
+}: {
+  initial: PackOrderDetail;
+  submitting: boolean;
+  onCancel: () => void;
+  onSubmit: (payload: EditPackPayload) => void;
+}): JSX.Element {
+  const [lengthIn, setLengthIn] = useState(String(initial.packedLengthIn ?? ""));
+  const [widthIn, setWidthIn] = useState(String(initial.packedWidthIn ?? ""));
+  const [heightIn, setHeightIn] = useState(String(initial.packedHeightIn ?? ""));
+  const [weightOz, setWeightOz] = useState(String(initial.packedWeightOz ?? ""));
+  const [notes, setNotes] = useState(initial.packingNotes ?? "");
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  function parseAndSubmit(): void {
+    const next: Record<string, string> = {};
+    const parsePositive = (raw: string, label: string): number | null => {
+      const n = Number(raw.trim());
+      if (raw.trim() === "" || !Number.isFinite(n) || n <= 0) {
+        next[label] = `${label} must be a positive number.`;
+        return null;
+      }
+      if (n > 48) {
+        next[label] = `${label} exceeds 48 in.`;
+        return null;
+      }
+      return n;
+    };
+    const l = parsePositive(lengthIn, "Length");
+    const w = parsePositive(widthIn, "Width");
+    const h = parsePositive(heightIn, "Height");
+    const wtN = Number(weightOz.trim());
+    let wt = 0;
+    if (!Number.isInteger(wtN) || wtN <= 0 || wtN > 1120) {
+      next.Weight = "Weight must be an integer 1..1120 oz.";
+    } else {
+      wt = wtN;
+    }
+    const notesTrim = notes.trim();
+    if (notesTrim.length > 500) next.Notes = "Notes cap at 500 chars.";
+    if (Object.keys(next).length > 0) {
+      setErrors(next);
+      return;
+    }
+    setErrors({});
+    onSubmit({
+      lengthIn: l as number,
+      widthIn: w as number,
+      heightIn: h as number,
+      weightOz: wt,
+      notes: notesTrim.length > 0 ? notesTrim : undefined,
+    });
+  }
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+    >
+      <div className="flex max-h-[90vh] w-full max-w-lg flex-col rounded-md border border-line bg-white shadow-lg">
+        <div className="border-b border-line px-6 pb-4 pt-6">
+          <h2 className="text-h2 font-semibold text-ink">Edit pack details</h2>
+          <p className="mt-1 text-body-sm text-text-muted">
+            Correct the box dimensions, parcel weight, or notes. Saving drops
+            the current rate quote — you&apos;ll need to re-fetch rates and
+            pick again before buying the label.
+          </p>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+          <div className="grid grid-cols-3 gap-4">
+            <label className="flex flex-col gap-1">
+              <span className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
+                Length (in)
+              </span>
+              <Input
+                type="text"
+                inputMode="decimal"
+                value={lengthIn}
+                onChange={(e) => setLengthIn(e.target.value)}
+                disabled={submitting}
+              />
+              {errors.Length ? (
+                <span className="text-body-xs text-red-700">
+                  {errors.Length}
+                </span>
+              ) : null}
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
+                Width (in)
+              </span>
+              <Input
+                type="text"
+                inputMode="decimal"
+                value={widthIn}
+                onChange={(e) => setWidthIn(e.target.value)}
+                disabled={submitting}
+              />
+              {errors.Width ? (
+                <span className="text-body-xs text-red-700">
+                  {errors.Width}
+                </span>
+              ) : null}
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
+                Height (in)
+              </span>
+              <Input
+                type="text"
+                inputMode="decimal"
+                value={heightIn}
+                onChange={(e) => setHeightIn(e.target.value)}
+                disabled={submitting}
+              />
+              {errors.Height ? (
+                <span className="text-body-xs text-red-700">
+                  {errors.Height}
+                </span>
+              ) : null}
+            </label>
+          </div>
+          <div className="mt-4">
+            <label className="flex flex-col gap-1">
+              <span className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
+                Weight (oz)
+              </span>
+              <Input
+                type="text"
+                inputMode="numeric"
+                value={weightOz}
+                onChange={(e) => setWeightOz(e.target.value)}
+                disabled={submitting}
+              />
+              {errors.Weight ? (
+                <span className="text-body-xs text-red-700">
+                  {errors.Weight}
+                </span>
+              ) : null}
+            </label>
+          </div>
+          <div className="mt-4">
+            <label className="flex flex-col gap-1">
+              <span className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
+                Notes (optional, ≤ 500 chars)
+              </span>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                disabled={submitting}
+                rows={3}
+                className="w-full rounded-md border border-line bg-white p-2 text-body-sm text-ink"
+              />
+              {errors.Notes ? (
+                <span className="text-body-xs text-red-700">
+                  {errors.Notes}
+                </span>
+              ) : null}
+            </label>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-end gap-3 border-t border-line px-6 py-4">
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            onClick={onCancel}
+            disabled={submitting}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            variant="amber"
+            size="md"
+            onClick={parseAndSubmit}
+            loading={submitting}
+            disabled={submitting}
+          >
+            {submitting ? "Saving…" : "Save changes"}
+          </Button>
+        </div>
       </div>
     </div>
   );

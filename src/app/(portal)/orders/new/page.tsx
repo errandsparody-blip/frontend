@@ -1796,7 +1796,6 @@ function V2ReviewPanel({
                 : "—"}
           </div>
           <p className="mt-1 text-body-xs text-text-muted">
-            Based on {shippingEstimate?.totalPoints ?? "—"} shipping points.
             Final shipping is quoted from real box dimensions at pack time.
           </p>
         </div>
@@ -1825,7 +1824,7 @@ function V2ReviewPanel({
           </div>
           <div className="text-right">
             <div className="font-mono text-mono-label uppercase tracking-[1.4px] text-text-muted">
-              Needed (worst case)
+              Maximum fulfillment fee
             </div>
             <div className="mt-1 font-mono text-h3 font-semibold text-ink">
               {loading ? "Calculating…" : dollars(maxCharge)}

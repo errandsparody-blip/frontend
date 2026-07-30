@@ -50,6 +50,18 @@ interface AdminOrderDetail {
   vendorTrackingNumber: string | null;
   vendorLabelUrl: string | null;
   handedOffAt: string | null;
+  // Phase O + Phase P-E — vendor-visible packaging summary (also
+  // useful on the admin detail page). All null until the warehouse
+  // records pack. `packagingLabel` reads either the library preset's
+  // label, the Shippo carrier template's friendly name, or null for
+  // pure ad-hoc packaging.
+  packedLengthIn: number | null;
+  packedWidthIn: number | null;
+  packedHeightIn: number | null;
+  packedWeightOz: number | null;
+  packedAt: string | null;
+  packagingLabel: string | null;
+  shippingCostCents: number;
   lines: Array<{
     id: string;
     skuId: string;
@@ -249,6 +261,89 @@ export default function AdminOrderDetailPage() {
           </div>
         </div>
       </section>
+
+      {/* Phase P-E — packaging summary for admin. Renders only after
+          the warehouse recorded the pack. Read-only. Same data
+          exposed to vendors on their own /orders/[id] page. Sits
+          BETWEEN header/money and the action bar so an admin looking
+          up a past order sees box + carrier + shipping cost without
+          scrolling. */}
+      {o.packedAt ? (
+        <section className="rounded-md border border-line bg-white p-6">
+          <h2 className="font-mono text-mono-label uppercase text-text-muted">
+            Packaging &amp; shipment
+          </h2>
+          <dl className="mt-3 grid grid-cols-2 gap-y-1 font-mono text-body-sm md:grid-cols-4">
+            <dt className="text-text-muted">Packaging</dt>
+            <dd className="text-text md:col-span-3">
+              {o.packagingLabel ?? "Custom (no preset)"}
+            </dd>
+            {o.packedLengthIn !== null &&
+            o.packedWidthIn !== null &&
+            o.packedHeightIn !== null ? (
+              <>
+                <dt className="text-text-muted">Box (L × W × H)</dt>
+                <dd className="text-text">
+                  {o.packedLengthIn} × {o.packedWidthIn} × {o.packedHeightIn} in
+                </dd>
+              </>
+            ) : null}
+            {o.packedWeightOz !== null ? (
+              <>
+                <dt className="text-text-muted">Weight</dt>
+                <dd className="text-text">
+                  {o.packedWeightOz} oz
+                  {o.packedWeightOz >= 16
+                    ? ` (~${(o.packedWeightOz / 16).toFixed(1)} lb)`
+                    : ""}
+                </dd>
+              </>
+            ) : null}
+            {o.carrier ? (
+              <>
+                <dt className="text-text-muted">Carrier</dt>
+                <dd className="text-text">
+                  {o.carrier}
+                  {o.carrierService ? ` · ${o.carrierService}` : ""}
+                </dd>
+              </>
+            ) : null}
+            {o.shippingCostCents > 0 ? (
+              <>
+                <dt className="text-text-muted">Shipping charged</dt>
+                <dd className="text-text">
+                  {formatCents(o.shippingCostCents)}
+                </dd>
+              </>
+            ) : null}
+            {o.trackingNumber ? (
+              <>
+                <dt className="text-text-muted">Tracking</dt>
+                <dd className="text-text">
+                  <span className="font-mono">{o.trackingNumber}</span>
+                  {o.labelUrl ? (
+                    <>
+                      {" · "}
+                      <a
+                        href={o.labelUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="underline"
+                      >
+                        Open label →
+                      </a>
+                    </>
+                  ) : null}
+                </dd>
+              </>
+            ) : null}
+            <dt className="text-text-muted">Packed at</dt>
+            <dd className="text-text-muted md:col-span-3">
+              {new Date(o.packedAt).toLocaleString()}
+            </dd>
+          </dl>
+        </section>
+      ) : null}
 
       {next ? (
         <section className="rounded-md border-l-4 border-amber bg-amber/10 px-5 py-4">
