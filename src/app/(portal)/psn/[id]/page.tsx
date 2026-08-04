@@ -265,47 +265,58 @@ export default function PsnDetailPage() {
         </div>
       </section>
 
-      {/* Lines */}
-      <DataTable>
-        <THead>
-          <Th>Product</Th>
-          <Th>SKU (after receipt)</Th>
-          <Th align="right">Declared</Th>
-          <Th align="right">Received</Th>
-          <Th align="right">Accepted</Th>
-          {/* Migration 0024 — show the missing count alongside damaged
-              so vendors see the SAME outcome columns the admin filled
-              in at receive. Sits before Damaged to mirror the admin
-              receive page's column order (Accept → Missing → Damaged). */}
-          <Th align="right">Missing</Th>
-          <Th align="right">Damaged</Th>
-        </THead>
-        <TBody>
-          {psn.lines.map((l) => {
-            const product = productById.get(l.productId);
-            return (
-              <TR key={l.id}>
-                <Td>
-                  <div className="font-medium text-ink">{product?.name ?? l.productId}</div>
-                  <div className="font-mono text-[11px] text-text-muted">
-                    {product?.code ?? "—"} · {product?.variant ?? "—"}
-                  </div>
-                </Td>
-                <Td mono>{l.skuId ?? "—"}</Td>
-                <Td num>{l.declaredQty}</Td>
-                <Td num>{l.receivedQty}</Td>
-                <Td num className="text-success">{l.acceptedQty}</Td>
-                <Td num className={l.missingQty > 0 ? "text-amber" : "text-text-muted"}>
-                  {l.missingQty}
-                </Td>
-                <Td num className={l.damagedQty > 0 ? "text-error" : "text-text-muted"}>
-                  {l.damagedQty}
-                </Td>
-              </TR>
-            );
-          })}
-        </TBody>
-      </DataTable>
+      {/* Phase U2 — Wrap the Lines DataTable in the same titled-card
+          shape used by the Summary panel, Declared boxes, and the
+          admin order detail. Without the wrapper the table rendered as
+          a bare bordered rectangle sandwiched between two titled
+          cards, producing the visual "jump then whitespace" the
+          vendor reported: the eye lost the section label and the
+          gap-8 to the Conversation panel felt untethered. */}
+      <section className="rounded-md border border-line bg-white p-6">
+        <h2 className="mb-4 font-mono text-mono-label uppercase text-text-muted">
+          Lines
+        </h2>
+        <DataTable>
+          <THead>
+            <Th>Product</Th>
+            <Th>SKU (after receipt)</Th>
+            <Th align="right">Declared</Th>
+            <Th align="right">Received</Th>
+            <Th align="right">Accepted</Th>
+            {/* Migration 0024 — show the missing count alongside damaged
+                so vendors see the SAME outcome columns the admin filled
+                in at receive. Sits before Damaged to mirror the admin
+                receive page's column order (Accept → Missing → Damaged). */}
+            <Th align="right">Missing</Th>
+            <Th align="right">Damaged</Th>
+          </THead>
+          <TBody>
+            {psn.lines.map((l) => {
+              const product = productById.get(l.productId);
+              return (
+                <TR key={l.id}>
+                  <Td>
+                    <div className="font-medium text-ink">{product?.name ?? l.productId}</div>
+                    <div className="font-mono text-[11px] text-text-muted">
+                      {product?.code ?? "—"} · {product?.variant ?? "—"}
+                    </div>
+                  </Td>
+                  <Td mono>{l.skuId ?? "—"}</Td>
+                  <Td num>{l.declaredQty}</Td>
+                  <Td num>{l.receivedQty}</Td>
+                  <Td num className="text-success">{l.acceptedQty}</Td>
+                  <Td num className={l.missingQty > 0 ? "text-amber" : "text-text-muted"}>
+                    {l.missingQty}
+                  </Td>
+                  <Td num className={l.damagedQty > 0 ? "text-error" : "text-text-muted"}>
+                    {l.damagedQty}
+                  </Td>
+                </TR>
+              );
+            })}
+          </TBody>
+        </DataTable>
+      </section>
 
       {isDraft ? (
         <div className="flex justify-end gap-3">

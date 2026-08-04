@@ -21,6 +21,19 @@ interface DataTableProps extends HTMLAttributes<HTMLDivElement> {
 }
 
 export function DataTable({ children, className, ...rest }: DataTableProps): JSX.Element {
+  // Two-layer wrapper:
+  //   outer → keeps `overflow-hidden` so the rounded-md border-radius
+  //           clips the table's square corners cleanly on all sides.
+  //   inner → `overflow-x-auto` so wide tables (>viewport) become
+  //           horizontally scrollable on mobile instead of getting
+  //           clipped by the outer overflow-hidden. Without this the
+  //           right-most columns of a 5-7 column admin table are
+  //           unreachable on a phone.
+  //
+  // The scroll gutter appears BELOW the last row and inside the
+  // rounded border (because it belongs to the inner div). Native
+  // trackpad/touch swipe still works even when the OS hides the
+  // scrollbar itself.
   return (
     <div
       className={cn(
@@ -29,7 +42,9 @@ export function DataTable({ children, className, ...rest }: DataTableProps): JSX
       )}
       {...rest}
     >
-      <table className="min-w-full">{children}</table>
+      <div className="overflow-x-auto">
+        <table className="min-w-full">{children}</table>
+      </div>
     </div>
   );
 }
