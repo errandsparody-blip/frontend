@@ -50,6 +50,10 @@ interface AdminOrderDetail {
   vendorTrackingNumber: string | null;
   vendorLabelUrl: string | null;
   handedOffAt: string | null;
+  // Phase T1 — surfaced from the backend admin projection so the
+  // next-step panel can branch v1 vs v2. Every order gets this
+  // field (DB default = 1); no null case to handle.
+  workflowVersion: number;
   // Phase O + Phase P-E — vendor-visible packaging summary (also
   // useful on the admin detail page). All null until the warehouse
   // records pack. `packagingLabel` reads either the library preset's
@@ -96,34 +100,94 @@ const TONE: Record<string, "neutral" | "info" | "success" | "warning" | "error">
 };
 
 /**
- * Migration 0037 — pick the next operator action based on BOTH the order
- * status AND the fulfillment mode. The two branches diverge in two places:
+ * Migration 0037 + Phase T2 — pick the next operator action based on:
+ *   - status
+ *   - fulfillmentMode (Migration 0037 branch: PLATFORM_SHIP vs
+ *     VENDOR_CARRIER)
+ *   - workflowVersion (Phase T2 branch: v1 legacy ladder vs v2
+ *     pack-before-label ladder)
  *
- *   ALLOCATED + VENDOR_CARRIER  → skip purchase-label entirely (there is
- *                                 no Shippo label to buy) and jump
- *                                 straight to pick.
- *   PACKED    + VENDOR_CARRIER  → finish with markHandedOff (terminal)
- *                                 instead of ship — the vendor's
- *                                 carrier owns delivery from here on.
+ * Two return shapes:
  *
- * PLATFORM_SHIP keeps the original purchase-label → pick → pack → ship
- * sequence. Returning `null` hides the action card; the rest of the page
- * is read-only.
+ *   { kind: "primary", ... }  — a single required next step. Renders
+ *                               as the amber CTA card with a large
+ *                               button on the right.
+ *
+ *   { kind: "advisory", ... } — no required next click; the order has
+ *                               already reached the state where the
+ *                               operator's job is a physical action
+ *                               (drop box at carrier) that the system
+ *                               will observe via webhook. Optional
+ *                               secondary button for "notify now
+ *                               without waiting for the carrier scan."
+ *
+ *   null                      — nothing to show (order is terminal or
+ *                               in a state the admin can't advance).
+ *
+ * The v2 branch matters because in v2 the box is already packed BEFORE
+ * the label is bought (OrderPackService.recordPack runs during
+ * PENDING_PACKING → PACKING_COMPLETED). Walking a v2 order through
+ * LABEL_PURCHASED → PICKING → PACKED → SHIPPED with the legacy buttons
+ * is ceremonial — those transitions succeed at the DB level but
+ * describe work the warehouse already did.
  */
+type NextAction =
+  | { kind: "primary"; label: string; endpoint: string }
+  | {
+      kind: "advisory";
+      title: string;
+      body: string;
+      secondary?: { label: string; endpoint: string; hint: string };
+    };
+
 function getNextAction(
   status: string,
   fulfillmentMode: AdminOrderDetail["fulfillmentMode"],
-): { label: string; endpoint: string } | null {
+  workflowVersion: number,
+): NextAction | null {
   if (fulfillmentMode === "VENDOR_CARRIER") {
-    if (status === "ALLOCATED") return { label: "Start picking", endpoint: "pick" };
-    if (status === "PICKING") return { label: "Mark packed", endpoint: "pack" };
-    if (status === "PACKED") return { label: "Mark handed off", endpoint: "handed-off" };
+    if (status === "ALLOCATED")
+      return { kind: "primary", label: "Start picking", endpoint: "pick" };
+    if (status === "PICKING")
+      return { kind: "primary", label: "Mark packed", endpoint: "pack" };
+    if (status === "PACKED")
+      return { kind: "primary", label: "Mark handed off", endpoint: "handed-off" };
     return null;
   }
-  if (status === "ALLOCATED") return { label: "Buy carrier label", endpoint: "purchase-label" };
-  if (status === "LABEL_PURCHASED") return { label: "Start picking", endpoint: "pick" };
-  if (status === "PICKING") return { label: "Mark packed", endpoint: "pack" };
-  if (status === "PACKED") return { label: "Hand to carrier (ship)", endpoint: "ship" };
+
+  // v2 (workflowVersion=2) — pack happens BEFORE label buy, so once
+  // we reach LABEL_PURCHASED the only remaining physical step is
+  // handing the box to the carrier. The Shippo tracking webhook
+  // auto-advances to IN_TRANSIT the moment the carrier first scans;
+  // no operator click is required. The optional "Mark handed off
+  // now" button fires the legacy ship() endpoint (still wired) so
+  // the vendor gets the shipped notification immediately instead of
+  // waiting up to a few hours for the carrier scan.
+  if (workflowVersion === 2 && status === "LABEL_PURCHASED") {
+    return {
+      kind: "advisory",
+      title: "Ready for carrier hand-off",
+      body: "Take the packed box to the carrier. The order will auto-advance to In transit when they scan it, and the vendor will be notified automatically. No click required.",
+      secondary: {
+        label: "Mark handed off now",
+        endpoint: "ship",
+        hint: "Sends the vendor a shipped notification immediately instead of waiting for the carrier's first scan.",
+      },
+    };
+  }
+
+  // Legacy v1 ladder — retained for historical / replay orders. Zero
+  // v1 orders exist in production right now (per Phase I abolition),
+  // but the code stays so a dev-mode replay of an archived v1 order
+  // still walks through the operator UI predictably.
+  if (status === "ALLOCATED")
+    return { kind: "primary", label: "Buy carrier label", endpoint: "purchase-label" };
+  if (status === "LABEL_PURCHASED")
+    return { kind: "primary", label: "Start picking", endpoint: "pick" };
+  if (status === "PICKING")
+    return { kind: "primary", label: "Mark packed", endpoint: "pack" };
+  if (status === "PACKED")
+    return { kind: "primary", label: "Hand to carrier (ship)", endpoint: "ship" };
   return null;
 }
 
@@ -173,7 +237,7 @@ export default function AdminOrderDetailPage() {
     );
   }
   const o = orderQ.data;
-  const next = getNextAction(o.status, o.fulfillmentMode);
+  const next = getNextAction(o.status, o.fulfillmentMode, o.workflowVersion);
   const isVendorCarrier = o.fulfillmentMode === "VENDOR_CARRIER";
 
   // Migration 0037 — the meta row (under the status pill) needs to render
@@ -337,7 +401,13 @@ export default function AdminOrderDetailPage() {
                 </dd>
               </>
             ) : null}
-            <dt className="text-text-muted">Packed at</dt>
+            {/* Phase T1 — force "Packed at" onto its own row starting
+                at column 1. Without `md:col-start-1` the label gets
+                pushed into column 3 by the preceding Tracking dd,
+                and its own `md:col-span-3` dd wraps to the next line
+                — the visible bug in the earlier screenshot where the
+                timestamp appeared unattached to any label. */}
+            <dt className="text-text-muted md:col-start-1">Packed at</dt>
             <dd className="text-text-muted md:col-span-3">
               {new Date(o.packedAt).toLocaleString()}
             </dd>
@@ -346,25 +416,67 @@ export default function AdminOrderDetailPage() {
       ) : null}
 
       {next ? (
-        <section className="rounded-md border-l-4 border-amber bg-amber/10 px-5 py-4">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <div className="font-mono text-mono-label uppercase text-amber">Next step</div>
-              <div className="mt-1 text-body text-text">{next.label}</div>
+        next.kind === "primary" ? (
+          <section className="rounded-md border-l-4 border-amber bg-amber/10 px-5 py-4">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <div className="font-mono text-mono-label uppercase text-amber">Next step</div>
+                <div className="mt-1 text-body text-text">{next.label}</div>
+              </div>
+              <Button
+                variant="amber"
+                loading={action.isPending}
+                onClick={() => action.mutate(next.endpoint)}
+                withArrow
+              >
+                {next.label}
+              </Button>
             </div>
-            <Button
-              variant="amber"
-              loading={action.isPending}
-              onClick={() => action.mutate(next.endpoint)}
-              withArrow
-            >
-              {next.label}
-            </Button>
-          </div>
-          <div className="mt-3">
-            <ErrorBanner error={bannerError} onAction={onAction} />
-          </div>
-        </section>
+            <div className="mt-3">
+              <ErrorBanner error={bannerError} onAction={onAction} />
+            </div>
+          </section>
+        ) : (
+          // Phase T2 — advisory card. Renders instead of the amber CTA
+          // when the order has reached a state where the operator has
+          // no required click. Keeps the same left-border color for
+          // visual continuity so the operator's eye still lands on
+          // this region when scanning the page.
+          <section className="rounded-md border-l-4 border-amber bg-amber/10 px-5 py-4">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="max-w-2xl">
+                <div className="font-mono text-mono-label uppercase text-amber">
+                  {next.title}
+                </div>
+                <p className="mt-1 text-body text-text">{next.body}</p>
+              </div>
+              {next.secondary ? (
+                <div className="flex flex-col items-end gap-1">
+                  <Button
+                    variant="outline"
+                    loading={action.isPending}
+                    onClick={() =>
+                      next.secondary
+                        ? action.mutate(next.secondary.endpoint)
+                        : undefined
+                    }
+                  >
+                    {next.secondary.label}
+                  </Button>
+                  <span
+                    className="text-body-sm text-text-muted"
+                    title={next.secondary.hint}
+                  >
+                    optional
+                  </span>
+                </div>
+              ) : null}
+            </div>
+            <div className="mt-3">
+              <ErrorBanner error={bannerError} onAction={onAction} />
+            </div>
+          </section>
+        )
       ) : null}
 
       {!next ? <ErrorBanner error={bannerError} onAction={onAction} /> : null}
