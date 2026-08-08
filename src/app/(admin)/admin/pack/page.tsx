@@ -944,7 +944,7 @@ function PackDialog({
             label for these orders. */}
         {isVendorCarrier ? (
           <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-body-sm text-amber-900">
-            <div className="font-semibold">Vendor's own carrier</div>
+            <div className="font-semibold">Vendor&apos;s own carrier</div>
             <p className="mt-1">
               {orderQ.data?.vendorCarrierName
                 ? `Carrier: ${orderQ.data.vendorCarrierName}. `
