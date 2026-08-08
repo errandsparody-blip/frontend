@@ -901,20 +901,25 @@ function AddressForm({
           split it into the fields below (you can still edit after). */}
       <Field
         label="Paste a full address (optional)"
-        hint="e.g. 731 Market St #200, San Francisco, CA 94103 — we'll split it into the fields below"
+        hint="Paste on one line or across several — e.g. 731 Market St #200, San Francisco, CA 94103 — and we'll split it into the fields below"
       >
-        <div className="flex gap-2">
-          <Input
-            type="text"
+        <div className="flex items-start gap-2">
+          {/* A textarea (not a single-line input) so pasted line breaks
+              survive — the parser treats each line as a field, which is
+              how most copied addresses are shaped. Cmd/Ctrl+Enter submits
+              so a plain Enter can still add a newline. */}
+          <textarea
             value={pasted}
-            placeholder="Paste the whole address here…"
+            rows={3}
+            placeholder={"Paste the whole address here…\n2201 Tucker Lane\nApt B8\nGwynn Oak, MD 21207"}
             onChange={(e) => setPasted(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter") {
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
                 e.preventDefault();
                 if (pasted.trim().length >= 3) parseMut.mutate(pasted.trim());
               }
             }}
+            className="h-auto min-h-[5.5rem] w-full rounded-sm border border-line-strong bg-cream-soft px-3 py-2 text-body text-text outline-none transition-colors duration-fast ease-out placeholder:text-text/40 hover:border-text/40 focus:border-ink focus:ring-2 focus:ring-ink/10"
           />
           <Button
             type="button"

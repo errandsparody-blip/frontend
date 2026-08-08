@@ -1,32 +1,30 @@
 "use client";
 
 /**
- * Vendor return detail — the drill-in for a single RMA.
- *
- * Shows everything the vendor needs to know about an inbound return:
+ * Vendor return detail — the drill-in for a single RMA (Returns v2).
  *
  *   - Header: RMA code, status pill, reason
- *   - Inbound: carrier + tracking number + downloadable shipping label
- *     (this is the prepaid label we email the customer; vendor may want
- *     to print it from here for their records)
- *   - Lines: per-SKU breakdown — requested vs received vs restocked
- *     vs damaged vs disposed. Once admin inspects, the vendor sees
- *     exactly what came back vs what the customer claimed.
- *   - Refund summary: gross refund − restock fee = net wallet credit,
- *     using the same math the backend uses (lib/schemas/returns.ts).
- *   - Timeline: created → authorized → received → inspected → resolved.
- *   - Cancel: only when status is REQUESTED or AUTHORIZED. Same allow-
- *     list the backend service enforces.
+ *   - Inbound: the vendor-supplied carrier + tracking + expected delivery
+ *     date (the customer ships the return themselves; USA Errands buys no
+ *     label).
+ *   - Received photos + condition: shared by USA Errands after inspection.
+ *   - Instructions: when the return is INSPECTED, the vendor tells us how
+ *     to handle each line — restock / dispose / donate.
+ *   - Lines: per-SKU requested → received → restocked/disposed/donated.
+ *   - Charge: the processing fee (+ handling) charged at finalize. There
+ *     is no refund.
+ *   - Timeline + cancel (pre-receive only).
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { ErrorBanner } from "@/components/errors/error-banner";
 import { BackButton } from "@/components/portal/back-button";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
 import { DataTable, TBody, THead, Th, TR, Td } from "@/components/ui/table";
@@ -34,8 +32,10 @@ import { api } from "@/lib/api-client";
 import { normalizeError, useApiErrorHandler } from "@/lib/errors";
 import {
   CANCELLABLE_RETURN_STATUSES,
-  netRefundCents,
+  returnChargeCents,
   RETURN_REASON_LABEL,
+  RETURN_STATUS_LABEL,
+  type InstructReturnInput,
   type ReturnSnapshot,
   type ReturnStatus,
 } from "@/lib/schemas/returns";
@@ -46,8 +46,10 @@ const TONE: Record<ReturnStatus, "neutral" | "info" | "success" | "warning" | "e
   IN_TRANSIT: "info",
   RECEIVED: "warning",
   INSPECTED: "warning",
+  INSTRUCTED: "info",
   RESTOCKED: "success",
   DISPOSED: "error",
+  DONATED: "success",
   REJECTED: "error",
   CANCELLED: "error",
 };
@@ -57,6 +59,12 @@ function formatCents(cents: number): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
+}
+
+interface Split {
+  restock: number;
+  dispose: number;
+  donate: number;
 }
 
 export default function VendorReturnDetailPage(): JSX.Element {
@@ -70,13 +78,42 @@ export default function VendorReturnDetailPage(): JSX.Element {
   });
 
   const [showCancel, setShowCancel] = useState(false);
+  const [splits, setSplits] = useState<Record<string, Split>>({});
   const { bannerError, handle, clear } = useApiErrorHandler();
+
+  // Seed the instruction split (default: restock everything) once the
+  // return is INSPECTED and lines are known.
+  useEffect(() => {
+    const r = returnQ.data;
+    if (!r || r.status !== "INSPECTED") return;
+    setSplits((prev) => {
+      if (Object.keys(prev).length > 0) return prev;
+      const seed: Record<string, Split> = {};
+      for (const l of r.lines) {
+        seed[l.id] = { restock: l.receivedQty, dispose: 0, donate: 0 };
+      }
+      return seed;
+    });
+  }, [returnQ.data]);
 
   const cancelMut = useMutation({
     mutationFn: () => api.post<ReturnSnapshot>(`/returns/${params.id}/cancel`),
     onMutate: clear,
     onSuccess: async () => {
       setShowCancel(false);
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["returns", params.id] }),
+        qc.invalidateQueries({ queryKey: ["returns"] }),
+      ]);
+    },
+    onError: (err) => handle(err),
+  });
+
+  const instructMut = useMutation({
+    mutationFn: (body: InstructReturnInput) =>
+      api.post<ReturnSnapshot>(`/returns/${params.id}/instructions`, body),
+    onMutate: clear,
+    onSuccess: async () => {
       await Promise.all([
         qc.invalidateQueries({ queryKey: ["returns", params.id] }),
         qc.invalidateQueries({ queryKey: ["returns"] }),
@@ -99,18 +136,21 @@ export default function VendorReturnDetailPage(): JSX.Element {
           {normalized?.entry.body ??
             "This RMA may have been deleted, or you do not have access to it."}
         </p>
-        {normalized?.correlationId ? (
-          <div className="mt-2 font-mono text-[11px] uppercase tracking-[1.2px] text-text-muted">
-            Reference: {normalized.correlationId.slice(0, 16)}
-          </div>
-        ) : null}
       </div>
     );
   }
 
   const r = returnQ.data;
   const isCancellable = CANCELLABLE_RETURN_STATUSES.includes(r.status);
-  const net = netRefundCents(r);
+  const charge = returnChargeCents(r);
+  const awaitingInstructions = r.status === "INSPECTED";
+
+  // Validate the instruction split: each line's restock+dispose+donate
+  // must equal its received quantity.
+  const splitValid = r.lines.every((l) => {
+    const s = splits[l.id] ?? { restock: 0, dispose: 0, donate: 0 };
+    return s.restock + s.dispose + s.donate === l.receivedQty;
+  });
 
   return (
     <div className="flex flex-col gap-8">
@@ -121,10 +161,10 @@ export default function VendorReturnDetailPage(): JSX.Element {
         actions={<BackButton fallback="/returns" />}
       />
 
-      {/* Status + headline numbers */}
+      {/* Status + inbound + charge */}
       <section className="rounded-md border border-line bg-white p-6">
         <div className="flex flex-wrap items-baseline gap-4">
-          <StatusPill tone={TONE[r.status]}>{r.status.replace(/_/g, " ")}</StatusPill>
+          <StatusPill tone={TONE[r.status]}>{RETURN_STATUS_LABEL[r.status]}</StatusPill>
           <span className="font-mono text-body-sm text-text-muted">
             Opened {new Date(r.createdAt).toLocaleString()}
           </span>
@@ -138,99 +178,164 @@ export default function VendorReturnDetailPage(): JSX.Element {
         <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2">
           <div>
             <div className="font-mono text-mono-label uppercase text-text-muted">Inbound shipment</div>
-            {r.inboundCarrier && r.inboundTracking ? (
-              <>
-                <div className="mt-1 text-body text-text">{r.inboundCarrier}</div>
-                <div className="font-mono text-body-sm text-text">{r.inboundTracking}</div>
-                {r.inboundLabelUrl ? (
-                  <a
-                    href={r.inboundLabelUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-2 inline-block font-mono text-[11px] uppercase tracking-[1.2px] text-amber hover:text-amber-hi"
-                  >
-                    Open shipping label →
-                  </a>
-                ) : null}
-              </>
-            ) : (
+            <div className="mt-1 text-body text-text">{r.inboundCarrier ?? "Your carrier"}</div>
+            <div className="font-mono text-body-sm text-text">{r.inboundTracking ?? "—"}</div>
+            {r.expectedDeliveryDate ? (
               <div className="mt-1 text-body-sm text-text-muted">
-                Inbound label not yet attached. We&apos;ll generate one shortly — refresh in a minute or two.
+                Expected {new Date(r.expectedDeliveryDate).toLocaleDateString()}
               </div>
-            )}
+            ) : null}
           </div>
 
           <div>
-            <div className="font-mono text-mono-label uppercase text-text-muted">Refund summary</div>
-            <dl className="mt-1 grid grid-cols-2 gap-y-1 font-mono text-body-sm">
-              <dt className="text-text-muted">Refund (gross)</dt>
-              <dd className="text-right text-text">{formatCents(r.refundAmountCents)}</dd>
-              <dt className="text-text-muted">Restock fee</dt>
-              <dd className="text-right text-text">−{formatCents(r.restockFeeCents)}</dd>
-              <dt className="text-h3 font-semibold text-ink">Net to wallet</dt>
-              <dd className="text-right text-h3 font-semibold text-ink">{formatCents(net)}</dd>
-            </dl>
-            {r.status !== "RESTOCKED" && r.status !== "DISPOSED" && r.status !== "REJECTED" ? (
-              <>
-                <p className="mt-2 text-body-sm text-text-muted">
-                  Final amount confirmed after our warehouse team inspects the inbound box.
-                </p>
-                {r.potentialRefundCents != null && r.potentialRefundCents > 0 ? (
-                  <div className="mt-3 rounded-sm border border-amber/40 bg-amber/5 px-3 py-2 font-mono text-body-sm">
-                    <span className="text-text-muted">Potential refund:</span>{" "}
-                    <span className="font-semibold text-ink">
-                      {formatCents(r.potentialRefundCents)}
-                    </span>
-                    <span className="ml-1 text-text-muted">(if everything restocks at full value)</span>
-                  </div>
-                ) : null}
-              </>
-            ) : null}
+            <div className="font-mono text-mono-label uppercase text-text-muted">Charge</div>
+            {r.resolvedAt ? (
+              <dl className="mt-1 grid grid-cols-2 gap-y-1 font-mono text-body-sm">
+                <dt className="text-text-muted">Processing fee</dt>
+                <dd className="text-right text-text">{formatCents(r.processingFeeCents)}</dd>
+                <dt className="text-text-muted">Handling</dt>
+                <dd className="text-right text-text">{formatCents(r.handlingCostCents)}</dd>
+                <dt className="text-h3 font-semibold text-ink">Total charged</dt>
+                <dd className="text-right text-h3 font-semibold text-ink">{formatCents(charge)}</dd>
+              </dl>
+            ) : (
+              <p className="mt-1 text-body-sm text-text-muted">
+                A $2.50 processing fee (plus any handling cost) is charged to your wallet when we
+                finish handling this return. There is no product refund.
+              </p>
+            )}
           </div>
         </div>
       </section>
 
-      {/* Attached photo evidence (Migration 0018). Only renders when
-          the vendor uploaded something at RMA-creation. Each thumbnail
-          opens the original in a new tab. */}
-      {r.attachmentUrls.length > 0 ? (
+      {/* Received photos + condition, shared by USA Errands after inspection */}
+      {r.receivedPhotoUrls.length > 0 || r.inspectorNotes ? (
         <section className="rounded-md border border-line bg-white p-6">
           <h2 className="font-mono text-mono-label uppercase text-text-muted">
-            Photo evidence
+            What we received
           </h2>
+          {r.inspectorNotes ? (
+            <p className="mt-2 whitespace-pre-wrap text-body text-text">{r.inspectorNotes}</p>
+          ) : null}
+          {r.receivedPhotoUrls.length > 0 ? (
+            <ul className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
+              {r.receivedPhotoUrls.map((url) => (
+                <li key={url}>
+                  <a
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block aspect-square overflow-hidden rounded-sm border border-line bg-cream-soft hover:border-ink"
+                    title={url}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={url} alt="Received item" className="h-full w-full object-cover" loading="lazy" />
+                  </a>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </section>
+      ) : null}
+
+      {/* Instruction form — only when INSPECTED (awaiting the vendor's call) */}
+      {awaitingInstructions ? (
+        <section className="rounded-md border border-amber/40 bg-amber/5 p-6">
+          <h2 className="text-h3 font-semibold text-ink">How should we handle these items?</h2>
           <p className="mt-1 text-body-sm text-text-muted">
-            Attached when this RMA was opened. Inspector will review these alongside the inbound box.
+            For each line, tell us how many units to restock, dispose, or donate. The three must add
+            up to the quantity we received.
           </p>
-          <ul className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
-            {r.attachmentUrls.map((url) => (
-              <li key={url}>
-                <a
-                  href={url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block aspect-square overflow-hidden rounded-sm border border-line bg-cream-soft hover:border-ink"
-                  title={url}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={url}
-                    alt="RMA evidence"
-                    className="h-full w-full object-cover"
-                    loading="lazy"
-                  />
-                </a>
-              </li>
-            ))}
-          </ul>
+          <div className="mt-4">
+            <DataTable>
+              <THead>
+                <Th>SKU</Th>
+                <Th align="right">Received</Th>
+                <Th align="right">Restock</Th>
+                <Th align="right">Dispose</Th>
+                <Th align="right">Donate</Th>
+              </THead>
+              <TBody>
+                {r.lines.map((l) => {
+                  const s = splits[l.id] ?? { restock: 0, dispose: 0, donate: 0 };
+                  const sum = s.restock + s.dispose + s.donate;
+                  const rowOk = sum === l.receivedQty;
+                  const set = (key: keyof Split, raw: string) => {
+                    const n = Math.max(0, Math.min(l.receivedQty, Math.floor(Number(raw) || 0)));
+                    setSplits((prev) => ({ ...prev, [l.id]: { ...s, [key]: n } }));
+                  };
+                  return (
+                    <TR key={l.id} className={rowOk ? undefined : "bg-error/5"}>
+                      <Td mono>{l.skuId}</Td>
+                      <Td num>{l.receivedQty}</Td>
+                      <Td align="right">
+                        <Input
+                          type="number"
+                          min={0}
+                          max={l.receivedQty}
+                          value={String(s.restock)}
+                          onChange={(e) => set("restock", e.target.value)}
+                          className="ml-auto h-9 w-20 text-right"
+                        />
+                      </Td>
+                      <Td align="right">
+                        <Input
+                          type="number"
+                          min={0}
+                          max={l.receivedQty}
+                          value={String(s.dispose)}
+                          onChange={(e) => set("dispose", e.target.value)}
+                          className="ml-auto h-9 w-20 text-right"
+                        />
+                      </Td>
+                      <Td align="right">
+                        <Input
+                          type="number"
+                          min={0}
+                          max={l.receivedQty}
+                          value={String(s.donate)}
+                          onChange={(e) => set("donate", e.target.value)}
+                          className="ml-auto h-9 w-20 text-right"
+                        />
+                      </Td>
+                    </TR>
+                  );
+                })}
+              </TBody>
+            </DataTable>
+          </div>
+          <ErrorBanner error={bannerError} />
+          <div className="mt-4 flex items-center justify-between gap-3">
+            <span className="text-body-sm text-text-muted">
+              {splitValid ? "Ready to submit." : "Each line's split must equal what we received."}
+            </span>
+            <Button
+              variant="amber"
+              loading={instructMut.isPending}
+              disabled={instructMut.isPending || !splitValid}
+              onClick={() =>
+                instructMut.mutate({
+                  lines: r.lines.map((l) => {
+                    const s = splits[l.id] ?? { restock: 0, dispose: 0, donate: 0 };
+                    return {
+                      returnLineId: l.id,
+                      restockQty: s.restock,
+                      disposeQty: s.dispose,
+                      donateQty: s.donate,
+                    };
+                  }),
+                })
+              }
+            >
+              {instructMut.isPending ? "Submitting…" : "Submit instructions"}
+            </Button>
+          </div>
         </section>
       ) : null}
 
       {/* Per-line breakdown */}
       <section className="rounded-md border border-line bg-white p-6">
         <h2 className="font-mono text-mono-label uppercase text-text-muted">Lines</h2>
-        <p className="mt-1 text-body-sm text-text-muted">
-          Requested by you · Received at the warehouse · Restocked / Damaged / Disposed after inspection.
-        </p>
         <div className="mt-3">
           <DataTable>
             <THead>
@@ -238,9 +343,8 @@ export default function VendorReturnDetailPage(): JSX.Element {
               <Th align="right">Requested</Th>
               <Th align="right">Received</Th>
               <Th align="right">Restocked</Th>
-              <Th align="right">Damaged</Th>
               <Th align="right">Disposed</Th>
-              <Th>Notes</Th>
+              <Th align="right">Donated</Th>
             </THead>
             <TBody>
               {r.lines.map((l) => (
@@ -249,9 +353,8 @@ export default function VendorReturnDetailPage(): JSX.Element {
                   <Td num>{l.requestedQty}</Td>
                   <Td num>{l.receivedQty}</Td>
                   <Td num>{l.restockedQty}</Td>
-                  <Td num>{l.damagedQty}</Td>
                   <Td num>{l.disposedQty}</Td>
-                  <Td className="text-text-muted">{l.notes ?? "—"}</Td>
+                  <Td num>{l.donatedQty}</Td>
                 </TR>
               ))}
             </TBody>
@@ -263,27 +366,18 @@ export default function VendorReturnDetailPage(): JSX.Element {
       <section className="rounded-md border border-line bg-white p-6">
         <h2 className="font-mono text-mono-label uppercase text-text-muted">Timeline</h2>
         <ul className="mt-3 space-y-2 font-mono text-body-sm">
-          <Event when={r.createdAt} label="RMA opened" />
-          {r.authorizedAt ? <Event when={r.authorizedAt} label="Authorised — inbound label issued" /> : null}
-          {r.receivedAt ? <Event when={r.receivedAt} label="Box received at warehouse" /> : null}
-          {r.inspectedAt ? <Event when={r.inspectedAt} label="Inspection complete" /> : null}
+          <Event when={r.createdAt} label="Return registered — on its way to us" />
+          {r.receivedAt ? <Event when={r.receivedAt} label="Received at warehouse" /> : null}
+          {r.inspectedAt ? <Event when={r.inspectedAt} label="Inspected — photos shared" /> : null}
           {r.resolvedAt ? (
             <Event
               when={r.resolvedAt}
-              label={`Resolved — ${r.status.toLowerCase()}`}
-              tone={r.status === "RESTOCKED" ? "success" : "neutral"}
+              label={`Finalized — ${RETURN_STATUS_LABEL[r.status].toLowerCase()}`}
+              tone={r.status === "RESTOCKED" || r.status === "DONATED" ? "success" : "neutral"}
             />
           ) : null}
         </ul>
       </section>
-
-      {/* Inspector notes if present (read-only for vendor) */}
-      {r.inspectorNotes ? (
-        <section className="rounded-md border border-line bg-white p-6">
-          <h2 className="font-mono text-mono-label uppercase text-text-muted">Inspector notes</h2>
-          <p className="mt-2 whitespace-pre-wrap text-body text-text">{r.inspectorNotes}</p>
-        </section>
-      ) : null}
 
       {/* Cancel — only allowed pre-receive */}
       {isCancellable ? (
@@ -293,8 +387,7 @@ export default function VendorReturnDetailPage(): JSX.Element {
               <div>
                 <h2 className="font-mono text-mono-label uppercase text-text-muted">Cancel return</h2>
                 <p className="mt-1 text-body-sm text-text-muted">
-                  Voids the inbound label and removes this RMA. Only possible before the box reaches
-                  our warehouse.
+                  Removes this RMA. Only possible before the box reaches our warehouse.
                 </p>
               </div>
               <Button variant="ghost" onClick={() => setShowCancel(true)}>
@@ -305,8 +398,8 @@ export default function VendorReturnDetailPage(): JSX.Element {
             <div className="flex flex-col gap-3">
               <h2 className="text-h3 font-semibold text-ink">Cancel this RMA?</h2>
               <p className="text-body-sm text-text-muted">
-                If the customer has already shipped the box, this cancellation will not stop them — let
-                support know if you need to redirect the inbound parcel.
+                If the customer has already shipped the box, this cancellation won&apos;t stop them —
+                let support know if you need to redirect the inbound parcel.
               </p>
               <ErrorBanner
                 error={bannerError}
@@ -319,11 +412,7 @@ export default function VendorReturnDetailPage(): JSX.Element {
                 <Button variant="outline" onClick={() => setShowCancel(false)}>
                   Keep return
                 </Button>
-                <Button
-                  variant="amber"
-                  loading={cancelMut.isPending}
-                  onClick={() => cancelMut.mutate()}
-                >
+                <Button variant="amber" loading={cancelMut.isPending} onClick={() => cancelMut.mutate()}>
                   {cancelMut.isPending ? "Cancelling…" : "Confirm cancel"}
                 </Button>
               </div>
@@ -332,7 +421,6 @@ export default function VendorReturnDetailPage(): JSX.Element {
         </section>
       ) : null}
 
-      {/* Cross-link back to the parent order. Useful for support reps. */}
       <div className="text-body-sm text-text-muted">
         Parent order:{" "}
         <Link href={`/orders/${r.orderId}`} className="text-amber hover:text-amber-hi">

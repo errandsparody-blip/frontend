@@ -35,6 +35,7 @@ import { normalizeError } from "@/lib/errors";
 import {
   RETURN_REASON_LABEL,
   RETURN_STATUS,
+  returnChargeCents,
   type ReturnListResponse,
   type ReturnStatus,
 } from "@/lib/schemas/returns";
@@ -45,8 +46,10 @@ const TONE: Record<ReturnStatus, "neutral" | "info" | "success" | "warning" | "e
   IN_TRANSIT: "info",
   RECEIVED: "warning",
   INSPECTED: "warning",
+  INSTRUCTED: "info",
   RESTOCKED: "success",
   DISPOSED: "error",
+  DONATED: "success",
   REJECTED: "error",
   CANCELLED: "error",
 };
@@ -143,7 +146,7 @@ export default function AdminReturnsPage(): JSX.Element {
             <Th>Status</Th>
             <Th>Reason</Th>
             <Th align="right">Lines</Th>
-            <Th align="right">Refund</Th>
+            <Th align="right">Charge</Th>
             <Th>Inbound</Th>
             <Th>Opened</Th>
             <Th align="right">{""}</Th>
@@ -161,7 +164,7 @@ export default function AdminReturnsPage(): JSX.Element {
                 <Td className="text-text-muted">{RETURN_REASON_LABEL[r.reason]}</Td>
                 <Td num>{r.lines.length}</Td>
                 <Td num strong>
-                  {formatCents(r.refundAmountCents)}
+                  {formatCents(returnChargeCents(r))}
                 </Td>
                 <Td mono className="text-text-muted">
                   {r.inboundTracking ?? "—"}

@@ -54,11 +54,22 @@ const TONE: Record<OrderStatus, "neutral" | "info" | "success" | "warning" | "er
 // PACKING_COMPLETED onwards is a WAREHOUSE-side hold — cancels there
 // must go through support (the box is already assembled).
 const CANCELLABLE: OrderStatus[] = ["DRAFT", "SUBMITTED", "ALLOCATED", "PENDING_PACKING"];
-// Server-side rule (return.service.ts:68): an RMA can only be opened
-// against orders the carrier has confirmed as DELIVERED, or that hit
-// EXCEPTION (delivery problem). Anything earlier in the lifecycle goes
-// through cancel-order, not return.
-const RETURNABLE: OrderStatus[] = ["DELIVERED", "EXCEPTION"];
+// Server-side rule (ReturnService.create) — an RMA can only be opened
+// once the order has reached a post-shipment state, and the exact set
+// depends on fulfillment mode:
+//   * PLATFORM_SHIP: DELIVERED / EXCEPTION — USA Errands has a Shippo
+//     delivery signal, so we wait for actual delivery.
+//   * VENDOR_CARRIER ("own label"): also HANDED_OFF — there's no
+//     tracking for these, so shipped/handed-off is the earliest point.
+// Anything earlier in the lifecycle goes through cancel-order, not return.
+function isReturnable(
+  status: OrderStatus,
+  fulfillmentMode: string | null | undefined,
+): boolean {
+  if (status === "DELIVERED" || status === "EXCEPTION") return true;
+  if (fulfillmentMode === "VENDOR_CARRIER" && status === "HANDED_OFF") return true;
+  return false;
+}
 
 function formatCents(cents: number): string {
   return `$${(cents / 100).toLocaleString("en-US", {
@@ -91,6 +102,11 @@ export default function OrderDetailPage() {
   // Migration 0018 — vendor-supplied photo evidence at RMA-creation
   // time. Up to 5 R2 URLs from the AttachmentUploader.
   const [returnAttachments, setReturnAttachments] = useState<string[]>([]);
+  // Returns v2 — the customer ships the return themselves, so the vendor
+  // supplies the inbound carrier + tracking + expected delivery date.
+  const [returnCarrier, setReturnCarrier] = useState("");
+  const [returnTracking, setReturnTracking] = useState("");
+  const [returnExpectedDate, setReturnExpectedDate] = useState("");
 
   const { bannerError, handle, clear } = useApiErrorHandler();
 
@@ -408,51 +424,19 @@ export default function OrderDetailPage() {
           an exception) AND inside the configurable return window.
           Server enforces both rules too; the UI hide-when-not-eligible
           is just to keep the surface clean. */}
-      {RETURNABLE.includes(o.status) ? (() => {
-        const windowExpired =
-          o.returnableUntil != null && new Date(o.returnableUntil).getTime() < Date.now();
-        const daysLeft = o.returnableUntil
-          ? Math.max(
-              0,
-              Math.ceil((new Date(o.returnableUntil).getTime() - Date.now()) / (1000 * 60 * 60 * 24)),
-            )
-          : null;
-        // Live refund preview · sum of (returnQty × unit price) where
-        // unit price = declaredValueCents / quantity. Mirrors the
-        // backend's potentialRefundCents math exactly.
-        const livePreviewCents = o.lines.reduce((sum, ln) => {
-          const qty = returnQty[ln.id] ?? 0;
-          if (qty <= 0 || ln.quantity <= 0) return sum;
-          const unitCents = Math.floor(ln.declaredValueCents / ln.quantity);
-          return sum + unitCents * qty;
-        }, 0);
+      {isReturnable(o.status, o.fulfillmentMode) ? (() => {
         return (
         <section className="rounded-md border border-line bg-white p-6">
-          {windowExpired ? (
-            <div>
-              <h2 className="font-mono text-mono-label uppercase text-text-muted">
-                Request a return
-              </h2>
-              <p className="mt-1 text-body-sm text-text-muted">
-                Returns can&apos;t be opened — this order&apos;s return window expired on{" "}
-                {new Date(o.returnableUntil!).toLocaleDateString()}. Contact support if there&apos;s an
-                exceptional reason this needs to be reopened.
-              </p>
-            </div>
-          ) : !showReturn ? (
+          {!showReturn ? (
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="font-mono text-mono-label uppercase text-text-muted">
                   Request a return
                 </h2>
                 <p className="mt-1 text-body-sm text-text-muted">
-                  We&apos;ll generate a prepaid inbound label and email it to the customer.
-                  Inspection happens at our warehouse — your wallet is credited automatically.
-                  {daysLeft != null ? (
-                    <span className="ml-1 font-medium text-ink">
-                      {daysLeft} day{daysLeft === 1 ? "" : "s"} left in window.
-                    </span>
-                  ) : null}
+                  The customer ships the return on their own carrier — enter the tracking and
+                  expected delivery date, and we&apos;ll inspect on arrival, share photos, and ask
+                  how you&apos;d like the inventory handled. A $2.50 processing fee applies per return.
                 </p>
               </div>
               <Button
@@ -464,6 +448,9 @@ export default function OrderDetailPage() {
                   for (const ln of o.lines) seed[ln.id] = 0;
                   setReturnQty(seed);
                   setReturnAttachments([]);
+                  setReturnCarrier("");
+                  setReturnTracking("");
+                  setReturnExpectedDate("");
                   setShowReturn(true);
                 }}
               >
@@ -487,6 +474,34 @@ export default function OrderDetailPage() {
                   ))}
                 </select>
               </Field>
+
+              {/* Returns v2 — the customer ships the return themselves, so
+                  we capture their inbound tracking + expected delivery. */}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <Field label="Return carrier (optional)">
+                  <Input
+                    type="text"
+                    placeholder="USPS, UPS, FedEx…"
+                    value={returnCarrier}
+                    onChange={(e) => setReturnCarrier(e.target.value)}
+                  />
+                </Field>
+                <Field label="Return tracking number">
+                  <Input
+                    type="text"
+                    placeholder="e.g. 1Z999AA10123456784"
+                    value={returnTracking}
+                    onChange={(e) => setReturnTracking(e.target.value)}
+                  />
+                </Field>
+                <Field label="Expected delivery date">
+                  <Input
+                    type="date"
+                    value={returnExpectedDate}
+                    onChange={(e) => setReturnExpectedDate(e.target.value)}
+                  />
+                </Field>
+              </div>
 
               <div>
                 <div className="mb-2 font-mono text-mono-label uppercase text-text-muted">
@@ -571,10 +586,8 @@ export default function OrderDetailPage() {
                     {Object.values(returnQty).reduce((sum, n) => sum + n, 0)} unit(s) across{" "}
                     {Object.values(returnQty).filter((n) => n > 0).length} line(s)
                   </span>
-                  <span className="font-mono text-body-sm text-ink">
-                    Potential refund:{" "}
-                    <span className="font-semibold">{formatCents(livePreviewCents)}</span>
-                    <span className="ml-1 text-text-muted">(subject to inspection)</span>
+                  <span className="font-mono text-body-sm text-text-muted">
+                    A $2.50 processing fee applies when we receive and check the return.
                   </span>
                 </div>
                 <div className="flex gap-3">
@@ -586,6 +599,8 @@ export default function OrderDetailPage() {
                     loading={returnMut.isPending}
                     disabled={
                       returnMut.isPending ||
+                      returnTracking.trim().length === 0 ||
+                      returnExpectedDate.trim().length === 0 ||
                       Object.values(returnQty).every((n) => !n || n <= 0)
                     }
                     onClick={() => {
@@ -600,6 +615,9 @@ export default function OrderDetailPage() {
                         orderId: o.id,
                         reason: returnReason,
                         lines,
+                        inboundCarrier: returnCarrier.trim() || undefined,
+                        inboundTracking: returnTracking.trim(),
+                        expectedDeliveryDate: returnExpectedDate,
                         attachmentUrls: returnAttachments,
                       });
                     }}
