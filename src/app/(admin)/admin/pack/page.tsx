@@ -296,6 +296,15 @@ interface AdminOrderDetail {
   vendorCarrierName?: string | null;
   vendorTrackingNumber?: string | null;
   vendorLabelUrl?: string | null;
+  // Previous pack details — present when the order was packed before
+  // (e.g. sent back to the pack queue for a re-pack). Prisma returns
+  // Decimals which serialize as number|string; coerce with String().
+  packedLengthIn?: number | string | null;
+  packedWidthIn?: number | string | null;
+  packedHeightIn?: number | string | null;
+  packedWeightOz?: number | null;
+  packingNotes?: string | null;
+  packagingLabel?: string | null;
 }
 
 interface BarcodeLookupMatch {
@@ -633,6 +642,42 @@ function PackDialog({
     queryFn: () => api.get<AdminOrderDetail>(`/admin/orders/${row.id}`),
     staleTime: 60_000,
   });
+
+  // Re-pack prefill — an order sent back to the pack queue still carries
+  // its previous pack columns. Seed the ad-hoc dims once (if the operator
+  // hasn't typed) so they can see how it was packed and adjust, instead
+  // of a blank form. `repackFrom` drives a "previously packed" note.
+  const prefilledRef = useRef(false);
+  const [repackFrom, setRepackFrom] = useState<string | null>(null);
+  useEffect(() => {
+    const o = orderQ.data;
+    if (!o || prefilledRef.current) return;
+    if (
+      o.packedLengthIn == null ||
+      o.packedWidthIn == null ||
+      o.packedHeightIn == null ||
+      o.packedWeightOz == null
+    ) {
+      return;
+    }
+    prefilledRef.current = true;
+    setForm((f) =>
+      f.lengthIn || f.widthIn || f.heightIn || f.weightOz
+        ? f
+        : {
+            lengthIn: String(o.packedLengthIn),
+            widthIn: String(o.packedWidthIn),
+            heightIn: String(o.packedHeightIn),
+            weightOz: String(o.packedWeightOz),
+            notes: o.packingNotes ?? "",
+          },
+    );
+    setTab("adhoc");
+    setRepackFrom(
+      `${o.packedLengthIn} × ${o.packedWidthIn} × ${o.packedHeightIn} in · ${o.packedWeightOz} oz` +
+        (o.packagingLabel ? ` · ${o.packagingLabel}` : ""),
+    );
+  }, [orderQ.data]);
   // Migration 0045 — resolve each line SKU's location so the pack UI
   // shows warehouse operators exactly where to walk. Runs in parallel
   // (one lookup per SKU); errors and misses render as "—" rather
@@ -938,6 +983,21 @@ function PackDialog({
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-4 pt-4">
+
+        {/* Re-pack — this order was sent back to the pack queue and still
+            has its previous pack details. We prefilled them below so the
+            operator can adjust and record again. */}
+        {repackFrom ? (
+          <div className="mb-4 rounded-md border border-line bg-cream-soft p-3 text-body-sm text-text">
+            <div className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
+              Sent back for re-pack
+            </div>
+            <p className="mt-1">
+              Previously packed as <span className="font-medium text-ink">{repackFrom}</span>. The
+              fields below are prefilled — adjust the packaging or dimensions and record again.
+            </p>
+          </div>
+        ) : null}
 
         {/* VENDOR_CARRIER — surface the vendor's own label so the operator
             can print it and affix it before hand-off. There's no Shippo
