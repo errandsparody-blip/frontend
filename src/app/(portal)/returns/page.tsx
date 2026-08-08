@@ -80,7 +80,15 @@ export default function VendorReturnsPage(): JSX.Element {
       <PageHeader
         eyebrow="  Returns"
         title="Return authorisations"
-        description="Open an RMA against a delivered order. We'll send the customer a prepaid label; once the box arrives we inspect and refund your wallet."
+        description="Start a return against a shipped order. The customer ships it back on their own carrier; once it arrives we inspect, share photos, and ask how you'd like the inventory handled. A $2.50 processing fee applies per return."
+        actions={
+          <Link
+            href="/returns/new"
+            className="inline-flex h-10 items-center rounded-sm bg-amber px-4 font-mono text-mono-label uppercase tracking-[1.2px] text-ink hover:bg-amber-hi"
+          >
+            New return
+          </Link>
+        }
       />
 
       {/* Status filter — quick-toggles + reset button. Quick-toggles use

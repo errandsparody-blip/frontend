@@ -212,3 +212,20 @@ export function returnChargeCents(
 ): number {
   return (r.processingFeeCents ?? 0) + (r.handlingCostCents ?? 0);
 }
+
+/**
+ * Whether an order is eligible to open a return against. Mirrors the
+ * server-side gate in ReturnService.create — an order must have shipped:
+ *   * PLATFORM_SHIP: DELIVERED / EXCEPTION (we have a delivery signal).
+ *   * VENDOR_CARRIER: also HANDED_OFF (no tracking; shipped is enough).
+ * There is no time-window component (the age limit is the vendor's own
+ * policy). Shared by the order page and the "New return" picker.
+ */
+export function isOrderReturnable(
+  status: string,
+  fulfillmentMode: string | null | undefined,
+): boolean {
+  if (status === "DELIVERED" || status === "EXCEPTION") return true;
+  if (fulfillmentMode === "VENDOR_CARRIER" && status === "HANDED_OFF") return true;
+  return false;
+}
