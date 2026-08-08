@@ -911,7 +911,7 @@ function AddressForm({
           <textarea
             value={pasted}
             rows={3}
-            placeholder={"Paste the whole address here…\n2201 Tucker Lane\nApt B8\nGwynn Oak, MD 21207"}
+            placeholder={"Paste the whole address here…"}
             onChange={(e) => setPasted(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
