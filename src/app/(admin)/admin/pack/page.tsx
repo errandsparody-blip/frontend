@@ -289,6 +289,13 @@ interface AdminOrderDetail {
   id: string;
   vendor: { id: string; businessName: string };
   lines: OrderLine[];
+  // Migration 0037 — fulfillment mode + vendor-supplied carrier details.
+  // VENDOR_CARRIER means the vendor brought their own label; packing
+  // hands the order off directly (no platform label / rate picker).
+  fulfillmentMode?: "PLATFORM_SHIP" | "VENDOR_CARRIER";
+  vendorCarrierName?: string | null;
+  vendorTrackingNumber?: string | null;
+  vendorLabelUrl?: string | null;
 }
 
 interface BarcodeLookupMatch {
@@ -660,6 +667,12 @@ function PackDialog({
     | null
   >(null);
   const lines = orderQ.data?.lines ?? [];
+  // VENDOR_CARRIER ("use my own carrier") — the vendor supplied their own
+  // label. Recording the pack hands the order off directly; there's no
+  // platform rate picker / label purchase. Surface their label so the
+  // operator can print it and adjust the CTA copy accordingly.
+  const isVendorCarrier = orderQ.data?.fulfillmentMode === "VENDOR_CARRIER";
+  const vendorLabelUrl = orderQ.data?.vendorLabelUrl ?? null;
   const totalUnits = lines.reduce((s, l) => s + l.quantity, 0);
   const scannedUnits = Object.entries(scanCounts).reduce(
     (s, [id, count]) => {
@@ -918,13 +931,47 @@ function PackDialog({
             </span>
           </div>
           <p className="mt-1 text-body-sm text-text-muted">
-            Measure the outside of the box, then weigh the packed parcel on
-            the platform scale. These numbers feed the live carrier rate
-            request in the next step.
+            {isVendorCarrier
+              ? "This vendor is using their own carrier. Print their label below, pack the parcel, and record the details — the order is handed off to their carrier immediately. No platform label is bought."
+              : "Measure the outside of the box, then weigh the packed parcel on the platform scale. These numbers feed the live carrier rate request in the next step."}
           </p>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-4 pt-4">
+
+        {/* VENDOR_CARRIER — surface the vendor's own label so the operator
+            can print it and affix it before hand-off. There's no Shippo
+            label for these orders. */}
+        {isVendorCarrier ? (
+          <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-body-sm text-amber-900">
+            <div className="font-semibold">Vendor's own carrier</div>
+            <p className="mt-1">
+              {orderQ.data?.vendorCarrierName
+                ? `Carrier: ${orderQ.data.vendorCarrierName}. `
+                : ""}
+              {orderQ.data?.vendorTrackingNumber
+                ? `Tracking: ${orderQ.data.vendorTrackingNumber}. `
+                : ""}
+              Recording pack details will hand this order off — no platform
+              label is purchased.
+            </p>
+            {vendorLabelUrl ? (
+              <a
+                href={vendorLabelUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-2 inline-block font-semibold underline"
+              >
+                Open / print vendor label →
+              </a>
+            ) : (
+              <p className="mt-2 italic">
+                No label was attached by the vendor. Confirm with them before
+                handing off.
+              </p>
+            )}
+          </div>
+        ) : null}
 
         {/* Migration 0044 — scan-to-verify panel. Each scanned barcode
             is resolved to a product; the operator can only advance
@@ -1228,7 +1275,11 @@ function PackDialog({
               if (parsed.ok) onSubmit(parsed.payload);
             }}
           >
-            {submitting ? "Saving…" : "Record pack"}
+            {submitting
+              ? "Saving…"
+              : isVendorCarrier
+                ? "Record pack & hand off"
+                : "Record pack"}
           </Button>
         </div>
       </div>

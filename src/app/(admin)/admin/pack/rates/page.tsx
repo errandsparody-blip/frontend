@@ -39,12 +39,12 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { ErrorBanner } from "@/components/errors/error-banner";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
 import { DataTable, TBody, THead, Th, TR, Td } from "@/components/ui/table";
@@ -97,14 +97,6 @@ interface PackOrderDetail {
   packagingLabel: string | null;
 }
 
-interface EditPackPayload {
-  lengthIn: number;
-  widthIn: number;
-  heightIn: number;
-  weightOz: number;
-  notes?: string;
-}
-
 type SelectRateResponse =
   | {
       // Phase P-C — the click also purchases the label in one shot
@@ -143,6 +135,7 @@ const STATUS_TONE: Record<QueueStatus, "neutral" | "info" | "warning"> = {
 
 export default function AdminRatePickerPage(): JSX.Element {
   const qc = useQueryClient();
+  const router = useRouter();
   const { bannerError, handle, clear } = useApiErrorHandler();
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -191,27 +184,28 @@ export default function AdminRatePickerPage(): JSX.Element {
     staleTime: 10_000,
   });
 
-  const [showEdit, setShowEdit] = useState(false);
-  const editMut = useMutation({
-    mutationFn: async (payload: EditPackPayload) => {
+  // "Send back to pack queue" — regresses the order to PENDING_PACKING
+  // so the operator can re-pack it with the full toolset on /admin/pack
+  // (packaging presets, carrier templates, barcode scan). Replaces the
+  // old restrictive inline dims/weight editor. On success we navigate
+  // straight to the pack queue so the operator can pick the order up.
+  const sendBackMut = useMutation({
+    mutationFn: async () => {
       if (!selectedId) throw new Error("No order selected.");
-      return api.patch<{
-        orderId: string;
-        status: string;
-      }>(`/admin/pack/${selectedId}/pack-details`, payload);
+      return api.post<{ orderId: string; status: string }>(
+        `/admin/pack/${selectedId}/send-to-pack-queue`,
+        {},
+      );
     },
     onMutate: () => clear(),
     onSuccess: async () => {
-      setShowEdit(false);
-      // Rate cache was dropped server-side; wipe the local cache too
-      // and refresh the order detail + queue.
-      qc.setQueryData(["admin", "pack", "rate-options", selectedId], {
-        items: [],
-      });
+      // Order left the rate queue for the pack queue — refresh both,
+      // then send the operator to the full pack flow.
       await Promise.all([
-        qc.invalidateQueries({ queryKey: ["admin", "pack", "order-detail", selectedId] }),
         qc.invalidateQueries({ queryKey: ["admin", "pack", "rate-queue"] }),
+        qc.invalidateQueries({ queryKey: ["admin", "pack", "queue"] }),
       ]);
+      router.push("/admin/pack");
     },
     onError: (err) => handle(err),
   });
@@ -359,10 +353,12 @@ export default function AdminRatePickerPage(): JSX.Element {
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => setShowEdit(true)}
-                    disabled={editMut.isPending}
+                    onClick={() => sendBackMut.mutate()}
+                    loading={sendBackMut.isPending}
+                    disabled={sendBackMut.isPending}
+                    title="Move this order back to the pack queue to re-pack it with the full toolset (packaging, carrier template, barcode scan)."
                   >
-                    Edit pack details
+                    Send back to pack queue
                   </Button>
                   <Button
                     type="button"
@@ -561,225 +557,6 @@ export default function AdminRatePickerPage(): JSX.Element {
             </>
           )}
         </section>
-      </div>
-
-      {/* Phase P-D — edit-pack-details modal. Rendered outside the
-          panels so it overlays the whole page. Reuses the current
-          order-detail data as initial values. Submitting patches
-          /admin/pack/:id/pack-details, which drops the cached rate
-          options and reverts status to PACKING_COMPLETED — the
-          operator then re-fetches rates before picking again. */}
-      {showEdit && orderQ.data ? (
-        <EditPackDetailsDialog
-          initial={orderQ.data}
-          submitting={editMut.isPending}
-          onCancel={() => setShowEdit(false)}
-          onSubmit={(payload) => editMut.mutate(payload)}
-        />
-      ) : null}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-
-/**
- * Compact modal for editing packed dimensions + weight + notes before
- * the label is purchased. Scoped down from the full pack modal — no
- * scan panel (barcodes were already verified at pack time) and no
- * packaging-tab picker (that's a fuller re-pack, out of scope for the
- * quick-correction flow). Carrier / library edits can be done by
- * re-packing from the pack queue if the item is regressed there.
- */
-function EditPackDetailsDialog({
-  initial,
-  submitting,
-  onCancel,
-  onSubmit,
-}: {
-  initial: PackOrderDetail;
-  submitting: boolean;
-  onCancel: () => void;
-  onSubmit: (payload: EditPackPayload) => void;
-}): JSX.Element {
-  const [lengthIn, setLengthIn] = useState(String(initial.packedLengthIn ?? ""));
-  const [widthIn, setWidthIn] = useState(String(initial.packedWidthIn ?? ""));
-  const [heightIn, setHeightIn] = useState(String(initial.packedHeightIn ?? ""));
-  const [weightOz, setWeightOz] = useState(String(initial.packedWeightOz ?? ""));
-  const [notes, setNotes] = useState(initial.packingNotes ?? "");
-  const [errors, setErrors] = useState<Record<string, string>>({});
-
-  function parseAndSubmit(): void {
-    const next: Record<string, string> = {};
-    const parsePositive = (raw: string, label: string): number | null => {
-      const n = Number(raw.trim());
-      if (raw.trim() === "" || !Number.isFinite(n) || n <= 0) {
-        next[label] = `${label} must be a positive number.`;
-        return null;
-      }
-      if (n > 48) {
-        next[label] = `${label} exceeds 48 in.`;
-        return null;
-      }
-      return n;
-    };
-    const l = parsePositive(lengthIn, "Length");
-    const w = parsePositive(widthIn, "Width");
-    const h = parsePositive(heightIn, "Height");
-    const wtN = Number(weightOz.trim());
-    let wt = 0;
-    if (!Number.isInteger(wtN) || wtN <= 0 || wtN > 1120) {
-      next.Weight = "Weight must be an integer 1..1120 oz.";
-    } else {
-      wt = wtN;
-    }
-    const notesTrim = notes.trim();
-    if (notesTrim.length > 500) next.Notes = "Notes cap at 500 chars.";
-    if (Object.keys(next).length > 0) {
-      setErrors(next);
-      return;
-    }
-    setErrors({});
-    onSubmit({
-      lengthIn: l as number,
-      widthIn: w as number,
-      heightIn: h as number,
-      weightOz: wt,
-      notes: notesTrim.length > 0 ? notesTrim : undefined,
-    });
-  }
-
-  return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-    >
-      <div className="flex max-h-[90vh] w-full max-w-lg flex-col rounded-md border border-line bg-white shadow-lg">
-        <div className="border-b border-line px-6 pb-4 pt-6">
-          <h2 className="text-h2 font-semibold text-ink">Edit pack details</h2>
-          <p className="mt-1 text-body-sm text-text-muted">
-            Correct the box dimensions, parcel weight, or notes. Saving drops
-            the current rate quote — you&apos;ll need to re-fetch rates and
-            pick again before buying the label.
-          </p>
-        </div>
-
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
-          <div className="grid grid-cols-3 gap-4">
-            <label className="flex flex-col gap-1">
-              <span className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
-                Length (in)
-              </span>
-              <Input
-                type="text"
-                inputMode="decimal"
-                value={lengthIn}
-                onChange={(e) => setLengthIn(e.target.value)}
-                disabled={submitting}
-              />
-              {errors.Length ? (
-                <span className="text-body-xs text-red-700">
-                  {errors.Length}
-                </span>
-              ) : null}
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
-                Width (in)
-              </span>
-              <Input
-                type="text"
-                inputMode="decimal"
-                value={widthIn}
-                onChange={(e) => setWidthIn(e.target.value)}
-                disabled={submitting}
-              />
-              {errors.Width ? (
-                <span className="text-body-xs text-red-700">
-                  {errors.Width}
-                </span>
-              ) : null}
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
-                Height (in)
-              </span>
-              <Input
-                type="text"
-                inputMode="decimal"
-                value={heightIn}
-                onChange={(e) => setHeightIn(e.target.value)}
-                disabled={submitting}
-              />
-              {errors.Height ? (
-                <span className="text-body-xs text-red-700">
-                  {errors.Height}
-                </span>
-              ) : null}
-            </label>
-          </div>
-          <div className="mt-4">
-            <label className="flex flex-col gap-1">
-              <span className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
-                Weight (oz)
-              </span>
-              <Input
-                type="text"
-                inputMode="numeric"
-                value={weightOz}
-                onChange={(e) => setWeightOz(e.target.value)}
-                disabled={submitting}
-              />
-              {errors.Weight ? (
-                <span className="text-body-xs text-red-700">
-                  {errors.Weight}
-                </span>
-              ) : null}
-            </label>
-          </div>
-          <div className="mt-4">
-            <label className="flex flex-col gap-1">
-              <span className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
-                Notes (optional, ≤ 500 chars)
-              </span>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                disabled={submitting}
-                rows={3}
-                className="w-full rounded-md border border-line bg-white p-2 text-body-sm text-ink"
-              />
-              {errors.Notes ? (
-                <span className="text-body-xs text-red-700">
-                  {errors.Notes}
-                </span>
-              ) : null}
-            </label>
-          </div>
-        </div>
-
-        <div className="flex items-center justify-end gap-3 border-t border-line px-6 py-4">
-          <Button
-            type="button"
-            variant="outline"
-            size="md"
-            onClick={onCancel}
-            disabled={submitting}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            variant="amber"
-            size="md"
-            onClick={parseAndSubmit}
-            loading={submitting}
-            disabled={submitting}
-          >
-            {submitting ? "Saving…" : "Save changes"}
-          </Button>
-        </div>
       </div>
     </div>
   );
