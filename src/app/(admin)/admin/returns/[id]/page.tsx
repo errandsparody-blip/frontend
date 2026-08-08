@@ -75,14 +75,15 @@ export default function AdminReturnDetailPage(): JSX.Element {
     enabled: !!params.id,
   });
 
-  // Exact processing fee from config so the finalize preview matches
-  // what the server will charge (falls back to the $2.50 policy default).
+  // Exact processing fee from the live fee schedule so the finalize
+  // preview matches what the server will charge (falls back to the $1.99
+  // policy default).
   const configQ = useQuery({
     queryKey: ["admin", "returns", "config"],
     queryFn: () => api.get<{ processingFeeCents: number }>("/admin/returns/config"),
     staleTime: 5 * 60_000,
   });
-  const processingFeeCents = configQ.data?.processingFeeCents ?? 250;
+  const processingFeeCents = configQ.data?.processingFeeCents ?? 199;
 
   const { bannerError, handle, clear } = useApiErrorHandler();
 
@@ -200,7 +201,7 @@ export default function AdminReturnDetailPage(): JSX.Element {
               </dl>
             ) : (
               <p className="mt-1 text-body-sm text-text-muted">
-                The vendor is charged a $2.50 processing fee plus any handling cost at finalize. No
+                The vendor is charged a processing fee plus any handling cost at finalize. No
                 refund is issued.
               </p>
             )}
@@ -345,7 +346,8 @@ export default function AdminReturnDetailPage(): JSX.Element {
           <h2 className="text-h3 font-semibold text-ink">Finalize</h2>
           <p className="mt-1 text-body-sm text-text-muted">
             The vendor&apos;s instructions are below. Finalizing restocks the restocked units, records
-            the rest, and charges the vendor the $2.50 processing fee plus any handling cost.
+            the rest, and charges the vendor the {formatCents(processingFeeCents)} processing fee plus
+            any handling cost.
           </p>
           <div className="mt-4">
             <DataTable>

@@ -436,7 +436,7 @@ export default function OrderDetailPage() {
                 <p className="mt-1 text-body-sm text-text-muted">
                   The customer ships the return on their own carrier — enter the tracking and
                   expected delivery date, and we&apos;ll inspect on arrival, share photos, and ask
-                  how you&apos;d like the inventory handled. A $2.50 processing fee applies per return.
+                  how you&apos;d like the inventory handled. A processing fee applies per return.
                 </p>
               </div>
               <Button
@@ -587,7 +587,7 @@ export default function OrderDetailPage() {
                     {Object.values(returnQty).filter((n) => n > 0).length} line(s)
                   </span>
                   <span className="font-mono text-body-sm text-text-muted">
-                    A $2.50 processing fee applies when we receive and check the return.
+                    A processing fee applies when we receive and check the return.
                   </span>
                 </div>
                 <div className="flex gap-3">

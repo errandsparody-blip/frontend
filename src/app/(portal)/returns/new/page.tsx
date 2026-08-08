@@ -300,7 +300,7 @@ export default function NewReturnPage(): JSX.Element {
 
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <span className="font-mono text-body-sm text-text-muted">
-                  {totalUnits} unit(s) · a $2.50 processing fee applies when we receive the return.
+                  {totalUnits} unit(s) · a processing fee applies when we receive the return.
                 </span>
                 <Button
                   variant="amber"

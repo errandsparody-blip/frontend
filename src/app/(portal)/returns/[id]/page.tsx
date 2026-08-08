@@ -200,7 +200,7 @@ export default function VendorReturnDetailPage(): JSX.Element {
               </dl>
             ) : (
               <p className="mt-1 text-body-sm text-text-muted">
-                A $2.50 processing fee (plus any handling cost) is charged to your wallet when we
+                A processing fee (plus any handling cost) is charged to your wallet when we
                 finish handling this return. There is no product refund.
               </p>
             )}

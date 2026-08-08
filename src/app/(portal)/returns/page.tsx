@@ -80,7 +80,7 @@ export default function VendorReturnsPage(): JSX.Element {
       <PageHeader
         eyebrow="  Returns"
         title="Return authorisations"
-        description="Start a return against a shipped order. The customer ships it back on their own carrier; once it arrives we inspect, share photos, and ask how you'd like the inventory handled. A $2.50 processing fee applies per return."
+        description="Start a return against a shipped order. The customer ships it back on their own carrier; once it arrives we inspect, share photos, and ask how you'd like the inventory handled. A processing fee applies per return."
         actions={
           <Link
             href="/returns/new"
