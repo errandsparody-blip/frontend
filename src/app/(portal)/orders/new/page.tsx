@@ -11,10 +11,13 @@ import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
+import { rememberAddress, SavedAddressPicker } from "@/components/ui/saved-address-picker";
 import { StatusPill } from "@/components/ui/status-pill";
+import { SuggestInput } from "@/components/ui/suggest-input";
 import { DataTable, TBody, THead, Th, TR, Td } from "@/components/ui/table";
 import { api } from "@/lib/api-client";
 import { useApiErrorHandler } from "@/lib/errors";
+import { rememberText } from "@/lib/suggestions";
 import {
   recipientAddressSchema,
   type CreateOrderInput,
@@ -366,6 +369,19 @@ export default function NewOrderPage() {
       setValidationError(null);
     },
     onSuccess: (o) => {
+      // Auto-remember the destination + reference for next time.
+      rememberAddress({
+        recipientName: address.recipientName,
+        shipAddressLine1: address.shipAddressLine1,
+        shipAddressLine2: address.shipAddressLine2 || undefined,
+        shipCity: address.shipCity,
+        shipState: address.shipState,
+        shipPostalCode: address.shipPostalCode,
+        shipCountry: address.shipCountry,
+        recipientPhone: address.recipientPhone || undefined,
+        recipientEmail: address.recipientEmail || undefined,
+      });
+      rememberText("order-reference", externalReference);
       setSubmitted(o);
     },
     onError: (err) => handle(err),
@@ -938,6 +954,25 @@ function AddressForm({
         </div>
       ) : null}
 
+      {/* Reuse a previously-saved destination (localStorage). Renders
+          nothing until the vendor has saved at least one address. */}
+      <SavedAddressPicker
+        onPick={(a) =>
+          onChangeAddress({
+            ...address,
+            recipientName: a.recipientName,
+            shipAddressLine1: a.shipAddressLine1,
+            shipAddressLine2: a.shipAddressLine2 ?? "",
+            shipCity: a.shipCity,
+            shipState: a.shipState,
+            shipPostalCode: a.shipPostalCode,
+            shipCountry: a.shipCountry ?? address.shipCountry,
+            recipientPhone: a.recipientPhone ?? address.recipientPhone,
+            recipientEmail: a.recipientEmail ?? address.recipientEmail,
+          })
+        }
+      />
+
       <div className="grid grid-cols-2 gap-4">
         <Field label="Recipient name" error={fieldErrors.recipientName}>
           <Input
@@ -949,10 +984,10 @@ function AddressForm({
           />
         </Field>
         <Field label="External reference (optional)" hint="Your order number — Shopify, WooCommerce, etc.">
-          <Input
-            type="text"
+          <SuggestInput
+            namespace="order-reference"
             value={externalReference}
-            onChange={(e) => onChangeReference(e.target.value)}
+            onChange={onChangeReference}
             placeholder="#1042"
           />
         </Field>

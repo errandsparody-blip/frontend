@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect, useMemo, useState } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { ProductImageUploader } from "@/components/portal/product-image-uploader";
@@ -10,6 +10,8 @@ import { StorageTierGuide } from "@/components/portal/storage-tier-guide";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { SuggestInput } from "@/components/ui/suggest-input";
+import { rememberText } from "@/lib/suggestions";
 import type { ApiError } from "@/lib/api-client";
 import { COUNTRIES } from "@/lib/countries";
 import {
@@ -235,6 +237,7 @@ export function ProductForm({
 
   const {
     register,
+    control,
     handleSubmit,
     setValue,
     getValues,
@@ -353,6 +356,8 @@ export function ProductForm({
         imageUrl: (imageUrl ?? null) as string,
       };
       await onSubmit(wireValues);
+      // Auto-remember the variant so it's suggested on the next product.
+      rememberText("product-variant", wireValues.variant);
       // Success — flash the confirmation. If the parent navigated away
       // the timeout simply never fires (component unmounted) and the
       // setState call below is a no-op.
@@ -449,12 +454,19 @@ export function ProductForm({
               : "Default: STD."
           }
         >
-          <Input
-            type="text"
-            placeholder="STD"
-            invalid={!!errors.variant}
-            disabled={locked}
-            {...register("variant")}
+          <Controller
+            control={control}
+            name="variant"
+            render={({ field }) => (
+              <SuggestInput
+                namespace="product-variant"
+                placeholder="STD"
+                invalid={!!errors.variant}
+                disabled={locked}
+                value={field.value ?? ""}
+                onChange={field.onChange}
+              />
+            )}
           />
         </Field>
         <Field label="Display name" error={errors.name?.message} className="md:col-span-2">

@@ -27,9 +27,11 @@ import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
+import { SuggestInput } from "@/components/ui/suggest-input";
 import { DataTable, TBody, THead, Th, TR, Td } from "@/components/ui/table";
 import { api } from "@/lib/api-client";
 import { useApiErrorHandler } from "@/lib/errors";
+import { rememberText } from "@/lib/suggestions";
 import type { PublicOrder } from "@/lib/schemas/orders";
 import {
   isOrderReturnable,
@@ -85,6 +87,9 @@ export default function NewReturnPage(): JSX.Element {
     mutationFn: (body: CreateReturnInput) => api.post<ReturnSnapshot>("/returns", body),
     onMutate: () => clear(),
     onSuccess: async (created) => {
+      // Auto-remember what was typed so it's suggested next time.
+      rememberText("return-carrier", carrier);
+      rememberText("return-tracking", tracking);
       await qc.invalidateQueries({ queryKey: ["returns"] });
       router.push(`/returns/${created.id}`);
     },
@@ -216,19 +221,19 @@ export default function NewReturnPage(): JSX.Element {
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <Field label="Return carrier (optional)">
-                  <Input
-                    type="text"
+                  <SuggestInput
+                    namespace="return-carrier"
                     placeholder="USPS, UPS, FedEx…"
                     value={carrier}
-                    onChange={(e) => setCarrier(e.target.value)}
+                    onChange={setCarrier}
                   />
                 </Field>
                 <Field label="Return tracking number">
-                  <Input
-                    type="text"
+                  <SuggestInput
+                    namespace="return-tracking"
                     placeholder="e.g. 1Z999AA10123456784"
                     value={tracking}
-                    onChange={(e) => setTracking(e.target.value)}
+                    onChange={setTracking}
                   />
                 </Field>
                 <Field label="Expected delivery date">

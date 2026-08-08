@@ -26,12 +26,14 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { SuggestInput } from "@/components/ui/suggest-input";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
 import { DataTable, TBody, THead, Th, TR, Td } from "@/components/ui/table";
 import { api } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
 import { useApiErrorHandler } from "@/lib/errors";
+import { rememberEntry } from "@/lib/suggestions";
 
 interface InventoryLocation {
   id: string;
@@ -470,6 +472,17 @@ function CreateForm({
       });
     },
     onSuccess: async () => {
+      // Remember the warehouse coordinates for next time. These are often
+      // 1 char (aisle "A", bin "B"), so use rememberEntry directly rather
+      // than rememberText (which skips <2-char values).
+      const keep = (ns: string, v: string) => {
+        const t = v.trim();
+        if (t) rememberEntry<string>(ns, t, t);
+      };
+      keep("loc-aisle", aisle);
+      keep("loc-bay", bay);
+      keep("loc-shelf", shelf);
+      keep("loc-bin", bin);
       await onCreated();
     },
     onError: (e) => onError(e),
@@ -498,32 +511,16 @@ function CreateForm({
           />
         </Field>
         <Field label="Aisle" error={errors.aisle}>
-          <Input
-            type="text"
-            value={aisle}
-            onChange={(e) => setAisle(e.target.value)}
-          />
+          <SuggestInput namespace="loc-aisle" value={aisle} onChange={setAisle} />
         </Field>
         <Field label="Bay" error={errors.bay}>
-          <Input
-            type="text"
-            value={bay}
-            onChange={(e) => setBay(e.target.value)}
-          />
+          <SuggestInput namespace="loc-bay" value={bay} onChange={setBay} />
         </Field>
         <Field label="Shelf" error={errors.shelf}>
-          <Input
-            type="text"
-            value={shelf}
-            onChange={(e) => setShelf(e.target.value)}
-          />
+          <SuggestInput namespace="loc-shelf" value={shelf} onChange={setShelf} />
         </Field>
         <Field label="Bin" error={errors.bin}>
-          <Input
-            type="text"
-            value={bin}
-            onChange={(e) => setBin(e.target.value)}
-          />
+          <SuggestInput namespace="loc-bin" value={bin} onChange={setBin} />
         </Field>
         <Field label="Sort" error={errors.sortOrder}>
           <Input

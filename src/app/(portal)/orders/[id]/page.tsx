@@ -10,11 +10,13 @@ import { BackButton } from "@/components/portal/back-button";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { SuggestInput } from "@/components/ui/suggest-input";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
 import { DataTable, TBody, THead, Th, TR, Td } from "@/components/ui/table";
 import { api } from "@/lib/api-client";
 import { normalizeError, useApiErrorHandler } from "@/lib/errors";
+import { rememberText } from "@/lib/suggestions";
 import { ORDER_CANCEL_REASON, type OrderStatus, type PublicOrder } from "@/lib/schemas/orders";
 import {
   RETURN_REASON,
@@ -136,6 +138,8 @@ export default function OrderDetailPage() {
     mutationFn: (body: CreateReturnInput) => api.post<ReturnSnapshot>("/returns", body),
     onMutate: clear,
     onSuccess: async (created) => {
+      rememberText("return-carrier", returnCarrier);
+      rememberText("return-tracking", returnTracking);
       setShowReturn(false);
       setReturnQty({});
       setReturnAttachments([]);
@@ -479,19 +483,19 @@ export default function OrderDetailPage() {
                   we capture their inbound tracking + expected delivery. */}
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <Field label="Return carrier (optional)">
-                  <Input
-                    type="text"
+                  <SuggestInput
+                    namespace="return-carrier"
                     placeholder="USPS, UPS, FedEx…"
                     value={returnCarrier}
-                    onChange={(e) => setReturnCarrier(e.target.value)}
+                    onChange={setReturnCarrier}
                   />
                 </Field>
                 <Field label="Return tracking number">
-                  <Input
-                    type="text"
+                  <SuggestInput
+                    namespace="return-tracking"
                     placeholder="e.g. 1Z999AA10123456784"
                     value={returnTracking}
-                    onChange={(e) => setReturnTracking(e.target.value)}
+                    onChange={setReturnTracking}
                   />
                 </Field>
                 <Field label="Expected delivery date">

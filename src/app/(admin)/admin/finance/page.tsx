@@ -44,7 +44,7 @@ export default function FinanceLandingPage() {
       <PageHeader
         eyebrow="  Finance"
         title="Vendors & wallets"
-        description="Search a vendor to credit a manual deposit (Wise / Payoneer) or open the reconciliation report."
+        description="Search a vendor to credit a manual deposit (Wise / Payoneer), debit a wallet, or open the reconciliation report."
         actions={
           <div className="flex items-center gap-4">
             <Link
@@ -129,12 +129,20 @@ export default function FinanceLandingPage() {
                   {v.wallet ? formatCents(v.wallet.balanceCents) : "—"}
                 </Td>
                 <Td align="right">
-                  <Link
-                    href={`/admin/finance/credit/${v.id}`}
-                    className="font-mono text-[11px] uppercase tracking-[1.2px] text-amber hover:text-amber-hi"
-                  >
-                    Credit deposit →
-                  </Link>
+                  <div className="flex items-center justify-end gap-4">
+                    <Link
+                      href={`/admin/finance/credit/${v.id}`}
+                      className="font-mono text-[11px] uppercase tracking-[1.2px] text-amber hover:text-amber-hi"
+                    >
+                      Credit →
+                    </Link>
+                    <Link
+                      href={`/admin/finance/debit/${v.id}`}
+                      className="font-mono text-[11px] uppercase tracking-[1.2px] text-text-muted hover:text-ink"
+                    >
+                      Debit →
+                    </Link>
+                  </div>
                 </Td>
               </TR>
             ))}
