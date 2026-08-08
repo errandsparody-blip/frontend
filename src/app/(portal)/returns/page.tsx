@@ -130,7 +130,7 @@ export default function VendorReturnsPage(): JSX.Element {
           description={
             statusFilter
               ? "Try a different status filter, or clear it to see everything."
-              : "Open one from the order detail page when a customer needs to send something back."
+              : "Use the New return button above to start one against a shipped order."
           }
         />
       ) : (
