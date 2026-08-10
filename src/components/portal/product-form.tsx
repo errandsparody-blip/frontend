@@ -250,6 +250,7 @@ export function ProductForm({
     // upgrade to the user's preferred unit in a useEffect below.
     defaultValues: {
       code: initial?.code ?? "",
+      storeSku: initial?.storeSku ?? "",
       name: initial?.name ?? "",
       variant: initial?.variant ?? "STD",
       hsCode: initial?.hsCode ?? "",
@@ -445,6 +446,21 @@ export function ProductForm({
             />
           </Field>
         ) : null}
+        {/* Store SKU — stays editable even when the product is locked; it's
+            a mapping convenience, not a locked identity/compliance field. */}
+        <Field
+          label="Store SKU (optional)"
+          error={errors.storeSku?.message}
+          hint="Your Shopify/Amazon/WooCommerce SKU for this product. Set it and storefront orders can arrive with your own SKU — no need to paste our code into your store."
+        >
+          <Input
+            type="text"
+            autoComplete="off"
+            placeholder="your-store-sku"
+            invalid={!!errors.storeSku}
+            {...register("storeSku")}
+          />
+        </Field>
         <Field
           label="Variant"
           error={errors.variant?.message}
