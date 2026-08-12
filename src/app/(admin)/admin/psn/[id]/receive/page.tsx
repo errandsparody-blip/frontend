@@ -249,7 +249,22 @@ export default function ReceivePsnPage() {
 
   const [rows, setRows] = useState<Record<string, ReceivingState>>({});
 
+  // Admin box-tier correction. `boxEdits` is seeded from the vendor's
+  // declared mix; if the operator changes it, we send correctedBoxCounts on
+  // receive — the boxes get created at the corrected tier (recurring storage
+  // self-corrects) and the vendor is charged the first-month + stocking
+  // difference (or a WRONG_TIER hold for it).
+  const [boxEditOpen, setBoxEditOpen] = useState(false);
+  const [boxEdits, setBoxEdits] = useState<Record<string, number> | null>(null);
+
   const { bannerError, handle, clear } = useApiErrorHandler();
+
+  // Seed the box-tier editor from the vendor's declared mix once the PSN
+  // loads. Only tiers with a positive declared count are pre-filled.
+  useEffect(() => {
+    if (!psn || boxEdits !== null) return;
+    setBoxEdits({ ...(psn.declaredBoxCounts ?? {}) });
+  }, [psn, boxEdits]);
 
   useEffect(() => {
     if (!psn) return;
@@ -308,8 +323,13 @@ export default function ReceivePsnPage() {
   }
 
   const submitMut = useMutation({
-    mutationFn: () =>
-      api.post<{ status: string; psnId: string }>(`/admin/psns/${params.id}/receive`, {
+    mutationFn: () => {
+      // Normalise both mixes to positive ints and only send
+      // correctedBoxCounts when the operator actually changed the tiers.
+      const declared = normalizeCounts(psn!.declaredBoxCounts);
+      const corrected = normalizeCounts(boxEdits ?? psn!.declaredBoxCounts);
+      const changed = JSON.stringify(declared) !== JSON.stringify(corrected);
+      return api.post<{ status: string; psnId: string }>(`/admin/psns/${params.id}/receive`, {
         lines: psn!.lines.map((l) => {
           const r = rows[l.id] ?? { damagedQty: 0, missingQty: 0, notes: "" };
           return {
@@ -321,7 +341,9 @@ export default function ReceivePsnPage() {
             notes: r.notes || undefined,
           };
         }),
-      }),
+        ...(changed ? { correctedBoxCounts: corrected } : {}),
+      });
+    },
     onMutate: clear,
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["admin", "psns"] });
@@ -618,6 +640,77 @@ export default function ReceivePsnPage() {
           the declaration against what's physically on the floor before
           they start receiving line items. */}
       <DeclaredBoxesPanel counts={psn.declaredBoxCounts} />
+
+      {/* Admin box-tier correction — vendors sometimes declare a smaller
+          tier than the box actually is (SMALL declared, LARGE arrives).
+          The operator adjusts the physical mix here. On receive the
+          StorageBoxes are created at the CORRECTED tiers, so recurring
+          monthly storage bills at the right rate going forward, and the
+          vendor is charged the first-month + stocking DIFFERENCE once (or
+          gets a WRONG_TIER hold for it if their wallet is short). Only
+          available while the PSN is still open — once sealed the record is
+          immutable. */}
+      {!isFinal && boxEdits ? (
+        <section className="rounded-md border border-line bg-cream-soft p-5">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
+                Correct box tiers
+              </div>
+              <p className="mt-1 max-w-2xl text-body-sm text-text-muted">
+                If the physical boxes are a bigger tier than the vendor
+                declared, adjust the counts below. The vendor is billed the
+                higher tier every month and charged the one-time
+                first-month + stocking difference on receive (or a
+                WRONG_TIER hold if their wallet is short).
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                if (boxEditOpen) {
+                  // Cancel — discard edits, reseed from declared.
+                  setBoxEdits({ ...(psn.declaredBoxCounts ?? {}) });
+                }
+                setBoxEditOpen((v) => !v);
+              }}
+            >
+              {boxEditOpen ? "Cancel" : "Correct tiers"}
+            </Button>
+          </div>
+
+          {boxEditOpen ? (
+            <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+              {BOX_TIER_ORDER.map((tier) => (
+                <label key={tier} className="flex flex-col gap-1">
+                  <span className="font-mono text-mono-label uppercase text-text-muted">
+                    {boxTierLabel(tier)}
+                  </span>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={String(boxEdits[tier] ?? 0)}
+                    onChange={(e) => {
+                      const n = Math.max(0, Math.floor(Number(e.target.value) || 0));
+                      setBoxEdits((prev) => ({ ...(prev ?? {}), [tier]: n }));
+                    }}
+                  />
+                </label>
+              ))}
+            </div>
+          ) : null}
+
+          {boxEditOpen &&
+          JSON.stringify(normalizeCounts(psn.declaredBoxCounts)) !==
+            JSON.stringify(normalizeCounts(boxEdits)) ? (
+            <p className="mt-3 text-body-sm text-amber">
+              Corrected mix differs from the vendor declaration — the
+              difference will be charged when you seal this PSN.
+            </p>
+          ) : null}
+        </section>
+      ) : null}
 
       {/* Migration 0040 — banner surfaces the shipping-points gate.
           Renders whenever any product on the PSN lacks points. For
@@ -1118,6 +1211,20 @@ function boxTierLabel(tier: string): string {
     default:
       return tier;
   }
+}
+
+// Normalise a box-count map to positive ints keyed in a STABLE tier order,
+// dropping zero/empty tiers. Used both to build the correction payload and
+// to compare the edited mix against the vendor-declared mix (JSON.stringify
+// on the normalised objects is a safe equality check because key order is
+// fixed by BOX_TIER_ORDER).
+function normalizeCounts(counts: Record<string, number> | null | undefined): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const tier of BOX_TIER_ORDER) {
+    const n = Math.max(0, Math.floor(Number(counts?.[tier]) || 0));
+    if (n > 0) out[tier] = n;
+  }
+  return out;
 }
 
 function readBoxEntries(
