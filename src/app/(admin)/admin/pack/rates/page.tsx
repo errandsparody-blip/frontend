@@ -89,6 +89,12 @@ interface PackOrderDetail {
   shipCity: string;
   shipState: string;
   shipPostalCode: string;
+  shipCountry: string;
+  itemsDeclaredValueCents: number;
+  // Migration 0055 — vendor-requested label add-ons the operator honours.
+  insuranceRequested: boolean;
+  signatureRequired: boolean;
+  adultSignatureRequired: boolean;
   packedLengthIn: number | null;
   packedWidthIn: number | null;
   packedHeightIn: number | null;
@@ -427,7 +433,47 @@ export default function AdminRatePickerPage(): JSX.Element {
                         {orderQ.data.packingNotes}
                       </div>
                     ) : null}
+                    {orderQ.data.shipCountry && orderQ.data.shipCountry !== "US" ? (
+                      <div className="md:col-span-2">
+                        <span className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
+                          Destination
+                        </span>{" "}
+                        International ({orderQ.data.shipCountry}) — a customs
+                        declaration is attached automatically from the order
+                        lines.
+                      </div>
+                    ) : null}
                   </div>
+                </div>
+              ) : null}
+
+              {/* Migration 0055 — vendor-requested label add-ons. The
+                  operator must apply these when buying the label; the
+                  system does so automatically (insurance for the declared
+                  value, signature/adult-signature on the shipment). Shown
+                  as a prominent banner so it isn't missed. */}
+              {orderQ.data &&
+              (orderQ.data.insuranceRequested ||
+                orderQ.data.signatureRequired ||
+                orderQ.data.adultSignatureRequired) ? (
+                <div className="mt-4 rounded-md border-l-4 border-ink bg-cream-soft p-3 text-body-sm">
+                  <div className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
+                    Vendor-requested add-ons
+                  </div>
+                  <ul className="mt-2 list-disc pl-5">
+                    {orderQ.data.insuranceRequested ? (
+                      <li>
+                        Insurance for the declared value (
+                        {dollars(orderQ.data.itemsDeclaredValueCents)}) — applied
+                        automatically at purchase.
+                      </li>
+                    ) : null}
+                    {orderQ.data.adultSignatureRequired ? (
+                      <li>Adult signature (21+) on delivery.</li>
+                    ) : orderQ.data.signatureRequired ? (
+                      <li>Signature on delivery.</li>
+                    ) : null}
+                  </ul>
                 </div>
               ) : null}
 

@@ -27,6 +27,7 @@ import {
   type RecipientAddress,
 } from "@/lib/schemas/orders";
 import { US_STATES } from "@/lib/us-states";
+import { CA_PROVINCES } from "@/lib/ca-provinces";
 
 // Migration 0037 — new "fulfillment" step splits the flow into two
 // branches after the recipient address is collected. PLATFORM_SHIP
@@ -77,6 +78,11 @@ type ParsedAddress = {
   country: string;
   phone: string | null;
 };
+
+/** Narrow an arbitrary string to a supported ship country (defaults US). */
+function asCountry(c: string | null | undefined): "US" | "CA" {
+  return (c ?? "").toUpperCase() === "CA" ? "CA" : "US";
+}
 
 const EMPTY_ADDRESS: RecipientAddress = {
   recipientName: "",
@@ -140,6 +146,10 @@ export default function NewOrderPage() {
 
   // ---- step 4: rates
   const [insuranceRequested, setInsuranceRequested] = useState(false);
+  // Migration 0055 — signature-on-delivery add-ons. Adult supersedes
+  // standard; keep both flags so the payload is explicit.
+  const [signatureRequired, setSignatureRequired] = useState(false);
+  const [adultSignatureRequired, setAdultSignatureRequired] = useState(false);
   const [quote, setQuote] = useState<QuoteResult | null>(null);
   const [chosen, setChosen] = useState<QuoteRateOption | null>(null);
 
@@ -330,6 +340,9 @@ export default function NewOrderPage() {
           // — the backend's superRefine accepts that combination
           // when vendorCarrier supplies label/tracking.
           insuranceRequested,
+          // Signature add-ons don't apply to the vendor's own label.
+          signatureRequired: false,
+          adultSignatureRequired: false,
           vendorCarrier: {
             vendorCarrierName: vendorCarrierName.trim() || undefined,
             vendorTrackingNumber: vendorTrackingNumber.trim() || undefined,
@@ -338,16 +351,20 @@ export default function NewOrderPage() {
         };
       } else if (v2Enabled) {
         // Fulfillment v2 — no carrier rate at submit. The backend's
-        // createV2 path debits only the fulfillment fee and moves
-        // the order to PENDING_PACKING. `carrierService`,
-        // `maxAcceptableTotalCents` and `insuranceRequested` are
-        // omitted; v2 also defers insurance to the pack step.
+        // createV2 path debits only the fulfillment fee and moves the
+        // order to PENDING_PACKING. `carrierService` +
+        // `maxAcceptableTotalCents` are omitted (the admin picks a rate at
+        // pack time). The label add-ons the vendor chose here ARE
+        // persisted (migration 0055) so the admin honours them when they
+        // buy the label.
         payload = {
           externalReference: externalReference.trim() || undefined,
           recipient: parsed.data,
           lines,
           fulfillmentMode: "PLATFORM_SHIP",
-          insuranceRequested: false,
+          insuranceRequested,
+          signatureRequired: signatureRequired || adultSignatureRequired,
+          adultSignatureRequired,
         };
       } else {
         payload = {
@@ -357,6 +374,8 @@ export default function NewOrderPage() {
           fulfillmentMode: "PLATFORM_SHIP",
           carrierService: `${chosen!.carrier} ${chosen!.service}`,
           insuranceRequested,
+          signatureRequired: signatureRequired || adultSignatureRequired,
+          adultSignatureRequired,
           // Cap at 5% above the quoted total so a stale quote
           // can't surprise the vendor.
           maxAcceptableTotalCents: Math.ceil(chosen!.fees.totalChargedCents * 1.05),
@@ -671,6 +690,70 @@ export default function NewOrderPage() {
         />
       ) : null}
       {step === "review" && fulfillmentMode === "PLATFORM_SHIP" && v2Enabled ? (
+        <section className="mb-4 rounded-md border border-line bg-white p-6">
+          <div className="mb-1 font-mono text-mono-label uppercase text-text-muted">
+            Delivery add-ons (optional)
+          </div>
+          <p className="mb-4 max-w-prose text-body-sm text-text-muted">
+            Choose any extra carrier services for this shipment. Our team
+            applies them when they buy the label; the surcharges are billed
+            to your wallet.
+          </p>
+          <div className="flex flex-col gap-3">
+            <label className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                className="mt-1 h-4 w-4"
+                checked={insuranceRequested}
+                onChange={(e) => setInsuranceRequested(e.target.checked)}
+              />
+              <span className="text-body-sm text-text">
+                <span className="font-medium text-ink">Insurance</span> — cover
+                the shipment for its declared value{" "}
+                {fulfillmentEstimateQ.data
+                  ? `(${(fulfillmentEstimateQ.data.declaredValueCents / 100).toLocaleString("en-US", {
+                      style: "currency",
+                      currency: "USD",
+                    })})`
+                  : ""}
+                . We insure for the value on file — no need to re-enter it.
+              </span>
+            </label>
+            <label className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                className="mt-1 h-4 w-4"
+                checked={signatureRequired}
+                onChange={(e) => {
+                  setSignatureRequired(e.target.checked);
+                  if (!e.target.checked) setAdultSignatureRequired(false);
+                }}
+              />
+              <span className="text-body-sm text-text">
+                <span className="font-medium text-ink">Signature on delivery</span>{" "}
+                — the carrier collects a signature from the recipient.
+              </span>
+            </label>
+            <label
+              className={`flex items-start gap-3 ${signatureRequired ? "" : "opacity-50"}`}
+            >
+              <input
+                type="checkbox"
+                className="mt-1 h-4 w-4"
+                disabled={!signatureRequired}
+                checked={adultSignatureRequired}
+                onChange={(e) => setAdultSignatureRequired(e.target.checked)}
+              />
+              <span className="text-body-sm text-text">
+                <span className="font-medium text-ink">Adult signature (21+)</span>{" "}
+                — requires signature-on-delivery; the carrier verifies the
+                recipient is an adult.
+              </span>
+            </label>
+          </div>
+        </section>
+      ) : null}
+      {step === "review" && fulfillmentMode === "PLATFORM_SHIP" && v2Enabled ? (
         <V2ReviewPanel
           address={address}
           lineCount={lines.length}
@@ -893,7 +976,7 @@ function AddressForm({
         shipCity: p.city || address.shipCity,
         shipState: p.state || address.shipState,
         shipPostalCode: p.postalCode || address.shipPostalCode,
-        shipCountry: p.country || address.shipCountry,
+        shipCountry: asCountry(p.country || address.shipCountry),
         recipientPhone: address.recipientPhone || p.phone || undefined,
       });
     },
@@ -966,7 +1049,7 @@ function AddressForm({
             shipCity: a.shipCity,
             shipState: a.shipState,
             shipPostalCode: a.shipPostalCode,
-            shipCountry: a.shipCountry ?? address.shipCountry,
+            shipCountry: asCountry(a.shipCountry ?? address.shipCountry),
             recipientPhone: a.recipientPhone ?? address.recipientPhone,
             recipientEmail: a.recipientEmail ?? address.recipientEmail,
           })
@@ -1030,6 +1113,27 @@ function AddressForm({
         />
       </Field>
 
+      {/* Destination country. US is default; Canada is the first
+          international option. Switching country swaps the state/province
+          list and the postal format below, and clears the province so a
+          US state can't linger on a Canadian address. */}
+      <Field label="Country" error={fieldErrors.shipCountry}>
+        <select
+          aria-label="Country"
+          autoComplete="shipping country"
+          value={address.shipCountry}
+          onChange={(e) => {
+            patch("shipCountry", asCountry(e.target.value));
+            // Reset the province — a US state isn't valid for CA and vice-versa.
+            patch("shipState", "");
+          }}
+          className="h-11 w-full rounded-sm border border-line-strong bg-cream-soft px-3 text-body text-text outline-none transition-colors duration-fast ease-out hover:border-text/40 focus:border-ink focus:ring-2 focus:ring-ink/10"
+        >
+          <option value="US">United States</option>
+          <option value="CA">Canada</option>
+        </select>
+      </Field>
+
       <div className="grid grid-cols-3 gap-4">
         <Field label="City" error={fieldErrors.shipCity}>
           <Input
@@ -1040,15 +1144,13 @@ function AddressForm({
             onChange={(e) => patch("shipCity", e.target.value)}
           />
         </Field>
-        <Field label="State" error={fieldErrors.shipState}>
-          {/* US-only in v1 — see PRD §6.6 and the backend regex
-              `^[A-Z]{2}$` in order.schema.ts. A native <select> keeps
-              keyboard navigation + native mobile pickers without
-              pulling in a combobox library. Sorted alphabetically by
-              the constant; an empty first option forces an explicit
-              choice (no silent default to "AL"). */}
+        <Field label={address.shipCountry === "CA" ? "Province" : "State"} error={fieldErrors.shipState}>
+          {/* Native <select> keeps keyboard nav + native mobile pickers
+              without a combobox library. The option list follows the
+              selected country. An empty first option forces an explicit
+              choice (no silent default). */}
           <select
-            aria-label="State"
+            aria-label={address.shipCountry === "CA" ? "Province" : "State"}
             autoComplete="shipping address-level1"
             value={address.shipState}
             onChange={(e) => patch("shipState", e.target.value)}
@@ -1056,25 +1158,39 @@ function AddressForm({
               fieldErrors.shipState ? "border-error" : "border-line-strong hover:border-text/40 focus:border-ink"
             }`}
           >
-            <option value="">Select a state…</option>
-            {US_STATES.map((s) => (
+            <option value="">
+              {address.shipCountry === "CA" ? "Select a province…" : "Select a state…"}
+            </option>
+            {(address.shipCountry === "CA" ? CA_PROVINCES : US_STATES).map((s) => (
               <option key={s.code} value={s.code}>
                 {s.name} ({s.code})
               </option>
             ))}
           </select>
         </Field>
-        <Field label="ZIP" error={fieldErrors.shipPostalCode}>
+        <Field
+          label={address.shipCountry === "CA" ? "Postal code" : "ZIP"}
+          error={fieldErrors.shipPostalCode}
+        >
           <Input
             type="text"
             autoComplete="shipping postal-code"
             value={address.shipPostalCode}
             invalid={!!fieldErrors.shipPostalCode}
             onChange={(e) => patch("shipPostalCode", e.target.value)}
-            placeholder="33101"
+            placeholder={address.shipCountry === "CA" ? "K1A 0B1" : "33101"}
           />
         </Field>
       </div>
+
+      {address.shipCountry === "CA" ? (
+        <p className="rounded-md border-l-4 border-line bg-cream-soft px-4 py-3 text-body-sm text-text-muted">
+          International shipment — a customs declaration is generated
+          automatically from your order lines (description, quantity and
+          declared value). Duties and taxes are billed to the recipient on
+          delivery.
+        </p>
+      ) : null}
 
       <div className="flex justify-between">
         <Button type="button" variant="outline" onClick={onBack}>

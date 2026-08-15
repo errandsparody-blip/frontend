@@ -64,10 +64,50 @@ interface AdminOverview {
   };
 }
 
+interface InventoryValue {
+  /** Total insurable value (cents) of all goods physically in our care. */
+  totalValueCents: number;
+  totalUnits: number;
+  skuCount: number;
+  byVendor: Array<{ vendorId: string; businessName: string; valueCents: number; units: number }>;
+  byTier: Array<{ tier: string; valueCents: number; units: number }>;
+  asOf: string;
+}
+
+/** Cents → "$12,345.67". */
+function fmtUSD(cents: number): string {
+  return (cents / 100).toLocaleString("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+const TIER_LABEL: Record<string, string> = {
+  SMALL: "Small",
+  MEDIUM: "Medium",
+  LARGE: "Large",
+  X_LARGE: "Extra-large",
+  PALLET: "Pallet",
+};
+
 export default function AdminDashboardPage(): JSX.Element {
   const { data, isLoading, error } = useQuery({
     queryKey: ["admin", "dashboard"],
     queryFn: () => api.get<AdminOverview>("/admin/dashboard"),
+  });
+
+  // Insurable inventory value — polled so the headline climbs on its own
+  // as new stock is received (the operator sizes insurance off this). We
+  // refetch every 30s and on window focus/reconnect; react-query keeps
+  // the last value on screen during refetch so the number never blanks.
+  const value = useQuery({
+    queryKey: ["admin", "inventory-value"],
+    queryFn: () => api.get<InventoryValue>("/admin/dashboard/inventory-value"),
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   });
 
   return (
@@ -112,6 +152,105 @@ export default function AdminDashboardPage(): JSX.Element {
               value={data.inventory.activeBoxes.toLocaleString()}
               footnote={`${data.inventory.skuCount.toLocaleString()} active SKUs`}
             />
+          </section>
+
+          {/* Insurable inventory value — headline for insurance sizing.
+              Auto-refreshes; value = Σ(declared value × on-hand units)
+              across every vendor. Rendered even while `value` is still
+              loading so the section doesn't pop in late. */}
+          <section className="rounded-md border border-line bg-white p-6">
+            <div className="mb-1 flex items-baseline justify-between gap-4">
+              <div className="font-mono text-mono-label uppercase text-text-muted">
+                Insurable inventory value
+              </div>
+              {value.data ? (
+                <div className="font-mono text-[11px] uppercase tracking-[1.2px] text-text-muted">
+                  as of{" "}
+                  {new Date(value.data.asOf).toLocaleTimeString("en-US", {
+                    hour: "numeric",
+                    minute: "2-digit",
+                    second: "2-digit",
+                  })}
+                  {value.isFetching ? " · refreshing…" : ""}
+                </div>
+              ) : null}
+            </div>
+            <p className="mb-4 max-w-prose text-body-sm text-text-muted">
+              Live total value of every item physically in our care —
+              declared value × units on hand, across all vendors. Use this
+              to size your insurance coverage. Updates automatically as new
+              stock is received.
+            </p>
+
+            {value.error ? (
+              <div className="rounded-md border-l-4 border-error bg-error/10 px-5 py-4 text-body-sm text-error">
+                {(value.error as { message?: string }).message ?? "Failed to load inventory value."}
+              </div>
+            ) : (
+              <>
+                <div className="text-display-lg font-medium tabular-nums text-ink">
+                  {value.data ? fmtUSD(value.data.totalValueCents) : "—"}
+                </div>
+                <div className="mt-2 font-mono text-[11px] uppercase tracking-[1.2px] text-text-muted">
+                  {value.data
+                    ? `${value.data.totalUnits.toLocaleString()} units · ${value.data.skuCount.toLocaleString()} SKUs`
+                    : "loading…"}
+                </div>
+
+                {value.data && value.data.byTier.length > 0 ? (
+                  <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    {value.data.byTier
+                      .slice()
+                      .sort((a, b) => b.valueCents - a.valueCents)
+                      .map((t) => (
+                        <div key={t.tier} className="rounded-md border border-line bg-cream-soft p-4">
+                          <div className="font-mono text-mono-label uppercase text-text-muted">
+                            {TIER_LABEL[t.tier] ?? t.tier}
+                          </div>
+                          <div className="mt-2 text-h2 font-medium tabular-nums text-ink">
+                            {fmtUSD(t.valueCents)}
+                          </div>
+                          <div className="mt-1 font-mono text-[11px] uppercase tracking-[1.2px] text-text-muted">
+                            {t.units.toLocaleString()} units
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                ) : null}
+
+                {value.data && value.data.byVendor.length > 0 ? (
+                  <div className="mt-6">
+                    <div className="mb-2 font-mono text-mono-label uppercase text-text-muted">
+                      By vendor
+                    </div>
+                    <div className="overflow-hidden rounded-md border border-line">
+                      <table className="w-full text-body-sm">
+                        <thead className="bg-cream-soft">
+                          <tr className="text-left font-mono text-[11px] uppercase tracking-[1.2px] text-text-muted">
+                            <th className="px-4 py-2">Vendor</th>
+                            <th className="px-4 py-2 text-right">Units</th>
+                            <th className="px-4 py-2 text-right">Value</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {value.data.byVendor.map((v) => (
+                            <tr key={v.vendorId} className="border-t border-line">
+                              <td className="px-4 py-2 text-ink">{v.businessName}</td>
+                              <td className="px-4 py-2 text-right tabular-nums text-text-muted">
+                                {v.units.toLocaleString()}
+                              </td>
+                              <td className="px-4 py-2 text-right tabular-nums text-ink">
+                                {fmtUSD(v.valueCents)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ) : null}
+              </>
+            )}
           </section>
 
           <section className="rounded-md border border-line bg-white p-6">

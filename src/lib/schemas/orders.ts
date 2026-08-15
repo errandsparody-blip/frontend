@@ -117,11 +117,54 @@ export const recipientAddressSchema = z.object({
     .min(2, "City is too short.")
     .max(80)
     .regex(/[A-Za-z]/, "City must contain letters."),
-  shipState: z.string().trim().toUpperCase().regex(/^[A-Z]{2}$/, "2-letter state."),
+  shipState: z.string().trim().toUpperCase().regex(/^[A-Z]{2}$/, "2-letter state/province."),
   shipPostalCode: z.string().trim().toUpperCase().min(3).max(12),
-  shipCountry: z.string().trim().toUpperCase().regex(/^[A-Z]{2}$/, "2-letter country.").default("US"),
-});
+  shipCountry: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .pipe(z.enum(["US", "CA"], { errorMap: () => ({ message: "We ship to the US and Canada." }) }))
+    .default("US"),
+}).superRefine(refineCountryAddress);
 export type RecipientAddress = z.infer<typeof recipientAddressSchema>;
+
+// Country-aware state/postal check — mirrors refineCountryAddress in
+// usa-errands-api/src/common/schemas/order.schema.ts. KEEP IN SYNC.
+const US_STATES = new Set([
+  "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI", "ID", "IL",
+  "IN", "IA", "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN", "MS", "MO", "MT",
+  "NE", "NV", "NH", "NJ", "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI",
+  "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY",
+  "DC", "PR", "VI", "GU", "AS", "MP",
+]);
+export const CA_PROVINCES = [
+  "AB", "BC", "MB", "NB", "NL", "NS", "NT", "NU", "ON", "PE", "QC", "SK", "YT",
+] as const;
+const CA_PROVINCE_SET = new Set<string>(CA_PROVINCES);
+const US_ZIP_RE = /^\d{5}(-\d{4})?$/;
+const CA_POSTAL_RE = /^[A-Z]\d[A-Z] ?\d[A-Z]\d$/;
+
+function refineCountryAddress(
+  data: { shipCountry: string; shipState: string; shipPostalCode: string },
+  ctx: z.RefinementCtx,
+): void {
+  const country = (data.shipCountry ?? "US").toUpperCase();
+  if (country === "US") {
+    if (!US_STATES.has(data.shipState)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["shipState"], message: "Enter a valid US state code, e.g. CA." });
+    }
+    if (!US_ZIP_RE.test(data.shipPostalCode)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["shipPostalCode"], message: "US ZIP must be 5 digits (or ZIP+4)." });
+    }
+  } else if (country === "CA") {
+    if (!CA_PROVINCE_SET.has(data.shipState)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["shipState"], message: "Enter a valid Canadian province code, e.g. ON." });
+    }
+    if (!CA_POSTAL_RE.test(data.shipPostalCode)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["shipPostalCode"], message: "Canadian postal code must look like A1A 1A1." });
+    }
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Address-only validation result — server returns this from /orders/validate-address
@@ -182,6 +225,9 @@ export const createOrderSchema = z.object({
     .optional()
     .or(z.literal("").transform(() => undefined)),
   insuranceRequested: z.boolean().default(false),
+  // Migration 0055 — signature-on-delivery add-ons the vendor opts into.
+  signatureRequired: z.boolean().default(false),
+  adultSignatureRequired: z.boolean().default(false),
   maxAcceptableTotalCents: z.coerce.number().int().positive().max(50_000_000).optional(),
   vendorCarrier: z
     .object({
@@ -240,6 +286,10 @@ export interface PublicOrder {
   trackingNumber: string | null;
   labelUrl: string | null;
   itemsDeclaredValueCents: number;
+  // Migration 0055 — vendor-selected label add-ons (surfaced to admin).
+  insuranceRequested?: boolean;
+  signatureRequired?: boolean;
+  adultSignatureRequired?: boolean;
   shippingCostCents: number;
   shippingFeeCents: number;
   fulfillmentFeeCents: number;
