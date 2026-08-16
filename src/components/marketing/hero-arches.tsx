@@ -67,9 +67,9 @@ function Arch({ a }: { a: Arch }): JSX.Element {
       }}
     >
       {a.src ? (
-        // eslint-disable-next-line @next/next/no-img-element
         // Base zoom (scale-110) crops the image's own light top edge so it
         // doesn't peek through the dome; the subject stays centered.
+        // eslint-disable-next-line @next/next/no-img-element
         <img
           src={a.src}
           alt={a.label}

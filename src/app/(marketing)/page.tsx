@@ -36,7 +36,7 @@ export default function HomePage() {
               <div className="mt-10 flex flex-col items-center gap-4">
                 <Link
                   href="/signup"
-                  className="group inline-flex items-center gap-2 rounded-full bg-amber px-7 py-3.5 text-body font-medium text-ink shadow-1 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-amber-hi"
+                  className="group inline-flex items-center gap-2 rounded-full bg-ink px-7 py-3.5 text-body font-medium text-text-inv shadow-1 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-ink-elev"
                 >
                   Get started
                   <ArrowRight
