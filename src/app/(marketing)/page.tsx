@@ -36,12 +36,13 @@ export default function HomePage() {
               <div className="mt-10 flex flex-col items-center gap-4">
                 <Link
                   href="/signup"
-                  className="group inline-flex items-center gap-3 rounded-full bg-white py-2 pl-6 pr-2 text-body font-medium text-ink shadow-1 transition-transform duration-300 ease-out hover:-translate-y-0.5"
+                  className="group inline-flex items-center gap-2 rounded-full bg-amber px-7 py-3.5 text-body font-medium text-ink shadow-1 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-amber-hi"
                 >
                   Get started
-                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-amber text-white transition-transform duration-300 ease-out group-hover:translate-x-0.5">
-                    <ArrowRight className="h-4 w-4" aria-hidden />
-                  </span>
+                  <ArrowRight
+                    className="h-4 w-4 transition-transform duration-300 ease-out group-hover:translate-x-1"
+                    aria-hidden
+                  />
                 </Link>
                 <Link
                   href="/shopper"
@@ -61,19 +62,24 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* STATS BAR */}
-      <section className="border-y border-line">
-        <div className="mx-auto grid max-w-[84rem] grid-cols-2 lg:grid-cols-4">
-          <Stat value="6000" label="Inventory value managed" />
-          <Stat value="75" label="Vendors trust the system" />
-          <Stat value="4.2 days" label="Average inbound onboarding" amber />
-          <Stat value="99.97%" label="Uptime. Not rounded" />
+      {/* STATS BAR — a floating rounded panel on warm cream, matching the
+          hero's soft, editorial feel. */}
+      <section className="bg-cream">
+        <div className="mx-auto max-w-[84rem] px-5 py-16 sm:px-8">
+          <FadeUp>
+            <div className="grid grid-cols-2 overflow-hidden rounded-3xl border border-line bg-cream-soft shadow-1 lg:grid-cols-4">
+              <Stat value="6000" label="Inventory value managed" />
+              <Stat value="75" label="Vendors trust the system" />
+              <Stat value="4.2 days" label="Average inbound onboarding" amber />
+              <Stat value="99.97%" label="Uptime. Not rounded" />
+            </div>
+          </FadeUp>
         </div>
       </section>
 
       {/* SERVICES — three cards, the spine of the marketing site. */}
-      <section className="border-b border-line">
-        <div className="mx-auto max-w-[84rem] px-8 py-24">
+      <section className="bg-cream">
+        <div className="mx-auto max-w-[84rem] px-8 pb-24">
           <FadeUp>
             <div className="font-mono text-mono-eyebrow uppercase text-amber">
                What we do
@@ -92,9 +98,11 @@ export default function HomePage() {
               <FadeUp key={s.title} delay={i * 90}>
                 <Link
                   href={s.href}
-                  className="group flex h-full flex-col gap-4 rounded-md border border-line bg-white p-8 transition-transform duration-300 ease-out hover:-translate-y-1 hover:shadow-2"
+                  className="group flex h-full flex-col gap-4 rounded-3xl border border-line bg-white p-8 shadow-1 transition-all duration-300 ease-out hover:-translate-y-1.5 hover:shadow-2"
                 >
-                  <s.Icon className="h-6 w-6 text-amber" aria-hidden />
+                  <span className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-amber/12">
+                    <s.Icon className="h-5 w-5 text-amber" aria-hidden />
+                  </span>
                   <div className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
                     {s.tag}
                   </div>
@@ -112,8 +120,8 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* HOW IT WORKS — keep the prior section intact. */}
-      <section className="border-b border-line bg-cream-soft">
+      {/* HOW IT WORKS — soft warm tint band echoing the hero stage. */}
+      <section className="bg-[linear-gradient(180deg,#efe7d7_0%,#e7dcc6_100%)]">
         <div className="mx-auto max-w-[84rem] px-8 py-24">
           <FadeUp>
             <div className="font-mono text-mono-eyebrow uppercase text-amber">
@@ -131,7 +139,10 @@ export default function HomePage() {
           <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-4">
             {STEPS.map((s, i) => (
               <FadeUp key={s.label} delay={i * 90}>
-                <div className="flex h-full flex-col gap-3 rounded-md border border-line bg-white p-6">
+                <div className="flex h-full flex-col gap-3 rounded-3xl border border-white/60 bg-white/70 p-6 shadow-1 backdrop-blur-sm transition-transform duration-300 ease-out hover:-translate-y-1.5">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-amber font-mono text-[13px] font-semibold text-white">
+                    {i + 1}
+                  </div>
                   <div className="text-h3 font-medium text-ink">{s.label}</div>
                   <p className="text-body-sm text-text-muted">{s.body}</p>
                 </div>
@@ -151,7 +162,7 @@ export default function HomePage() {
       </section>
 
       {/* FAQ */}
-      <section className="border-b border-line">
+      <section className="bg-cream">
         <div className="mx-auto grid max-w-[84rem] gap-16 px-8 py-24 lg:grid-cols-[1fr_2fr]">
           <FadeUp>
             <div>
@@ -177,11 +188,11 @@ export default function HomePage() {
             {/* Native <details> + <summary> — zero JS, accessible by
                 default, and animates the open/close transition with
                 pure CSS. */}
-            <div className="flex flex-col divide-y divide-line border-y border-line">
+            <div className="flex flex-col divide-y divide-line overflow-hidden rounded-3xl border border-line bg-white px-6 shadow-1">
               {FAQS.map((f) => (
                 <details
                   key={f.q}
-                  className="group py-5 transition-colors hover:bg-cream-soft/40"
+                  className="group py-5 transition-colors hover:bg-cream-soft/50"
                 >
                   <summary className="flex cursor-pointer items-start justify-between gap-6 list-none [&::-webkit-details-marker]:hidden">
                     <span className="text-body font-medium text-ink">
@@ -217,11 +228,11 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* FINAL CTA */}
-      <section>
-        <div className="mx-auto max-w-[84rem] px-8 py-24">
+      {/* FINAL CTA — dark ink panel for a strong closing contrast. */}
+      <section className="bg-cream">
+        <div className="mx-auto max-w-[84rem] px-8 pb-24">
           <FadeUp>
-            <div className="flex flex-col items-start gap-6 rounded-md border border-line bg-ink px-10 py-14 text-text-inv md:flex-row md:items-center md:justify-between">
+            <div className="flex flex-col items-start gap-6 rounded-[28px] bg-ink px-10 py-16 text-text-inv shadow-1 md:flex-row md:items-center md:justify-between">
               <div>
                 <h2 className="max-w-xl text-h2 font-medium leading-tight tracking-[-0.5px]">
                   Ready to ship from the U.S. without being in the U.S.?

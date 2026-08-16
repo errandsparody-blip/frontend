@@ -47,56 +47,61 @@ const ARCHES: ReadonlyArray<Arch> = [
   { label: "Happy buyer", Icon: Smile, bg: "#e7d3bf", fg: "#4a4136", height: 380, src: "/hero/happy-buyer.webp", hideOnMobile: true },
 ];
 
+function Arch({ a }: { a: Arch }): JSX.Element {
+  return (
+    <div
+      className={
+        // Soft warm drop shadow (drop-shadow follows the domed shape,
+        // unlike box-shadow). On hover the arch lifts + scales and the
+        // shadow deepens — a tactile "pop".
+        "group/arch relative w-full overflow-hidden " +
+        "transition-[transform,filter] duration-300 ease-out " +
+        "[filter:drop-shadow(0_16px_28px_rgba(74,54,40,0.28))] " +
+        "hover:-translate-y-2 hover:scale-[1.03] " +
+        "hover:[filter:drop-shadow(0_28px_46px_rgba(74,54,40,0.42))]"
+      }
+      style={{
+        height: a.height,
+        background: a.bg,
+        borderRadius: "9999px 9999px 14px 14px",
+      }}
+    >
+      {a.src ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        // Base zoom (scale-110) crops the image's own light top edge so it
+        // doesn't peek through the dome; the subject stays centered.
+        <img
+          src={a.src}
+          alt={a.label}
+          className="h-full w-full scale-110 object-cover object-center transition-transform duration-500 ease-out group-hover/arch:scale-[1.16]"
+        />
+      ) : (
+        <div
+          className="flex h-full w-full flex-col items-center justify-center gap-2 pt-16"
+          style={{ color: a.fg }}
+        >
+          <a.Icon className="h-7 w-7" aria-hidden />
+          <span className="font-mono text-[10px] uppercase tracking-[1.2px]">{a.label}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function HeroArches(): JSX.Element {
   return (
     <div className="mx-auto -mb-16 mt-20 flex max-w-[84rem] items-end justify-center gap-3 px-4 sm:-mb-20 sm:mt-24 sm:gap-4 sm:px-8">
       {ARCHES.map((a, i) => (
         <FadeUp
           key={a.label}
-          // Staggered so the arches rise in one-by-one, left to right.
-          delay={i * 140}
+          // A single gentle fade-up on load (staggered), then static — no
+          // looping movement.
+          delay={i * 120}
           translateY={40}
           durationMs={700}
           className={"flex-1 " + (a.hideOnMobile ? "hidden sm:block" : "block")}
         >
-          <div
-            className={
-              // Soft warm drop shadow (drop-shadow follows the domed shape,
-              // unlike box-shadow). On hover the arch lifts + scales and the
-              // shadow deepens — a tactile "pop". Shadow lives in classes,
-              // not inline style, so the hover variant can override it.
-              "group/arch relative w-full cursor-pointer overflow-hidden " +
-              "transition-[transform,filter] duration-300 ease-out " +
-              "[filter:drop-shadow(0_16px_28px_rgba(74,54,40,0.28))] " +
-              "hover:-translate-y-2 hover:scale-[1.03] " +
-              "hover:[filter:drop-shadow(0_28px_46px_rgba(74,54,40,0.42))]"
-            }
-            style={{
-              height: a.height,
-              background: a.bg,
-              // Full dome on top, gently rounded at the base.
-              borderRadius: "9999px 9999px 14px 14px",
-            }}
-          >
-            {a.src ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={a.src}
-                alt={a.label}
-                className="h-full w-full object-cover object-top transition-transform duration-500 ease-out group-hover/arch:scale-105"
-              />
-            ) : (
-              <div
-                className="flex h-full w-full flex-col items-center justify-center gap-2 pt-16"
-                style={{ color: a.fg }}
-              >
-                <a.Icon className="h-7 w-7" aria-hidden />
-                <span className="font-mono text-[10px] uppercase tracking-[1.2px]">
-                  {a.label}
-                </span>
-              </div>
-            )}
-          </div>
+          <Arch a={a} />
         </FadeUp>
       ))}
     </div>

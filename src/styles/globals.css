@@ -200,3 +200,12 @@ body {
 @keyframes ue-route { to { stroke-dashoffset: -240; } }
 .ue-route { animation: ue-route 9s linear infinite; }
 @media (prefers-reduced-motion: reduce) { .ue-route { animation: none !important; } }
+
+/* Hero arches marquee — the row scrolls continuously so there's always
+   motion (on mobile only ~3 arches are visible at once). The track holds
+   two identical copies; translating by -50% shifts exactly one copy for a
+   seamless loop. Pauses on hover; disabled under reduced-motion. */
+@keyframes ue-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.ue-marquee { animation: ue-marquee 45s linear infinite; }
+.ue-marquee:hover { animation-play-state: paused; }
+@media (prefers-reduced-motion: reduce) { .ue-marquee { animation: none !important; } }

@@ -23,20 +23,21 @@ import type { JSX } from "react";
 
 import { homeForRole, useAuth } from "@/lib/auth-context";
 
-// Slick rounded-pill CTA matching the hero button: an amber pill with a
-// white circle housing the arrow. Sentence case, not mono-caps, so it
-// belongs to the new editorial header. Lifts slightly on hover.
+// Slick rounded-pill CTA matching the hero button: one amber gradient
+// pill with the arrow inline (no separate circle). Sentence case, lifts
+// slightly on hover, arrow nudges right.
 function PillCTA({ href, label, ariaLabel }: { href: string; label: string; ariaLabel?: string }): JSX.Element {
   return (
     <Link
       href={href}
       aria-label={ariaLabel}
-      className="group inline-flex items-center gap-2 rounded-full bg-amber py-1.5 pl-5 pr-1.5 text-body-sm font-medium text-ink shadow-1 transition-transform duration-300 ease-out hover:-translate-y-0.5"
+      className="group inline-flex items-center gap-2 rounded-full bg-amber px-5 py-2.5 text-body-sm font-medium text-ink shadow-1 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-amber-hi"
     >
       {label}
-      <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-white text-amber transition-transform duration-300 ease-out group-hover:translate-x-0.5">
-        <ArrowRight className="h-4 w-4" aria-hidden />
-      </span>
+      <ArrowRight
+        className="h-4 w-4 transition-transform duration-300 ease-out group-hover:translate-x-1"
+        aria-hidden
+      />
     </Link>
   );
 }
