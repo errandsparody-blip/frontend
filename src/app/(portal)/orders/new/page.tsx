@@ -1122,11 +1122,17 @@ function AddressForm({
           aria-label="Country"
           autoComplete="shipping country"
           value={address.shipCountry}
-          onChange={(e) => {
-            patch("shipCountry", asCountry(e.target.value));
-            // Reset the province — a US state isn't valid for CA and vice-versa.
-            patch("shipState", "");
-          }}
+          onChange={(e) =>
+            // Single update: set country AND clear the province together.
+            // Two separate patch() calls would each spread the same stale
+            // `address`, so the second would clobber the first and revert
+            // the country — which blocked Canada from ever sticking.
+            onChangeAddress({
+              ...address,
+              shipCountry: asCountry(e.target.value),
+              shipState: "",
+            })
+          }
           className="h-11 w-full rounded-sm border border-line-strong bg-cream-soft px-3 text-body text-text outline-none transition-colors duration-fast ease-out hover:border-text/40 focus:border-ink focus:ring-2 focus:ring-ink/10"
         >
           <option value="US">United States</option>

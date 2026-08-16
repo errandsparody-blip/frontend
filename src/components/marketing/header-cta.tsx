@@ -17,10 +17,29 @@
  * header and the post-login flow always agree on destination.
  */
 
+import { ArrowRight } from "lucide-react";
 import Link from "next/link";
+import type { JSX } from "react";
 
-import { Button } from "@/components/ui/button";
 import { homeForRole, useAuth } from "@/lib/auth-context";
+
+// Slick rounded-pill CTA matching the hero button: an amber pill with a
+// white circle housing the arrow. Sentence case, not mono-caps, so it
+// belongs to the new editorial header. Lifts slightly on hover.
+function PillCTA({ href, label, ariaLabel }: { href: string; label: string; ariaLabel?: string }): JSX.Element {
+  return (
+    <Link
+      href={href}
+      aria-label={ariaLabel}
+      className="group inline-flex items-center gap-2 rounded-full bg-amber py-1.5 pl-5 pr-1.5 text-body-sm font-medium text-ink shadow-1 transition-transform duration-300 ease-out hover:-translate-y-0.5"
+    >
+      {label}
+      <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-white text-amber transition-transform duration-300 ease-out group-hover:translate-x-0.5">
+        <ArrowRight className="h-4 w-4" aria-hidden />
+      </span>
+    </Link>
+  );
+}
 
 export function HeaderCTA(): JSX.Element {
   const { user, loading } = useAuth();
@@ -29,18 +48,18 @@ export function HeaderCTA(): JSX.Element {
   // placeholder so the header doesn't shift when the auth state
   // lands. Empty string keeps it invisible but reserves space.
   if (loading) {
-    return <div className="h-9 w-[140px]" aria-hidden />;
+    return <div className="h-10 w-[150px]" aria-hidden />;
   }
 
   if (user) {
     const href = homeForRole(user);
     const isAdmin = href === "/admin";
     return (
-      <Link href={href} aria-label={isAdmin ? "Open admin console" : "Open vendor dashboard"}>
-        <Button variant="amber" size="md" withArrow>
-          {isAdmin ? "Open admin" : "Open dashboard"}
-        </Button>
-      </Link>
+      <PillCTA
+        href={href}
+        label={isAdmin ? "Open admin" : "Open dashboard"}
+        ariaLabel={isAdmin ? "Open admin console" : "Open vendor dashboard"}
+      />
     );
   }
 
@@ -48,15 +67,11 @@ export function HeaderCTA(): JSX.Element {
     <>
       <Link
         href="/login"
-        className="hidden font-mono text-[11px] font-medium uppercase tracking-[1.2px] text-text hover:text-amber md:inline"
+        className="hidden rounded-full px-4 py-2 text-body-sm text-text-2 transition-colors hover:text-ink md:inline"
       >
         Log in
       </Link>
-      <Link href="/signup">
-        <Button variant="amber" size="md" withArrow>
-          Get started
-        </Button>
-      </Link>
+      <PillCTA href="/signup" label="Get started" />
     </>
   );
 }

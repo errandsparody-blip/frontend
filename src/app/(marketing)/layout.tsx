@@ -3,35 +3,7 @@ import Link from "next/link";
 import { SiteLogo } from "@/components/brand/site-logo";
 import { HeaderCTA } from "@/components/marketing/header-cta";
 import { MobileNav } from "@/components/marketing/mobile-nav";
-import { NavDropdown } from "@/components/marketing/nav-dropdown";
-
-// Items shown under the "About" hover dropdown in the desktop header.
-// Mirror this list in MobileNav so phones see the same surface area.
-// Each item is a top-level marketing destination — Personal Shopper has
-// its own product flow and Fulfillment routes to the seller landing
-// material.
-const ABOUT_ITEMS = [
-  {
-    href: "/services",
-    label: "All services",
-    description: "Personal shopping, fulfillment, and forwarding in one place.",
-  },
-  {
-    href: "/shopper",
-    label: "Personal shopping",
-    description: "Buy anything from any U.S. store. We handle the rest.",
-  },
-  {
-    href: "/integrations",
-    label: "Store integration",
-    description: "Connect your online store so orders fulfill themselves.",
-  },
-  {
-    href: "/security",
-    label: "Security & compliance",
-    description: "How we protect your data and your buyer's money.",
-  },
-] as const;
+import { PillNavLinks } from "@/components/marketing/pill-nav-links";
 
 function FooterCol({
   heading,
@@ -66,43 +38,19 @@ function FooterLink({ href, children }: { href: string; children: React.ReactNod
 export default function MarketingLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
-      <header className="sticky top-0 z-50 border-b border-line bg-cream-soft/90 backdrop-blur">
-        <nav className="mx-auto flex h-[72px] max-w-[84rem] items-center justify-between px-4 sm:px-6 md:px-8">
+      {/* Floating pill header (Cillo-inspired): a single rounded bar
+          that sits just below the top edge, translucent so the warm
+          hero shows through, with the logo left, active-aware links
+          centered, and the auth CTA right. `bg-white/70 + backdrop-blur`
+          keeps it legible over both the tan hero and the cream interior
+          pages. */}
+      <header className="sticky top-3 z-50 px-3 sm:px-5">
+        <nav className="ue-drop-in mx-auto flex h-16 max-w-[84rem] items-center justify-between gap-4 rounded-full border border-white/40 bg-white/70 pl-5 pr-3 backdrop-blur-md">
           <Link href="/" aria-label="USA Errands — home">
             <SiteLogo tone="ink" />
           </Link>
 
-          {/* Desktop nav — md breakpoint and up. About is the only
-              dropdown; everything else is a flat link so the bar stays
-              scannable. Order is About → Services → How it works →
-              Pricing → Contact → Shop for me (CTA). */}
-          <div className="hidden items-center gap-8 font-mono text-[11px] font-medium uppercase tracking-[1.2px] text-text md:flex">
-            <NavDropdown label="About" href="/about" items={ABOUT_ITEMS} />
-            <Link href="/services" className="transition-colors hover:text-amber">
-              Services
-            </Link>
-            {/* <Link href="/how-it-works" className="transition-colors hover:text-amber">
-              How it works
-            </Link> */}
-            <Link href="/pricing" className="transition-colors hover:text-amber">
-              Pricing
-            </Link>
-            <Link href="/faq" className="transition-colors hover:text-amber">
-              FAQ
-            </Link>
-            <Link href="/contact" className="transition-colors hover:text-amber">
-              Contact
-            </Link>
-            {/* Personal Shopper retains the amber CTA pill — it's the
-                product surface buyers actually click. Distinct visual
-                weight keeps it from getting lost in the row of links. */}
-            <Link
-              href="/shopper"
-              className="rounded-sm border border-amber/40 bg-amber/10 px-2.5 py-0.5 text-amber transition-colors hover:bg-amber/20"
-            >
-              Shop for me
-            </Link>
-          </div>
+          <PillNavLinks />
 
           <div className="flex items-center gap-2 sm:gap-3">
             <HeaderCTA />

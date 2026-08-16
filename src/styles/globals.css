@@ -162,3 +162,35 @@ body {
   color: var(--ink, #0f0f0e);
   text-underline-offset: 4px;
 }
+
+/* Marketing entrance motion — a bouncy overshoot used for the header
+   bar and its items dropping in on load. `both` keeps the pre-animation
+   state applied before the first frame so nothing flashes at full
+   opacity. Honour reduced-motion by disabling the animation entirely. */
+@keyframes ue-drop-in {
+  from { opacity: 0; transform: translateY(-18px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes ue-rise-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.ue-drop-in {
+  animation: ue-drop-in 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.ue-rise-in {
+  animation: ue-rise-in 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ue-drop-in, .ue-rise-in { animation: none !important; }
+}
+
+/* Hero backdrop — slow-drifting soft light blobs so the tan stage has
+   gentle life behind the content without competing with it. Long, eased
+   loops; disabled under reduced-motion. */
+@keyframes ue-float-1 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(34px,-28px) scale(1.06); } }
+@keyframes ue-float-2 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-30px,24px) scale(1.08); } }
+@keyframes ue-float-3 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(22px,30px) scale(1.05); } }
+@media (prefers-reduced-motion: reduce) {
+  .ue-float-1, .ue-float-2, .ue-float-3 { animation: none !important; }
+}

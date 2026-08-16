@@ -1,67 +1,63 @@
-import { Package, ShoppingBag } from "lucide-react";
+import { ArrowRight, Package, ShoppingBag } from "lucide-react";
 import Link from "next/link";
 
-import { AtlasBackdrop } from "@/components/marketing/atlas-backdrop";
 import { FadeUp } from "@/components/marketing/fade-up";
-import { OpsConsole } from "@/components/marketing/ops-console";
+import { HeroArches } from "@/components/marketing/hero-arches";
+import { HeroBackdrop } from "@/components/marketing/hero-backdrop";
 import { Button } from "@/components/ui/button";
 
 export default function HomePage() {
   return (
     <>
-      {/* HERO — full-bleed shipping-network atlas behind, headline
-          on the left, product-screenshot-style OpsConsole on the
-          right. The AtlasBackdrop sits at the section level so the
-          map pulses extend behind both columns; a cream scrim on
-          the left third keeps the headline readable regardless of
-          which city dots fall behind it. */}
-      <section className="relative overflow-hidden bg-cream lg:min-h-[760px]">
-        <AtlasBackdrop />
-        <div className="relative z-10 mx-auto grid max-w-[84rem] gap-12 px-5 py-16 sm:px-8 sm:py-20 lg:grid-cols-[1fr_1fr] lg:items-center lg:py-28">
+      {/* HERO — warm, editorial, centered. A soft tan gradient stage,
+          a status pill, a large headline, one pill CTA, and a row of
+          arched image frames that carry the AI-rendered fulfillment
+          journey (parcel → warehouse → doorstep → global → customer).
+          The arches bleed off the bottom of the section into the stats
+          bar, so the section itself has no bottom padding. */}
+      <section className="relative -mt-16 overflow-hidden bg-[linear-gradient(135deg,#cabda5_0%,#b6a58c_52%,#a8967c_100%)]">
+        <HeroBackdrop />
+        <div className="relative z-10 mx-auto max-w-[84rem] px-5 pt-36 sm:px-8 sm:pt-44">
           <FadeUp>
-            <div>
-              <div className="font-mono text-mono-eyebrow uppercase text-amber">
-                Personal shopper · Fulfillment partner
+            <div className="mx-auto max-w-3xl text-center">
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/35 bg-white/15 px-4 py-1.5 font-mono text-[11px] uppercase tracking-[1.2px] text-white/90 backdrop-blur">
+                Now shipping to the U.S. and Canada
               </div>
-              <h1 className="mt-4 text-display-xl font-medium leading-[0.98] tracking-[-2px] text-ink">
-                Ship from
+              <h1 className="mt-10 text-display-xl font-medium leading-[1.02] tracking-[-1.5px] text-[#fbf8f2]">
+                Ship from anywhere.
                 <br />
-                anywhere.
-                <br />
-                <span className="text-amber">Sell to America.</span>
+                Sell to America.
               </h1>
-              <p className="mt-10 max-w-md text-body-lg text-text-muted">
-                Hold your inventory in our U.S. warehouse, or
-                let our personal-shopper desk buy from any U.S. store on
-                your behalf. One platform.
+              <p className="mx-auto mt-8 max-w-lg text-body-lg text-[#f2ece1]">
+                Hold your inventory in our U.S. warehouse, or let our
+                personal-shopper desk buy from any U.S. store on your behalf.
+                One platform.
               </p>
-              <div className="mt-10 flex flex-wrap gap-3">
-                <Link href="/signup">
-                  <Button variant="primary" size="lg" withArrow>
-                    Get started
-                  </Button>
+              <div className="mt-10 flex flex-col items-center gap-4">
+                <Link
+                  href="/signup"
+                  className="group inline-flex items-center gap-3 rounded-full bg-white py-2 pl-6 pr-2 text-body font-medium text-ink shadow-1 transition-transform duration-300 ease-out hover:-translate-y-0.5"
+                >
+                  Get started
+                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-amber text-white transition-transform duration-300 ease-out group-hover:translate-x-0.5">
+                    <ArrowRight className="h-4 w-4" aria-hidden />
+                  </span>
                 </Link>
-                <Link href="/services">
-                  <Button variant="outline" size="lg">
-                    See our services
-                  </Button>
-                </Link>
-              </div>
-              <p className="mt-8 text-body-sm text-text-muted">
-                Just want to buy something from a U.S. store?{" "}
                 <Link
                   href="/shopper"
-                  className="font-medium text-amber underline-offset-4 hover:underline"
+                  className="text-body-sm text-white/85 underline-offset-4 hover:text-white hover:underline"
                 >
-                  Open a personal shopper request →
+                  Just want to buy from a U.S. store? Open a personal shopper request →
                 </Link>
-              </p>
+              </div>
             </div>
           </FadeUp>
+        </div>
 
-          <FadeUp delay={120}>
-            <OpsConsole />
-          </FadeUp>
+        {/* Arched image row — each arch fades up one-by-one (stagger
+            handled inside the component). Lifted above the backdrop. */}
+        <div className="relative z-10">
+          <HeroArches />
         </div>
       </section>
 
@@ -205,7 +201,11 @@ export default function HomePage() {
 
             <div className="mt-8 flex flex-wrap items-center gap-4">
               <Link href="/faq">
-                <Button variant="outline" withArrow>
+                <Button
+                  variant="outline"
+                  withArrow
+                  className="rounded-full font-sans font-medium normal-case tracking-normal"
+                >
                   View full FAQ
                 </Button>
               </Link>
@@ -233,12 +233,21 @@ export default function HomePage() {
               </div>
               <div className="flex flex-wrap gap-3">
                 <Link href="/signup">
-                  <Button variant="amber" size="lg" withArrow>
+                  <Button
+                    variant="amber"
+                    size="lg"
+                    withArrow
+                    className="rounded-full font-sans font-medium normal-case tracking-normal"
+                  >
                     Get started
                   </Button>
                 </Link>
                 <Link href="/contact">
-                  <Button variant="outline" size="lg">
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    className="rounded-full font-sans font-medium normal-case tracking-normal"
+                  >
                     Talk to sales
                   </Button>
                 </Link>
