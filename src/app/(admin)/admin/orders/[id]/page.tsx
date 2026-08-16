@@ -34,6 +34,11 @@ interface AdminOrderDetail {
   shippingFeeCents: number;
   fulfillmentFeeCents: number;
   insuranceFeeCents: number;
+  itemsDeclaredValueCents: number;
+  // Migration 0055 — vendor-selected label add-ons to honour at buy time.
+  insuranceRequested: boolean;
+  signatureRequired: boolean;
+  adultSignatureRequired: boolean;
   vendor: { id: string; businessName: string };
   /**
    * Migration 0037 — branches the entire fulfillment workflow:
@@ -324,6 +329,37 @@ export default function AdminOrderDetailPage() {
             </dl>
           </div>
         </div>
+
+        {/* Migration 0055 — vendor-requested label add-ons + international
+            flag. Shown right under the recipient/money so the operator
+            sees, before buying the label, what the vendor asked for. Only
+            renders when there's something to honour. */}
+        {o.insuranceRequested || o.signatureRequired || o.adultSignatureRequired || (o.shipCountry && o.shipCountry !== "US") ? (
+          <div className="mt-6 rounded-md border-l-4 border-amber bg-amber/5 px-4 py-3">
+            <div className="font-mono text-mono-label uppercase tracking-[1.2px] text-amber">
+              Vendor-requested add-ons
+            </div>
+            <ul className="mt-2 flex flex-col gap-1 text-body-sm text-text">
+              {o.insuranceRequested ? (
+                <li>
+                  • Insurance for the declared value (
+                  {formatCents(o.itemsDeclaredValueCents)}) — apply at label purchase.
+                </li>
+              ) : null}
+              {o.adultSignatureRequired ? (
+                <li>• Adult signature (21+) on delivery.</li>
+              ) : o.signatureRequired ? (
+                <li>• Signature on delivery.</li>
+              ) : null}
+              {o.shipCountry && o.shipCountry !== "US" ? (
+                <li>
+                  • International ({o.shipCountry}) — customs declaration is
+                  attached automatically from the order lines.
+                </li>
+              ) : null}
+            </ul>
+          </div>
+        ) : null}
       </section>
 
       {/* Phase P-E — packaging summary for admin. Renders only after
