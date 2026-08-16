@@ -60,16 +60,22 @@ export function HeroArches(): JSX.Element {
           className={"flex-1 " + (a.hideOnMobile ? "hidden sm:block" : "block")}
         >
           <div
-            className="relative w-full overflow-hidden"
+            className={
+              // Soft warm drop shadow (drop-shadow follows the domed shape,
+              // unlike box-shadow). On hover the arch lifts + scales and the
+              // shadow deepens — a tactile "pop". Shadow lives in classes,
+              // not inline style, so the hover variant can override it.
+              "group/arch relative w-full cursor-pointer overflow-hidden " +
+              "transition-[transform,filter] duration-300 ease-out " +
+              "[filter:drop-shadow(0_16px_28px_rgba(74,54,40,0.28))] " +
+              "hover:-translate-y-2 hover:scale-[1.03] " +
+              "hover:[filter:drop-shadow(0_28px_46px_rgba(74,54,40,0.42))]"
+            }
             style={{
               height: a.height,
               background: a.bg,
               // Full dome on top, gently rounded at the base.
               borderRadius: "9999px 9999px 14px 14px",
-              // Soft warm drop shadow so the arch lifts off the tan stage.
-              // `filter: drop-shadow` follows the domed shape (a box-shadow
-              // would shadow the square bounding box instead).
-              filter: "drop-shadow(0 16px 28px rgba(74, 54, 40, 0.28))",
             }}
           >
             {a.src ? (
@@ -77,7 +83,7 @@ export function HeroArches(): JSX.Element {
               <img
                 src={a.src}
                 alt={a.label}
-                className="h-full w-full object-cover object-top"
+                className="h-full w-full object-cover object-top transition-transform duration-500 ease-out group-hover/arch:scale-105"
               />
             ) : (
               <div

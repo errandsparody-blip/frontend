@@ -194,3 +194,9 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .ue-float-1, .ue-float-2, .ue-float-3 { animation: none !important; }
 }
+
+/* Route line — dashes travel slowly along the arc so the shipping
+   "path" feels alive. Disabled under reduced-motion. */
+@keyframes ue-route { to { stroke-dashoffset: -240; } }
+.ue-route { animation: ue-route 9s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .ue-route { animation: none !important; } }
