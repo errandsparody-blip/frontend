@@ -21,8 +21,7 @@ export default function HomePage() {
           <FadeUp>
             <div className="mx-auto max-w-3xl text-center">
               <div className="inline-flex items-center gap-2 rounded-full border border-white/35 bg-white/15 px-4 py-1.5 font-mono text-[11px] uppercase tracking-[1.2px] text-white/90 backdrop-blur">
-                Now shipping to the U.S. and Canada
-              </div>
+              Fulfilling orders within the U.S. and Canada. </div>
               <h1 className="mt-10 text-display-xl font-medium leading-[1.02] tracking-[-1.5px] text-[#fbf8f2]">
                 Ship from anywhere.
                 <br />
