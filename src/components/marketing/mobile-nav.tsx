@@ -154,14 +154,26 @@ export function MobileNav(): JSX.Element {
                   <span aria-hidden className="font-mono">→</span>
                 </Link>
               ) : (
-                <Link
-                  href="/login"
-                  onClick={() => setOpen(false)}
-                  className="flex items-center justify-between rounded-sm px-3 py-3 font-mono text-[13px] uppercase tracking-[1.2px] text-text hover:bg-ink/5 hover:text-ink"
-                >
-                  <span>Log in</span>
-                  <span aria-hidden className="font-mono text-text-subtle">→</span>
-                </Link>
+                <div className="flex flex-col gap-2">
+                  {/* Primary Get started CTA — the header pill is hidden on
+                      phones, so the drawer carries it. */}
+                  <Link
+                    href="/signup"
+                    onClick={() => setOpen(false)}
+                    className="flex items-center justify-between rounded-full bg-amber px-4 py-3 text-body-sm font-medium text-ink hover:bg-amber-hi"
+                  >
+                    <span>Get started</span>
+                    <span aria-hidden>→</span>
+                  </Link>
+                  <Link
+                    href="/login"
+                    onClick={() => setOpen(false)}
+                    className="flex items-center justify-between rounded-sm px-3 py-3 font-mono text-[13px] uppercase tracking-[1.2px] text-text hover:bg-ink/5 hover:text-ink"
+                  >
+                    <span>Log in</span>
+                    <span aria-hidden className="font-mono text-text-subtle">→</span>
+                  </Link>
+                </div>
               )}
             </div>
           </div>

@@ -53,7 +53,11 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
           <PillNavLinks />
 
           <div className="flex items-center gap-2 sm:gap-3">
-            <HeaderCTA />
+            {/* CTA hides on phones (it crowded the logo); the hamburger
+                drawer carries Get started + Log in there instead. */}
+            <div className="hidden md:flex md:items-center md:gap-3">
+              <HeaderCTA />
+            </div>
             <MobileNav />
           </div>
         </nav>
