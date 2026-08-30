@@ -147,6 +147,14 @@ export default function AdminRatePickerPage(): JSX.Element {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [pickedRef, setPickedRef] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<SelectRateResponse | null>(null);
+  // Editable add-ons the operator applies at buy-label time. Seeded from the
+  // vendor's request; the admin can add or remove them. Signature affects the
+  // rate, so changes take effect on the next Fetch/Refresh rates.
+  const [addons, setAddons] = useState<{
+    insuranceRequested: boolean;
+    signatureRequired: boolean;
+    adultSignatureRequired: boolean;
+  } | null>(null);
 
   const queueQ = useQuery({
     queryKey: ["admin", "pack", "rate-queue"],
@@ -190,6 +198,19 @@ export default function AdminRatePickerPage(): JSX.Element {
     staleTime: 10_000,
   });
 
+  // Seed the editable add-ons from the order — but only when a DIFFERENT
+  // order loads (keyed on id), so a background refetch of the same order
+  // doesn't clobber the operator's in-progress edits.
+  useEffect(() => {
+    if (!orderQ.data) return;
+    setAddons({
+      insuranceRequested: orderQ.data.insuranceRequested,
+      signatureRequired: orderQ.data.signatureRequired,
+      adultSignatureRequired: orderQ.data.adultSignatureRequired,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orderQ.data?.id]);
+
   // "Send back to pack queue" — regresses the order to PENDING_PACKING
   // so the operator can re-pack it with the full toolset on /admin/pack
   // (packaging presets, carrier templates, barcode scan). Replaces the
@@ -219,9 +240,18 @@ export default function AdminRatePickerPage(): JSX.Element {
   const fetchMut = useMutation({
     mutationFn: async () => {
       if (!selectedId) throw new Error("No order selected.");
+      // Send the operator's add-on choices so signature is priced into the
+      // rates and insurance is stored for the label purchase.
+      const body = addons
+        ? {
+            insuranceRequested: addons.insuranceRequested,
+            signatureRequired: addons.signatureRequired || addons.adultSignatureRequired,
+            adultSignatureRequired: addons.adultSignatureRequired,
+          }
+        : {};
       return api.post<{ orderId: string; status: string; options: RateOption[] }>(
         `/admin/pack/${selectedId}/fetch-rates`,
-        {},
+        body,
       );
     },
     onMutate: () => clear(),
@@ -447,33 +477,90 @@ export default function AdminRatePickerPage(): JSX.Element {
                 </div>
               ) : null}
 
-              {/* Migration 0055 — vendor-requested label add-ons. The
-                  operator must apply these when buying the label; the
-                  system does so automatically (insurance for the declared
-                  value, signature/adult-signature on the shipment). Shown
-                  as a prominent banner so it isn't missed. */}
-              {orderQ.data &&
-              (orderQ.data.insuranceRequested ||
-                orderQ.data.signatureRequired ||
-                orderQ.data.adultSignatureRequired) ? (
+              {/* Migration 0055 — label add-ons. Seeded from the vendor's
+                  request; the operator can add or remove them here. Insurance
+                  is applied at purchase (for the declared value); signature
+                  is priced into the rate, so changing it takes effect on the
+                  next Fetch/Refresh rates. */}
+              {orderQ.data && addons ? (
                 <div className="mt-4 rounded-md border-l-4 border-ink bg-cream-soft p-3 text-body-sm">
-                  <div className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
-                    Vendor-requested add-ons
+                  <div className="flex items-center justify-between">
+                    <div className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
+                      Label add-ons
+                    </div>
+                    <div className="font-mono text-[10px] uppercase tracking-[1.2px] text-text-subtle">
+                      vendor requested:{" "}
+                      {[
+                        orderQ.data.insuranceRequested ? "insurance" : null,
+                        orderQ.data.adultSignatureRequired
+                          ? "adult sig"
+                          : orderQ.data.signatureRequired
+                            ? "signature"
+                            : null,
+                      ]
+                        .filter(Boolean)
+                        .join(", ") || "none"}
+                    </div>
                   </div>
-                  <ul className="mt-2 list-disc pl-5">
-                    {orderQ.data.insuranceRequested ? (
-                      <li>
+                  <div className="mt-3 flex flex-col gap-2">
+                    <label className="flex items-start gap-2">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5 h-4 w-4"
+                        checked={addons.insuranceRequested}
+                        onChange={(e) =>
+                          setAddons((a) => (a ? { ...a, insuranceRequested: e.target.checked } : a))
+                        }
+                      />
+                      <span>
                         Insurance for the declared value (
-                        {dollars(orderQ.data.itemsDeclaredValueCents)}) — applied
-                        automatically at purchase.
-                      </li>
-                    ) : null}
-                    {orderQ.data.adultSignatureRequired ? (
-                      <li>Adult signature (21+) on delivery.</li>
-                    ) : orderQ.data.signatureRequired ? (
-                      <li>Signature on delivery.</li>
-                    ) : null}
-                  </ul>
+                        {dollars(orderQ.data.itemsDeclaredValueCents)}) — applied at purchase.
+                      </span>
+                    </label>
+                    <label className="flex items-start gap-2">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5 h-4 w-4"
+                        checked={addons.signatureRequired || addons.adultSignatureRequired}
+                        onChange={(e) =>
+                          setAddons((a) =>
+                            a
+                              ? {
+                                  ...a,
+                                  signatureRequired: e.target.checked,
+                                  adultSignatureRequired: e.target.checked
+                                    ? a.adultSignatureRequired
+                                    : false,
+                                }
+                              : a,
+                          )
+                        }
+                      />
+                      <span>Signature on delivery.</span>
+                    </label>
+                    <label
+                      className={
+                        "flex items-start gap-2 " +
+                        (addons.signatureRequired || addons.adultSignatureRequired
+                          ? ""
+                          : "opacity-50")
+                      }
+                    >
+                      <input
+                        type="checkbox"
+                        className="mt-0.5 h-4 w-4"
+                        disabled={!(addons.signatureRequired || addons.adultSignatureRequired)}
+                        checked={addons.adultSignatureRequired}
+                        onChange={(e) =>
+                          setAddons((a) => (a ? { ...a, adultSignatureRequired: e.target.checked } : a))
+                        }
+                      />
+                      <span>Adult signature (21+) — requires signature.</span>
+                    </label>
+                  </div>
+                  <div className="mt-2 font-mono text-[10px] uppercase tracking-[1.2px] text-text-subtle">
+                    Signature changes the rate — click Fetch / Refresh rates to apply.
+                  </div>
                 </div>
               ) : null}
 

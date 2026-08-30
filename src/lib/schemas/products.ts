@@ -64,7 +64,8 @@ export const createProductSchema = z.object({
   variant: z.string().min(1).max(40).default("STD"),
   hsCode: z.string().min(4).max(12).optional().or(z.literal("").transform(() => undefined)),
   countryOfOrigin: isoCountrySchema,
-  declaredValueCents: z.coerce.number().int().nonnegative(),
+  // Required and greater than $0 — drives customs (international) + insurance.
+  declaredValueCents: z.coerce.number().int().positive("Declared value must be greater than $0."),
   weightOz: weightSchema,
   lengthIn: optionalDimension,
   widthIn: optionalDimension,

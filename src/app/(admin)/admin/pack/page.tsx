@@ -907,18 +907,14 @@ function PackDialog({
 
     const lengthIn = parseDim("lengthIn", "Length");
     const widthIn = parseDim("widthIn", "Width");
-    // Height is only required for boxes and for carrier/library
-    // sources (which always have all three). For poly-mailer ad-hoc,
-    // default to a 0.5-in floor to satisfy the server's positive-dims
-    // DB CHECK — Shippo treats sub-inch heights as flat rate anyway.
-    const heightInParsed = heightRequired
-      ? parseDim("heightIn", "Height")
-      : (() => {
-          const raw = form.heightIn.trim();
-          if (raw === "") return 0.5;
-          const n = Number(raw);
-          return Number.isFinite(n) && n > 0 && n <= MAX_DIM_IN ? n : 0.5;
-        })();
+    // Height is only required for boxes and for carrier/library sources
+    // (which always have all three). A poly mailer is flat and has NO height
+    // input, so we always use a sub-inch floor (0.5 in) — never `form.heightIn`,
+    // which can still hold a stale value from a previous box pack (e.g. an
+    // order sent back for re-pack prefills the old 10-in box height). Reusing
+    // that stale height recorded mailers as tall boxes, exploding the
+    // dimensional weight and the carrier rates.
+    const heightInParsed = heightRequired ? parseDim("heightIn", "Height") : 0.5;
     const weightOz = parseWeight();
 
     const notesTrim = form.notes.trim();
@@ -1202,7 +1198,15 @@ function PackDialog({
                   <button
                     key={t.key}
                     type="button"
-                    onClick={() => setAdhocType(t.key)}
+                    onClick={() => {
+                      setAdhocType(t.key);
+                      // Poly mailer has no height field — clear any stale
+                      // height (e.g. from a prefilled box re-pack) so it
+                      // can't leak into the recorded dimensions.
+                      if (t.key === "POLY_MAILER") {
+                        setForm((f) => ({ ...f, heightIn: "" }));
+                      }
+                    }}
                     disabled={submitting}
                     className={
                       adhocType === t.key
