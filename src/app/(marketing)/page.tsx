@@ -67,8 +67,8 @@ export default function HomePage() {
         <div className="mx-auto max-w-[84rem] px-5 py-16 sm:px-8">
           <FadeUp>
             <div className="grid grid-cols-2 overflow-hidden rounded-3xl border border-line bg-cream-soft shadow-1 lg:grid-cols-4">
-              <Stat value="6000" label="Inventory value managed" />
-              <Stat value="75" label="Vendors trust the system" />
+              <Stat value="10000+" label="Inventory managed" />
+              <Stat value="75+" label="Vendors trust the system" />
               <Stat value="4.2 days" label="Average inbound onboarding" amber />
               <Stat value="99.97%" label="Uptime. Not rounded" />
             </div>
