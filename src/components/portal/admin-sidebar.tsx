@@ -7,6 +7,7 @@ import {
   ClipboardCheck,
   ClipboardList,
   CreditCard,
+  Gift,
   LayoutDashboard,
   Package,
   ScrollText,
@@ -81,6 +82,7 @@ const NAV: NavItem[] = [
   { href: "/admin/returns", label: "Returns", icon: Undo2, category: "return", pageKey: "admin.returns.read" },
   { href: "/admin/shopper", label: "Shopper", icon: ShoppingBag, category: "shopper", pageKey: "admin.shopper.read" },
   { href: "/admin/finance", label: "Finance", icon: CreditCard, category: "wallet", pageKey: "admin.finance.read" },
+  { href: "/admin/referrals", label: "Referrals", icon: Gift, superAdminOnly: true },
   {
     href: "/admin/notifications",
     label: "Notifications",

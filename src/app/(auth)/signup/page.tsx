@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import type { z } from "zod";
 
@@ -35,6 +35,9 @@ type SignupFormInput = z.infer<typeof signupSchema>;
 
 export default function SignupPage() {
   const router = useRouter();
+  // Referral / event code from the link (?ref=CODE). Passed through on submit
+  // so the backend attributes the new vendor to the referrer/campaign.
+  const refCode = useSearchParams().get("ref")?.trim() || undefined;
 
   const form = useForm<SignupFormInput>({
     resolver: zodResolver(signupSchema),
@@ -43,6 +46,7 @@ export default function SignupPage() {
       password: "",
       businessName: "",
       country: "",
+      refCode,
       // Cast: schema TYPE is `true`, initial VALUE is false. RHF needs a
       // defined default for the controlled checkbox; the Zod resolver
       // rejects `false` at submit-time with the "you must accept" error.
@@ -60,7 +64,7 @@ export default function SignupPage() {
   async function onSubmit(values: SignupFormInput): Promise<void> {
     clear();
     try {
-      await api.post<{ ok: true; userId: string }>("/auth/signup", values);
+      await api.post<{ ok: true; userId: string }>("/auth/signup", { ...values, refCode });
       // Carry the email through so the verify form can pre-fill it for the
       // POST /auth/verify-email request without making the user retype.
       router.push(`/signup/verify-email?email=${encodeURIComponent(values.email)}`);
