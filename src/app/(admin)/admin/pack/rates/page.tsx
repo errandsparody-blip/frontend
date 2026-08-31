@@ -40,7 +40,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { ErrorBanner } from "@/components/errors/error-banner";
 import { Button } from "@/components/ui/button";
@@ -95,6 +95,12 @@ interface PackOrderDetail {
   insuranceRequested: boolean;
   signatureRequired: boolean;
   adultSignatureRequired: boolean;
+  // Migration 0057 — hazmat / special-handling add-ons.
+  containsAlcohol: boolean;
+  alcoholRecipientType: string | null;
+  containsDryIce: boolean;
+  dryIceWeightOz: number | null;
+  containsLithium: boolean;
   packedLengthIn: number | null;
   packedWidthIn: number | null;
   packedHeightIn: number | null;
@@ -133,6 +139,19 @@ function dollars(cents: number): string {
   })}`;
 }
 
+// Editable label add-ons the operator applies at rate/label time. Any change
+// re-prices the rates against Shippo (extras affect the carrier rate).
+interface AddonState {
+  insuranceRequested: boolean;
+  signatureRequired: boolean;
+  adultSignatureRequired: boolean;
+  containsAlcohol: boolean;
+  alcoholRecipientType: "consumer" | "licensee";
+  containsDryIce: boolean;
+  dryIceWeightOz: number | null;
+  containsLithium: boolean;
+}
+
 const STATUS_TONE: Record<QueueStatus, "neutral" | "info" | "warning"> = {
   PACKING_COMPLETED: "neutral",
   AWAITING_SHIPPING_SELECTION: "info",
@@ -150,11 +169,10 @@ export default function AdminRatePickerPage(): JSX.Element {
   // Editable add-ons the operator applies at buy-label time. Seeded from the
   // vendor's request; the admin can add or remove them. Signature affects the
   // rate, so changes take effect on the next Fetch/Refresh rates.
-  const [addons, setAddons] = useState<{
-    insuranceRequested: boolean;
-    signatureRequired: boolean;
-    adultSignatureRequired: boolean;
-  } | null>(null);
+  const [addons, setAddons] = useState<AddonState | null>(null);
+  // Signature of the add-ons as of the last seed/fetch. When the operator
+  // changes an add-on the signature diverges and we auto re-price.
+  const addonSigRef = useRef<string | null>(null);
 
   const queueQ = useQuery({
     queryKey: ["admin", "pack", "rate-queue"],
@@ -203,11 +221,20 @@ export default function AdminRatePickerPage(): JSX.Element {
   // doesn't clobber the operator's in-progress edits.
   useEffect(() => {
     if (!orderQ.data) return;
-    setAddons({
+    const seeded: AddonState = {
       insuranceRequested: orderQ.data.insuranceRequested,
       signatureRequired: orderQ.data.signatureRequired,
       adultSignatureRequired: orderQ.data.adultSignatureRequired,
-    });
+      containsAlcohol: orderQ.data.containsAlcohol,
+      alcoholRecipientType: orderQ.data.alcoholRecipientType === "licensee" ? "licensee" : "consumer",
+      containsDryIce: orderQ.data.containsDryIce,
+      dryIceWeightOz: orderQ.data.dryIceWeightOz,
+      containsLithium: orderQ.data.containsLithium,
+    };
+    setAddons(seeded);
+    // Baseline signature — the auto re-price only fires once the operator
+    // changes something away from this.
+    addonSigRef.current = JSON.stringify(seeded);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderQ.data?.id]);
 
@@ -247,6 +274,11 @@ export default function AdminRatePickerPage(): JSX.Element {
             insuranceRequested: addons.insuranceRequested,
             signatureRequired: addons.signatureRequired || addons.adultSignatureRequired,
             adultSignatureRequired: addons.adultSignatureRequired,
+            containsAlcohol: addons.containsAlcohol,
+            alcoholRecipientType: addons.alcoholRecipientType,
+            containsDryIce: addons.containsDryIce,
+            dryIceWeightOz: addons.containsDryIce ? addons.dryIceWeightOz ?? 0 : null,
+            containsLithium: addons.containsLithium,
           }
         : {};
       return api.post<{ orderId: string; status: string; options: RateOption[] }>(
@@ -265,6 +297,23 @@ export default function AdminRatePickerPage(): JSX.Element {
     },
     onError: (err) => handle(err),
   });
+
+  // Live re-price: when the operator changes an add-on, re-fetch rates after
+  // a short debounce so the carrier prices update automatically (extras like
+  // signature / alcohol / dry ice affect the rate). We compare against the
+  // last-fetched signature so this never fires on the initial seed or loops
+  // after a fetch. Dry-ice weight is only meaningful when the box is ticked.
+  useEffect(() => {
+    if (!addons || !selectedId || addonSigRef.current === null) return;
+    const sig = JSON.stringify(addons);
+    if (sig === addonSigRef.current) return;
+    const t = window.setTimeout(() => {
+      addonSigRef.current = sig; // new baseline — prevents a re-trigger loop
+      fetchMut.mutate();
+    }, 650);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addons, selectedId]);
 
   const selectMut = useMutation({
     mutationFn: async (rateProviderRef: string) => {
@@ -557,9 +606,93 @@ export default function AdminRatePickerPage(): JSX.Element {
                       />
                       <span>Adult signature (21+) — requires signature.</span>
                     </label>
+
+                    {/* Alcohol */}
+                    <label className="flex items-start gap-2">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5 h-4 w-4"
+                        checked={addons.containsAlcohol}
+                        onChange={(e) =>
+                          setAddons((a) => (a ? { ...a, containsAlcohol: e.target.checked } : a))
+                        }
+                      />
+                      <span>Contains alcohol.</span>
+                    </label>
+                    {addons.containsAlcohol ? (
+                      <div className="ml-6">
+                        <select
+                          aria-label="Alcohol recipient type"
+                          value={addons.alcoholRecipientType}
+                          onChange={(e) =>
+                            setAddons((a) =>
+                              a
+                                ? { ...a, alcoholRecipientType: e.target.value === "licensee" ? "licensee" : "consumer" }
+                                : a,
+                            )
+                          }
+                          className="h-9 rounded-md border border-line bg-white px-2 text-body-sm"
+                        >
+                          <option value="consumer">Consumer (DTC)</option>
+                          <option value="licensee">Licensee (reseller)</option>
+                        </select>
+                      </div>
+                    ) : null}
+
+                    {/* Dry ice */}
+                    <label className="flex items-start gap-2">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5 h-4 w-4"
+                        checked={addons.containsDryIce}
+                        onChange={(e) =>
+                          setAddons((a) => (a ? { ...a, containsDryIce: e.target.checked } : a))
+                        }
+                      />
+                      <span>Contains dry ice.</span>
+                    </label>
+                    {addons.containsDryIce ? (
+                      <div className="ml-6 flex items-center gap-2">
+                        <input
+                          type="number"
+                          min={0}
+                          step="0.1"
+                          placeholder="Dry ice weight"
+                          value={addons.dryIceWeightOz ?? ""}
+                          onChange={(e) =>
+                            setAddons((a) =>
+                              a
+                                ? {
+                                    ...a,
+                                    dryIceWeightOz:
+                                      e.target.value === "" ? null : Math.max(0, Math.round(Number(e.target.value) || 0)),
+                                  }
+                                : a,
+                            )
+                          }
+                          className="h-9 w-32 rounded-md border border-line bg-white px-2 text-body-sm"
+                        />
+                        <span className="text-text-muted">oz</span>
+                      </div>
+                    ) : null}
+
+                    {/* Lithium batteries */}
+                    <label className="flex items-start gap-2">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5 h-4 w-4"
+                        checked={addons.containsLithium}
+                        onChange={(e) =>
+                          setAddons((a) => (a ? { ...a, containsLithium: e.target.checked } : a))
+                        }
+                      />
+                      <span>Contains lithium batteries.</span>
+                    </label>
                   </div>
                   <div className="mt-2 font-mono text-[10px] uppercase tracking-[1.2px] text-text-subtle">
-                    Signature changes the rate — click Fetch / Refresh rates to apply.
+                    {fetchMut.isPending
+                      ? "Re-pricing against the carriers…"
+                      : "Changing an add-on re-prices the rates automatically."}
                   </div>
                 </div>
               ) : null}

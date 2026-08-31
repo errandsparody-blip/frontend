@@ -39,6 +39,12 @@ interface AdminOrderDetail {
   insuranceRequested: boolean;
   signatureRequired: boolean;
   adultSignatureRequired: boolean;
+  // Migration 0057 — hazmat / special-handling add-ons.
+  containsAlcohol: boolean;
+  alcoholRecipientType: string | null;
+  containsDryIce: boolean;
+  dryIceWeightOz: number | null;
+  containsLithium: boolean;
   vendor: { id: string; businessName: string };
   /**
    * Migration 0037 — branches the entire fulfillment workflow:
@@ -334,10 +340,16 @@ export default function AdminOrderDetailPage() {
             flag. Shown right under the recipient/money so the operator
             sees, before buying the label, what the vendor asked for. Only
             renders when there's something to honour. */}
-        {o.insuranceRequested || o.signatureRequired || o.adultSignatureRequired || (o.shipCountry && o.shipCountry !== "US") ? (
+        {o.insuranceRequested ||
+        o.signatureRequired ||
+        o.adultSignatureRequired ||
+        o.containsAlcohol ||
+        o.containsDryIce ||
+        o.containsLithium ||
+        (o.shipCountry && o.shipCountry !== "US") ? (
           <div className="mt-6 rounded-md border-l-4 border-amber bg-amber/5 px-4 py-3">
             <div className="font-mono text-mono-label uppercase tracking-[1.2px] text-amber">
-              Vendor-requested add-ons
+              Label add-ons &amp; handling
             </div>
             <ul className="mt-2 flex flex-col gap-1 text-body-sm text-text">
               {o.insuranceRequested ? (
@@ -351,6 +363,19 @@ export default function AdminOrderDetailPage() {
               ) : o.signatureRequired ? (
                 <li>• Signature on delivery.</li>
               ) : null}
+              {o.containsAlcohol ? (
+                <li>
+                  • Contains alcohol —{" "}
+                  {o.alcoholRecipientType === "licensee" ? "licensee (reseller)" : "consumer (DTC)"}.
+                </li>
+              ) : null}
+              {o.containsDryIce ? (
+                <li>
+                  • Contains dry ice
+                  {o.dryIceWeightOz ? ` (${o.dryIceWeightOz} oz)` : ""}.
+                </li>
+              ) : null}
+              {o.containsLithium ? <li>• Contains lithium batteries.</li> : null}
               {o.shipCountry && o.shipCountry !== "US" ? (
                 <li>
                   • International ({o.shipCountry}) — customs declaration is
