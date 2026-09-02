@@ -3,6 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 import { useForm } from "react-hook-form";
 import type { z } from "zod";
 
@@ -33,7 +34,7 @@ function isoToFlag(code: string): string {
 // ---------------------------------------------------------------------------
 type SignupFormInput = z.infer<typeof signupSchema>;
 
-export default function SignupPage() {
+function SignupForm() {
   const router = useRouter();
   // Referral / event code from the link (?ref=CODE). Passed through on submit
   // so the backend attributes the new vendor to the referrer/campaign.
@@ -216,5 +217,16 @@ export default function SignupPage() {
         </div>
       </form>
     </div>
+  );
+}
+
+// useSearchParams() must sit under a Suspense boundary or Next.js bails out of
+// static prerendering for /signup (the build error). Wrapping the form here
+// keeps the ?ref capture working while letting the page prerender its shell.
+export default function SignupPage() {
+  return (
+    <Suspense fallback={null}>
+      <SignupForm />
+    </Suspense>
   );
 }
