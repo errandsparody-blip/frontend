@@ -825,19 +825,12 @@ function WirePaymentCard({
 }): JSX.Element | null {
   const [proofUrls, setProofUrls] = useState<string[]>([]);
   const [selectedMethodCode, setSelectedMethodCode] = useState<string | null>(null);
-  // June 2026 — credentials moved to email. The buyer picks a method
-  // and clicks "Continue to payment"; the server emails the account
-  // details. This component tracks the most-recent successful send so
-  // the UI can switch from picker → confirmation card.
-  //
-  // We track BOTH the code (for stable matching against the live
-  // method list — labels can drift if an admin renames a method
-  // mid-session) AND the label (for display in the confirmation
-  // copy). Matching by code means the confirmation card stays
-  // pinned even if the server's label changes between sends.
-  const [sentCode, setSentCode] = useState<string | null>(null);
-  const [sentLabel, setSentLabel] = useState<string | null>(null);
-  const [sentTo, setSentTo] = useState<string | null>(null);
+  // Migration 0058 — the method the buyer is CONFIRMING. Clicking "Continue to
+  // payment" no longer sends immediately; it opens a confirmation gate so the
+  // buyer understands that confirming commits them to that method (and releases
+  // the payment details) and that they won't be able to switch afterwards.
+  // Only an explicit confirm calls the server. Null = no gate open.
+  const [confirmingCode, setConfirmingCode] = useState<string | null>(null);
   const { bannerError, handle, clear } = useApiErrorHandler();
 
   // Submit the wire-proof upload. Unchanged from the prior version
@@ -875,11 +868,16 @@ function WirePaymentCard({
         window.location.href = res.checkoutUrl;
         return;
       }
-      setSentCode(res.methodCode);
-      setSentLabel(res.methodLabel);
-      setSentTo(res.sentTo);
+      // Wire method committed + emailed. Close the confirmation gate and
+      // refetch so the snapshot's committedPaymentMethodCode flips the card
+      // into its locked state immediately (rather than on the next poll).
+      setConfirmingCode(null);
+      onRefresh();
     },
-    onError: (err) => handle(err),
+    onError: (err) => {
+      setConfirmingCode(null);
+      handle(err);
+    },
   });
 
   // The server now ships only `{ code, label }` for each method — the
@@ -892,32 +890,21 @@ function WirePaymentCard({
     [request.paymentMethods],
   );
 
-  // Default selection: pick the first method as soon as the list is
-  // populated. Effect runs after every render so a server-side change
-  // from 0 → N methods seeds the picker on the next poll.
-  //
-  // Also: if an admin deactivates the currently-selected method
-  // between polls, the picker would otherwise have a stale code and
-  // render nothing as active. Reset to the first available method
-  // and clear the confirmation card since the sent code probably
-  // refers to a method the buyer can no longer pick. Kept above the
-  // early-return so the hook order stays stable across renders.
+  // Migration 0058 — once the buyer has committed, the choice is locked and
+  // the server collapses `paymentMethods` to that single entry, so there's no
+  // picker to seed. Pre-commit: pick the first method as soon as the list is
+  // populated, and re-seed if an admin deactivates the selected method between
+  // polls. Kept above the early-return so hook order stays stable.
+  const committedCode = request.committedPaymentMethodCode;
   useEffect(() => {
+    if (committedCode != null) return;
     if (methods.length === 0) return;
     const codes = methods.map((m) => m.code);
     if (selectedMethodCode === null || !codes.includes(selectedMethodCode)) {
       const first = methods[0];
       if (first) setSelectedMethodCode(first.code);
-      // Stale selection → stale confirmation too. Drop it so the
-      // buyer doesn't see "Check your email for Cash App" while the
-      // picker forces them onto Zelle.
-      if (sentCode !== null && !codes.includes(sentCode)) {
-        setSentCode(null);
-        setSentLabel(null);
-        setSentTo(null);
-      }
     }
-  }, [methods, selectedMethodCode, sentCode]);
+  }, [methods, selectedMethodCode, committedCode]);
 
   // May 2026 — Manual-payment policy. Card renders any time the request
   // is in a payment-pending or under-review state. Anything past
@@ -931,20 +918,23 @@ function WirePaymentCard({
     request.status === "WIRE_UNDER_REVIEW";
   if (!showActiveForm && !showReviewState) return null;
 
+  const isCommitted = committedCode != null;
+  const committedIsStripe = committedCode === "stripe";
+  // Server collapses `paymentMethods` to the committed entry once locked, so
+  // this normally resolves; fall back to a readable label if the method was
+  // deactivated in config after the buyer committed.
+  const committedLabel =
+    methods.find((m) => m.code === committedCode)?.label ??
+    (committedIsStripe ? "Card" : (committedCode ?? "your chosen method"));
+
   const selectedMethod =
     methods.find((m) => m.code === selectedMethodCode) ?? methods[0] ?? null;
   const canSubmit = proofUrls.length > 0 && !submit.isPending;
-  const canSendInstructions =
-    !!selectedMethod && !sendInstructions.isPending && methods.length > 0;
-  // If the buyer already sent themselves the email for a method but
-  // then picked a different one, drop the confirmation state so the
-  // page doesn't claim Cash App when they just picked Zelle. Match
-  // by code, not label — labels can change if an admin renames a
-  // method between polls.
-  const confirmationVisible =
-    sentCode != null &&
-    selectedMethod != null &&
-    selectedMethod.code === sentCode;
+  // The method shown in the confirmation gate.
+  const confirmMethod = confirmingCode
+    ? (methods.find((m) => m.code === confirmingCode) ?? selectedMethod)
+    : null;
+  const confirmIsStripe = confirmMethod?.code === "stripe";
 
   return (
     <section className="rounded-md border border-line bg-white p-8">
@@ -953,13 +943,34 @@ function WirePaymentCard({
           Pay {`$${(request.intakeTotalCents / 100).toFixed(2)}`}
         </h2>
         <p className="mt-2 text-body-sm text-text-muted">
-          Choose a payment method below. When you click <strong>Continue to
-          payment</strong>, we&apos;ll email you the account details. Once
-          you&apos;ve paid, upload your confirmation so we can match it.
+          {isCommitted ? (
+            <>Your payment method is locked in below.</>
+          ) : (
+            <>
+              Choose a payment method, then confirm it. Once you confirm,
+              we&apos;ll release the payment details and your choice is locked —
+              you won&apos;t be able to switch, so only confirm the method
+              you&apos;re ready to pay with.
+            </>
+          )}
         </p>
       </div>
 
-      {methods.length === 0 ? (
+      {/* Errors (including the "method locked" 409) surface at the top so
+          they're visible in every state. */}
+      {bannerError ? (
+        <div className="mb-4">
+          <ErrorBanner
+            error={bannerError}
+            onAction={(handler) => {
+              if (handler === "support") window.location.href = "mailto:hello@myusaerrands.com";
+              else if (handler === "retry") clear();
+            }}
+          />
+        </div>
+      ) : null}
+
+      {methods.length === 0 && !isCommitted ? (
         <div className="mb-4 rounded-sm border-l-4 border-error bg-error/10 px-4 py-3 text-body-sm">
           No payment methods are available right now — please email
           <a className="ml-1 underline" href="mailto:hello@myusaerrands.com">
@@ -967,13 +978,34 @@ function WirePaymentCard({
           </a>{" "}
           and we&apos;ll arrange payment with you directly.
         </div>
-      ) : (
+      ) : null}
+
+      {/* Amount + reference summary — shown in both the picker and locked
+          states so the buyer always sees what they owe + the memo reference. */}
+      {(showActiveForm && (isCommitted || selectedMethod)) ? (
+        <div className="mb-4 rounded-sm border border-line bg-cream-soft p-5">
+          <div className="mb-3 font-mono text-mono-label uppercase tracking-[1.4px] text-amber">
+            {isCommitted ? committedLabel : selectedMethod?.label}
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <BankRow
+              label="Amount due"
+              value={`$${(request.intakeTotalCents / 100).toFixed(2)}`}
+              mono
+            />
+            <BankRow label="Reference" value={request.reference} mono />
+          </div>
+          <div className="mt-4 rounded-sm border border-amber/40 bg-amber/10 px-3 py-2 font-mono text-mono-label uppercase tracking-[1.2px] text-amber">
+            Include reference {request.reference} in your payment note
+          </div>
+        </div>
+      ) : null}
+
+      {showActiveForm && !isCommitted ? (
         <>
-          {/* Method picker. Renders as a row of pill buttons when more
-              than one is active; collapses to a single header label
-              when only one is enabled. Picking a different method
-              clears any prior "instructions sent" confirmation so
-              the UI doesn't claim the wrong method. */}
+          {/* Method picker — only shown BEFORE the buyer commits. After
+              commit the server collapses the list and we render the locked
+              state instead. */}
           {methods.length > 1 ? (
             <div className="mb-5">
               <div className="mb-2 font-mono text-mono-label uppercase text-text-muted">
@@ -987,15 +1019,7 @@ function WirePaymentCard({
                     role="tab"
                     aria-selected={selectedMethodCode === m.code}
                     onClick={() => {
-                      if (m.code !== selectedMethodCode) {
-                        // Switching method invalidates the prior
-                        // confirmation. The buyer must click Continue
-                        // again to receive the new method's details.
-                        setSentCode(null);
-                        setSentLabel(null);
-                        setSentTo(null);
-                        clear();
-                      }
+                      if (m.code !== selectedMethodCode) clear();
                       setSelectedMethodCode(m.code);
                     }}
                     className={
@@ -1011,115 +1035,188 @@ function WirePaymentCard({
             </div>
           ) : null}
 
-          {/* Amount + reference summary. Always visible so the buyer
-              sees what they owe and what reference to put in the memo
-              field even before they click Continue. */}
-          {selectedMethod ? (
-            <div className="mb-4 rounded-sm border border-line bg-cream-soft p-5">
-              <div className="mb-3 font-mono text-mono-label uppercase tracking-[1.4px] text-amber">
-                {selectedMethod.label}
+          {/* Confirmation gate → Continue button. Clicking Continue opens the
+              gate; only an explicit confirm commits + releases details. */}
+          {confirmingCode && confirmMethod ? (
+            <div className="mb-6 rounded-sm border-l-4 border-amber bg-amber/10 px-4 py-4 text-body-sm">
+              <div className="font-mono text-mono-label uppercase tracking-[1.2px] text-amber">
+                Confirm {confirmMethod.label}
               </div>
-              <div className="grid gap-4 md:grid-cols-2">
-                <BankRow
-                  label="Amount due"
-                  value={`$${(request.intakeTotalCents / 100).toFixed(2)}`}
-                  mono
-                />
-                <BankRow
-                  label="Reference"
-                  value={request.reference}
-                  mono
-                />
-              </div>
-              <div className="mt-4 rounded-sm border border-amber/40 bg-amber/10 px-3 py-2 font-mono text-mono-label uppercase tracking-[1.2px] text-amber">
-                Include reference {request.reference} in your payment note
-              </div>
-            </div>
-          ) : null}
-
-          {/* Continue to payment / resend / confirmation block.
-              State transitions:
-                - no email sent yet     → primary "Continue to payment"
-                - email already sent    → success card + "Resend" link
-                - method changed since  → primary button re-appears
-                                          (confirmation hidden by the
-                                          equality check above)
-              The proof uploader below is independent — a buyer can
-              upload proof whether or not they re-emailed themselves. */}
-          {showActiveForm ? (
-            <div className="mb-6">
-              {confirmationVisible ? (
-                <div
-                  role="status"
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-sm border-l-4 border-success bg-success/10 px-4 py-3 text-body-sm"
+              <p className="mt-2 text-text">
+                {confirmIsStripe ? (
+                  <>
+                    You&apos;re about to pay by card. When you confirm,
+                    you&apos;ll go to a secure checkout and this choice is{" "}
+                    <strong>locked in</strong> — you won&apos;t be able to
+                    switch to another method. A card processing fee is added at
+                    checkout.
+                  </>
+                ) : (
+                  <>
+                    You&apos;re about to pay by{" "}
+                    <strong>{confirmMethod.label}</strong>. When you confirm,
+                    we&apos;ll email the account details to{" "}
+                    <strong className="font-mono">{request.buyerEmail}</strong>{" "}
+                    and this choice is <strong>locked in</strong> — you
+                    won&apos;t be able to switch. Only confirm if you&apos;re
+                    ready to send the payment.
+                  </>
+                )}
+              </p>
+              <div className="mt-4 flex flex-wrap gap-3">
+                <Button
+                  type="button"
+                  variant="amber"
+                  size="md"
+                  loading={sendInstructions.isPending}
+                  onClick={() => {
+                    if (!confirmMethod) return;
+                    clear();
+                    sendInstructions.mutate(confirmMethod.code);
+                  }}
                 >
-                  <div>
-                    <div className="font-mono text-mono-label uppercase tracking-[1.2px] text-success">
-                      Check your email
-                    </div>
-                    <p className="mt-1 text-text">
-                      We&apos;ve sent the {sentLabel} instructions to{" "}
-                      <strong className="font-mono">{sentTo}</strong>. Once
-                      you&apos;ve paid, upload the confirmation below.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!selectedMethod) return;
-                      clear();
-                      sendInstructions.mutate(selectedMethod.code);
-                    }}
-                    disabled={sendInstructions.isPending}
-                    className="rounded-sm border border-line-strong bg-white px-3 py-1.5 font-mono text-mono-label uppercase tracking-[1.2px] text-ink hover:bg-cream-soft disabled:opacity-60"
-                  >
-                    {sendInstructions.isPending ? "Resending…" : "Resend email"}
-                  </button>
-                </div>
-              ) : (
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <p className="max-w-md text-body-sm text-text-muted">
-                    {selectedMethod?.code === "stripe" ? (
-                      <>
-                        You&apos;ll be taken to a secure card checkout. A card
-                        processing fee is added at checkout.
-                      </>
-                    ) : (
-                      <>
-                        We&apos;ll email the account details for{" "}
-                        <strong className="text-ink">
-                          {selectedMethod?.label ?? "your chosen method"}
-                        </strong>{" "}
-                        to <strong className="font-mono">{request.buyerEmail}</strong>.
-                      </>
-                    )}
-                  </p>
-                  <Button
-                    type="button"
-                    variant="amber"
-                    size="md"
-                    disabled={!canSendInstructions}
-                    loading={sendInstructions.isPending}
-                    onClick={() => {
-                      if (!selectedMethod) return;
-                      clear();
-                      sendInstructions.mutate(selectedMethod.code);
-                    }}
-                  >
-                    {sendInstructions.isPending
-                      ? selectedMethod?.code === "stripe"
-                        ? "Redirecting…"
-                        : "Sending…"
-                      : selectedMethod?.code === "stripe"
-                        ? "Continue to card checkout"
-                        : "Continue to payment"}
-                  </Button>
-                </div>
-              )}
+                  {sendInstructions.isPending
+                    ? confirmIsStripe
+                      ? "Redirecting…"
+                      : "Confirming…"
+                    : confirmIsStripe
+                      ? "Confirm & go to checkout"
+                      : "Confirm & email my details"}
+                </Button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmingCode(null)}
+                  disabled={sendInstructions.isPending}
+                  className="rounded-sm border border-line-strong bg-white px-4 py-2 font-mono text-mono-label uppercase tracking-[1.2px] text-ink hover:bg-cream-soft disabled:opacity-60"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
-          ) : null}
+          ) : (
+            <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+              <p className="max-w-md text-body-sm text-text-muted">
+                {selectedMethod?.code === "stripe" ? (
+                  <>You&apos;ll be taken to a secure card checkout.</>
+                ) : (
+                  <>
+                    We&apos;ll email the account details for{" "}
+                    <strong className="text-ink">
+                      {selectedMethod?.label ?? "your chosen method"}
+                    </strong>{" "}
+                    once you confirm.
+                  </>
+                )}
+              </p>
+              <Button
+                type="button"
+                variant="amber"
+                size="md"
+                disabled={!selectedMethod || sendInstructions.isPending}
+                onClick={() => {
+                  if (!selectedMethod) return;
+                  clear();
+                  setConfirmingCode(selectedMethod.code);
+                }}
+              >
+                Continue to payment
+              </Button>
+            </div>
+          )}
         </>
-      )}
+      ) : null}
+
+      {/* Locked state — the buyer has committed. No picker, no switching. */}
+      {showActiveForm && isCommitted ? (
+        committedIsStripe ? (
+          <div className="mb-2">
+            <div
+              role="status"
+              className="mb-4 rounded-sm border-l-4 border-info bg-info/10 px-4 py-3 text-body-sm"
+            >
+              <div className="font-mono text-mono-label uppercase tracking-[1.2px] text-info">
+                Payment method locked · Card
+              </div>
+              <p className="mt-1 text-text">
+                You chose to pay by card. This is locked in — reply in the chat
+                below if you need to switch methods.
+              </p>
+            </div>
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                variant="amber"
+                size="md"
+                loading={sendInstructions.isPending}
+                onClick={() => {
+                  clear();
+                  sendInstructions.mutate("stripe");
+                }}
+              >
+                {sendInstructions.isPending ? "Redirecting…" : "Complete card checkout"}
+              </Button>
+            </div>
+            {/* No payment-proof uploader for card — Stripe confirms the
+                payment automatically, so there's nothing to upload. */}
+          </div>
+        ) : (
+          <>
+            <div
+              role="status"
+              className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-sm border-l-4 border-success bg-success/10 px-4 py-3 text-body-sm"
+            >
+              <div>
+                <div className="font-mono text-mono-label uppercase tracking-[1.2px] text-success">
+                  Payment method locked · {committedLabel}
+                </div>
+                <p className="mt-1 text-text">
+                  We&apos;ve emailed your {committedLabel} details to{" "}
+                  <strong className="font-mono">{request.buyerEmail}</strong>.
+                  Once you&apos;ve paid, upload your confirmation below. This
+                  method is locked in — reply in the chat if you need to switch.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!committedCode) return;
+                  clear();
+                  sendInstructions.mutate(committedCode);
+                }}
+                disabled={sendInstructions.isPending}
+                className="rounded-sm border border-line-strong bg-white px-3 py-1.5 font-mono text-mono-label uppercase tracking-[1.2px] text-ink hover:bg-cream-soft disabled:opacity-60"
+              >
+                {sendInstructions.isPending ? "Resending…" : "Resend email"}
+              </button>
+            </div>
+
+            <div className="mb-2 font-mono text-mono-label uppercase text-text-muted">
+              Upload your payment confirmation
+            </div>
+            <AttachmentUploader
+              value={proofUrls}
+              onChange={setProofUrls}
+              presignEndpoint={`/shopper/r/${encodeURIComponent(token)}/wire-proof-uploads`}
+              disabled={submit.isPending}
+            />
+            <div className="mt-6 flex justify-end">
+              <Button
+                type="button"
+                variant="amber"
+                size="md"
+                disabled={!canSubmit}
+                loading={submit.isPending}
+                onClick={() => {
+                  clear();
+                  submit.mutate();
+                }}
+              >
+                {submit.isPending ? "Submitting…" : "Submit payment proof"}
+              </Button>
+            </div>
+          </>
+        )
+      ) : null}
 
       {showReviewState ? (
         <div className="rounded-sm border-l-4 border-info bg-info/10 px-4 py-3 text-body-sm">
@@ -1127,45 +1224,6 @@ function WirePaymentCard({
           against the bank statement. We&apos;ll start sourcing as soon as
           the payment clears. No further action needed.
         </div>
-      ) : methods.length > 0 ? (
-        <>
-          {bannerError ? (
-            <div className="mb-4">
-              <ErrorBanner
-                error={bannerError}
-                onAction={(handler) => {
-                  if (handler === "support") window.location.href = "mailto:hello@myusaerrands.com";
-                  else if (handler === "retry") clear();
-                }}
-              />
-            </div>
-          ) : null}
-
-          <div className="mb-2 font-mono text-mono-label uppercase text-text-muted">
-            Upload your payment confirmation
-          </div>
-          <AttachmentUploader
-            value={proofUrls}
-            onChange={setProofUrls}
-            presignEndpoint={`/shopper/r/${encodeURIComponent(token)}/wire-proof-uploads`}
-            disabled={submit.isPending}
-          />
-          <div className="mt-6 flex justify-end">
-            <Button
-              type="button"
-              variant="amber"
-              size="md"
-              disabled={!canSubmit}
-              loading={submit.isPending}
-              onClick={() => {
-                clear();
-                submit.mutate();
-              }}
-            >
-              {submit.isPending ? "Submitting…" : "Submit payment proof"}
-            </Button>
-          </div>
-        </>
       ) : null}
     </section>
   );

@@ -294,11 +294,22 @@ export interface ShopperRequestSnapshot {
    * handles / Cash App tags out of the rendered DOM.
    */
   paymentMethods: Array<{
-    /** Stable identifier — "wire" | "ach" | "zelle" | "cashapp". */
+    /** Stable identifier — "wire" | "ach" | "zelle" | "cashapp" | "stripe". */
     code: string;
     /** Display name shown on the picker card and on the email. */
     label: string;
   }>;
+  /**
+   * Migration 0058 — the method the buyer has COMMITTED to. Null until they
+   * confirm. Once set, the choice is hard-locked: the picker is hidden and the
+   * buyer can no longer switch (an admin must reset it). This is also what
+   * reflects HOW they actually paid — e.g. "stripe" for a card payment, even
+   * though the request rides the WIRE rail. `paymentMethods` above is
+   * collapsed to just this one entry once committed.
+   */
+  committedPaymentMethodCode: string | null;
+  /** When the buyer confirmed (and payment details were released). */
+  paymentCommittedAt: string | null;
   /**
    * Live ID-verification threshold (cents). Admin sets this on the
    * shopper config page; the server echoes it here so the buyer

@@ -97,6 +97,20 @@ function fmtTime(iso: string): string {
   });
 }
 
+// Migration 0058 — human label for a committed payment-method code. "stripe"
+// reads as "Card (Stripe)" so the record clearly shows a card payment even
+// though the request rides the WIRE rail.
+function paymentMethodLabel(code: string): string {
+  const map: Record<string, string> = {
+    wire: "Wire transfer",
+    ach: "ACH transfer",
+    zelle: "Zelle",
+    cashapp: "Cash App",
+    stripe: "Card (Stripe)",
+  };
+  return map[code] ?? code;
+}
+
 // ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
@@ -599,6 +613,15 @@ function WireReviewCard({
     onError: (err) => handle(err),
   });
 
+  // Migration 0058 — clear the buyer's committed (locked) payment method so
+  // they can pick again from their order page.
+  const resetMethod = useMutation({
+    mutationFn: () =>
+      api.post(`/admin/shopper/${request.id}/payment/reset-commitment`),
+    onSuccess: () => onChange(),
+    onError: (err) => handle(err),
+  });
+
   // Display state for the bank-proof block. Three meaningful buckets:
   //   - waiting on buyer (QUOTE_SENT / AWAITING_WIRE_PAYMENT)
   //   - proof submitted & needs review (WIRE_UNDER_REVIEW)
@@ -624,6 +647,37 @@ function WireReviewCard({
                 : "—"}
         </StatusPill>
       </div>
+
+      {/* Migration 0058 — the method the buyer actually committed to (this is
+          how they paid, e.g. "Card (Stripe)", even though the request rides
+          the WIRE rail). Locked once set; Reset lets the buyer re-pick. */}
+      {request.committedPaymentMethodCode ? (
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-sm border border-line bg-white px-3 py-2">
+          <div className="text-body-sm">
+            <span className="font-mono text-mono-label uppercase text-text-muted">
+              Method chosen:{" "}
+            </span>
+            <strong>{paymentMethodLabel(request.committedPaymentMethodCode)}</strong>
+            {request.paymentCommittedAt ? (
+              <span className="ml-1 text-text-muted">
+                · locked {fmtTime(request.paymentCommittedAt)}
+              </span>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            onClick={() => resetMethod.mutate()}
+            disabled={resetMethod.isPending}
+            className="rounded-sm border border-line-strong bg-white px-3 py-1.5 font-mono text-mono-label uppercase tracking-[1.2px] text-ink hover:bg-cream-soft disabled:opacity-60"
+          >
+            {resetMethod.isPending ? "Resetting…" : "Reset method"}
+          </button>
+        </div>
+      ) : (
+        <p className="mb-3 text-body-sm text-text-muted">
+          Buyer hasn&apos;t chosen a payment method yet.
+        </p>
+      )}
 
       {request.wireProofUrl ? (
         <div className="mb-3">
