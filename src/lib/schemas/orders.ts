@@ -71,22 +71,24 @@ const streetLine = z
   .max(120)
   .refine((s) => /\s/.test(s), "Street must include a number and a street name.");
 
-// Phone validator — 10 US digits, ignoring formatting noise. Reject the
-// obvious placeholders (long runs of repeated digits, classic sequences)
-// because vendors typing those clearly aren't entering a real number.
-const phoneUS10 = z
-  .string()
+// Phone validator — REQUIRED. 10 NANP digits (US + Canada), ignoring
+// formatting noise. Reject the obvious placeholders (long runs of
+// repeated digits, classic sequences). KEEP IN SYNC with
+// usa-errands-api/src/common/schemas/order.schema.ts `recipientPhoneRequired`.
+// A recipient phone is mandatory because UPS/FedEx and every Canada
+// shipment are refused by the carrier without one.
+const recipientPhoneRequired = z
+  .string({ required_error: "Recipient phone is required." })
   .trim()
+  .min(1, "Recipient phone is required.")
   .transform((s) => s.replace(/[^\d+]/g, ""))
-  .pipe(z.string().regex(/^(\+?1)?\d{10}$/, "US phone must be 10 digits."))
+  .pipe(z.string().regex(/^(\+?1)?\d{10}$/, "Enter a 10-digit US or Canada phone number."))
   .refine((s) => {
     const digits = s.replace(/[^\d]/g, "").slice(-10);
     if (/(\d)\1{4,}/.test(digits)) return false;
     if (/01234567|12345678|23456789|98765432|87654321/.test(digits)) return false;
     return true;
-  }, "Phone number looks like a placeholder.")
-  .optional()
-  .or(z.literal("").transform(() => undefined));
+  }, "Phone number looks like a placeholder.");
 
 export const recipientAddressSchema = z.object({
   recipientName: z
@@ -95,7 +97,7 @@ export const recipientAddressSchema = z.object({
     .min(2, "Recipient name is too short.")
     .max(120)
     .refine((s) => /\s|[A-Za-z]{3,}/.test(s), "Use a real name (first + last)."),
-  recipientPhone: phoneUS10,
+  recipientPhone: recipientPhoneRequired,
   recipientEmail: z
     .string()
     .trim()

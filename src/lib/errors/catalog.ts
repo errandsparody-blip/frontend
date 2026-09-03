@@ -35,6 +35,15 @@ export interface ErrorEntry {
   surface?: ErrorSurface;
   /** When surface=inline, which form field this error attaches to. */
   field?: string;
+  /**
+   * When true, and the backend supplied a `detail` string, show that
+   * detail as the body instead of the static `body` above. Use for
+   * codes where the backend message carries the actionable content —
+   * e.g. a carrier's own rejection reason ("recipient phone number is
+   * required") that we can't know ahead of time. The static `body`
+   * stays as the fallback for when no detail is present.
+   */
+  preferDetail?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -150,6 +159,119 @@ export const errorCatalog: Record<string, ErrorEntry> = {
     title: "No carriers can ship this order right now",
     body: "This usually clears within a few minutes. Try again, or contact support if it persists.",
     action: { label: "Retry", handler: "retry" },
+  },
+
+  // ──────────────────────────────────────────────────────────────────────
+  // Fulfillment v2 — pack / rate / label (admin rate picker)
+  //
+  // These carry a backend-composed `detail` that names the real reason
+  // (usually a carrier's own words — "recipient phone number required",
+  // "address not found"). `preferDetail` surfaces that verbatim instead
+  // of a canned line, so an operator can act on it without digging
+  // through logs. The static `body` is the no-detail fallback.
+  // ──────────────────────────────────────────────────────────────────────
+  label_purchase_failed: {
+    title: "Carrier refused the label",
+    body: "The carrier rejected this shipment. Check the recipient phone, address, and box details, then re-fetch rates and try again.",
+    preferDetail: true,
+  },
+  shippo_no_rates: {
+    title: "No carrier rates came back",
+    body: "No carrier returned a rate for this parcel and destination. The recipient phone or address is the usual cause — edit the recipient, then re-fetch rates.",
+    preferDetail: true,
+  },
+  order_no_rates_available: {
+    title: "No carrier rates came back",
+    body: "No carrier returned a rate for the packed dimensions and destination. Verify the box measurements and recipient details, then re-fetch.",
+    preferDetail: true,
+  },
+  shippo_purchase_failed: {
+    title: "Carrier couldn't buy the label",
+    body: "The carrier accepted the rate but failed to issue the label. Re-fetch rates and pick again; if it repeats, the recipient details are likely the cause.",
+    preferDetail: true,
+  },
+  shippo_purchase_incomplete: {
+    title: "Label came back incomplete",
+    body: "The carrier reported success but didn't return a tracking number or label. Re-fetch rates and try again.",
+    preferDetail: true,
+  },
+  shippo_bad_request: {
+    title: "Carrier rejected the request",
+    body: "The shipping provider rejected the request. Check the recipient phone and address, then try again.",
+    preferDetail: true,
+  },
+  shippo_unavailable: {
+    title: "Shipping provider is unavailable",
+    body: "The shipping provider is temporarily unreachable. Wait a moment and try again.",
+    action: { label: "Retry", handler: "retry" },
+  },
+  shippo_intl_unsupported: {
+    title: "Destination not supported",
+    body: "We ship from the US to US and Canada addresses only. Check the destination country.",
+    preferDetail: true,
+  },
+  shippo_not_configured: {
+    title: "Shipping isn't configured here",
+    body: "This environment has no shipping-provider key set. Contact support — this is on our end.",
+    action: { label: "Contact support", handler: "support" },
+  },
+  select_rate_write_failed: {
+    title: "Couldn't record the rate selection",
+    body: "A database write was rejected while selecting the rate. This usually means migrations are behind on this environment.",
+    preferDetail: true,
+    action: { label: "Contact support", handler: "support" },
+  },
+  label_bought_state_stale: {
+    title: "Label bought — order not updated",
+    body: "The label was purchased and the vendor charged, but the order status didn't advance. Contact support with the correlation id so the order can be moved forward manually — do NOT retry.",
+    preferDetail: true,
+    action: { label: "Contact support", handler: "support" },
+  },
+  order_not_ready_for_selection: {
+    title: "Order isn't ready for a rate",
+    body: "Fetch rates first, then pick one. Refresh the page if the status looks stale.",
+    preferDetail: true,
+  },
+  order_not_ready_for_rates: {
+    title: "Order isn't ready for rates",
+    body: "The order needs to be packed before rates can be fetched. Refresh the page if the status looks stale.",
+    preferDetail: true,
+  },
+  order_not_packed: {
+    title: "Order isn't packed yet",
+    body: "Record the box dimensions and weight on the pack queue before fetching rates.",
+    preferDetail: true,
+  },
+  rate_not_in_cache: {
+    title: "That rate has expired",
+    body: "Re-fetch rates and pick again — the cached options were cleared (usually after a pack or recipient edit).",
+    action: { label: "Retry", handler: "retry" },
+  },
+  order_declared_value_required_international: {
+    title: "Declared value is missing",
+    body: "This international order has a $0.00 declared value, but customs needs a real one. Set the declared value on the product(s), then re-fetch rates.",
+    preferDetail: true,
+  },
+  order_declared_value_required_insurance: {
+    title: "Declared value is missing",
+    body: "Insurance was requested but the order's declared value is $0.00. Set the product declared value or remove the insurance add-on, then re-fetch rates.",
+    preferDetail: true,
+  },
+  order_vendor_carrier_no_label: {
+    title: "Vendor is using their own carrier",
+    body: "This order has no platform label to rate or buy — the vendor brought their own carrier.",
+    preferDetail: true,
+  },
+  recipient_edit_locked: {
+    title: "Recipient can't be edited now",
+    body: "The shipping charge and any label are already bound to the current address. Send the order back to the pack queue, or force-cancel it, to change the recipient.",
+    preferDetail: true,
+  },
+  pack_write_failed: {
+    title: "Couldn't save the pack details",
+    body: "A database write was rejected. This usually means migrations haven't been applied on this environment.",
+    preferDetail: true,
+    action: { label: "Contact support", handler: "support" },
   },
   order_total_exceeds_max: {
     title: "Order total exceeds the per-order cap",
@@ -499,7 +621,15 @@ export function lookupErrorEntry(
   detail?: string,
 ): ErrorEntry {
   if (code && Object.prototype.hasOwnProperty.call(errorCatalog, code)) {
-    return errorCatalog[code]!;
+    const entry = errorCatalog[code]!;
+    // Codes flagged preferDetail carry their actionable content in the
+    // backend `detail` (e.g. a carrier's own rejection words). Show that
+    // verbatim, keeping the catalog title. Cap generously — these
+    // messages can be a full sentence or two — but not unbounded.
+    if (entry.preferDetail && detail && detail.trim().length > 0) {
+      return { ...entry, body: detail.length <= 600 ? detail : `${detail.slice(0, 600)}…` };
+    }
+    return entry;
   }
   if (code) trackUnknownErrorCode(code, detail);
   return {
@@ -507,6 +637,6 @@ export function lookupErrorEntry(
     // If the backend gave us a useful detail string, prefer it over the
     // generic body — the developer wrote it for a reason. We trust the
     // backend not to leak internals (the 5xx filter strips stack traces).
-    body: detail && detail.length < 240 ? detail : errorCatalog.unknown!.body,
+    body: detail && detail.length < 400 ? detail : errorCatalog.unknown!.body,
   };
 }

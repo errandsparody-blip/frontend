@@ -210,6 +210,13 @@ export default function OrdersImportPage(): JSX.Element {
           Required columns:{" "}
           <span className="font-mono text-body-xs">{HEADER_KEYS.join(", ")}</span>
         </p>
+        <p className="mt-1 text-body-sm text-text-muted">
+          <span className="font-mono text-body-xs">recipient_phone</span> is
+          required on every row — the carrier rejects a shipment without a
+          10-digit phone (and always for Canada). Rows with a missing or
+          malformed phone or postal code fail individually with a reason;
+          the rest still import.
+        </p>
       </section>
 
       {lastResult ? (

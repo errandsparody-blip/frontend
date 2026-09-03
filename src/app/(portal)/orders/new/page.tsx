@@ -86,7 +86,9 @@ function asCountry(c: string | null | undefined): "US" | "CA" {
 
 const EMPTY_ADDRESS: RecipientAddress = {
   recipientName: "",
-  recipientPhone: undefined,
+  // Draft starts blank; recipientAddressSchema requires it and the
+  // address step blocks "Next" until it's a valid 10-digit number.
+  recipientPhone: "",
   recipientEmail: undefined,
   shipAddressLine1: "",
   shipAddressLine2: undefined,
@@ -977,7 +979,7 @@ function AddressForm({
         shipState: p.state || address.shipState,
         shipPostalCode: p.postalCode || address.shipPostalCode,
         shipCountry: asCountry(p.country || address.shipCountry),
-        recipientPhone: address.recipientPhone || p.phone || undefined,
+        recipientPhone: address.recipientPhone || p.phone || "",
       });
     },
   });
@@ -1080,7 +1082,7 @@ function AddressForm({
             autoComplete="shipping tel"
             value={address.recipientPhone ?? ""}
             invalid={!!fieldErrors.recipientPhone}
-            onChange={(e) => patch("recipientPhone", e.target.value || undefined)}
+            onChange={(e) => patch("recipientPhone", e.target.value)}
           />
         </Field>
         <Field label="Email (optional)" error={fieldErrors.recipientEmail}>

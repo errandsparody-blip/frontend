@@ -45,11 +45,14 @@ import { useEffect, useRef, useState } from "react";
 import { ErrorBanner } from "@/components/errors/error-banner";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Field } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
 import { DataTable, TBody, THead, Th, TR, Td } from "@/components/ui/table";
 import { api } from "@/lib/api-client";
 import { useApiErrorHandler } from "@/lib/errors";
+import { recipientAddressSchema } from "@/lib/schemas/orders";
 
 type QueueStatus =
   | "PACKING_COMPLETED"
@@ -84,6 +87,8 @@ interface PackOrderDetail {
   id: string;
   status: string;
   recipientName: string;
+  recipientPhone: string | null;
+  recipientEmail: string | null;
   shipAddressLine1: string;
   shipAddressLine2: string | null;
   shipCity: string;
@@ -152,6 +157,21 @@ interface AddonState {
   containsLithium: boolean;
 }
 
+// Editable recipient / shipping-address fields. Mirrors the create
+// form's recipient shape; validated client-side against
+// recipientAddressSchema before the PATCH.
+interface RecipientForm {
+  recipientName: string;
+  recipientPhone: string;
+  recipientEmail: string;
+  shipAddressLine1: string;
+  shipAddressLine2: string;
+  shipCity: string;
+  shipState: string;
+  shipPostalCode: string;
+  shipCountry: "US" | "CA";
+}
+
 const STATUS_TONE: Record<QueueStatus, "neutral" | "info" | "warning"> = {
   PACKING_COMPLETED: "neutral",
   AWAITING_SHIPPING_SELECTION: "info",
@@ -173,6 +193,14 @@ export default function AdminRatePickerPage(): JSX.Element {
   // Signature of the add-ons as of the last seed/fetch. When the operator
   // changes an add-on the signature diverges and we auto re-price.
   const addonSigRef = useRef<string | null>(null);
+
+  // Edit-recipient panel. Opened when a carrier refuses the shipment over
+  // the recipient details (missing phone is the usual one). Seeded from
+  // the order; on save we PATCH the order, the server drops the cached
+  // rates, and we auto re-fetch so the operator picks from fresh rates.
+  const [editingRecipient, setEditingRecipient] = useState(false);
+  const [recipientForm, setRecipientForm] = useState<RecipientForm | null>(null);
+  const [recipientErrors, setRecipientErrors] = useState<Record<string, string>>({});
 
   const queueQ = useQuery({
     queryKey: ["admin", "pack", "rate-queue"],
@@ -235,6 +263,27 @@ export default function AdminRatePickerPage(): JSX.Element {
     // Baseline signature — the auto re-price only fires once the operator
     // changes something away from this.
     addonSigRef.current = JSON.stringify(seeded);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orderQ.data?.id]);
+
+  // Seed the editable recipient form when a different order loads, and
+  // close any open editor so it never shows one order's data over
+  // another's.
+  useEffect(() => {
+    if (!orderQ.data) return;
+    setRecipientForm({
+      recipientName: orderQ.data.recipientName ?? "",
+      recipientPhone: orderQ.data.recipientPhone ?? "",
+      recipientEmail: orderQ.data.recipientEmail ?? "",
+      shipAddressLine1: orderQ.data.shipAddressLine1 ?? "",
+      shipAddressLine2: orderQ.data.shipAddressLine2 ?? "",
+      shipCity: orderQ.data.shipCity ?? "",
+      shipState: orderQ.data.shipState ?? "",
+      shipPostalCode: orderQ.data.shipPostalCode ?? "",
+      shipCountry: orderQ.data.shipCountry === "CA" ? "CA" : "US",
+    });
+    setEditingRecipient(false);
+    setRecipientErrors({});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderQ.data?.id]);
 
@@ -314,6 +363,63 @@ export default function AdminRatePickerPage(): JSX.Element {
     return () => window.clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [addons, selectedId]);
+
+  // Save recipient edits → server drops the cached rates → re-fetch so
+  // the operator picks from fresh rates priced against the corrected
+  // destination. Client-side validation first so a bad phone/postal is
+  // caught inline before the round-trip.
+  const editRecipientMut = useMutation({
+    mutationFn: async () => {
+      if (!selectedId) throw new Error("No order selected.");
+      if (!recipientForm) throw new Error("Recipient form not ready.");
+      const parsed = recipientAddressSchema.safeParse({
+        recipientName: recipientForm.recipientName,
+        recipientPhone: recipientForm.recipientPhone,
+        recipientEmail: recipientForm.recipientEmail || undefined,
+        shipAddressLine1: recipientForm.shipAddressLine1,
+        shipAddressLine2: recipientForm.shipAddressLine2 || undefined,
+        shipCity: recipientForm.shipCity,
+        shipState: recipientForm.shipState,
+        shipPostalCode: recipientForm.shipPostalCode,
+        shipCountry: recipientForm.shipCountry,
+      });
+      if (!parsed.success) {
+        const errs: Record<string, string> = {};
+        for (const issue of parsed.error.issues) {
+          const key = issue.path.join(".") || "_";
+          if (!errs[key]) errs[key] = issue.message;
+        }
+        setRecipientErrors(errs);
+        throw new Error("Fix the highlighted recipient fields.");
+      }
+      setRecipientErrors({});
+      return api.patch<{ id: string; status: string; ratesCleared: boolean }>(
+        `/admin/orders/${selectedId}/recipient`,
+        parsed.data,
+      );
+    },
+    onMutate: () => {
+      clear();
+      setLastResult(null);
+    },
+    onSuccess: async () => {
+      setEditingRecipient(false);
+      setPickedRef(null);
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["admin", "pack", "order-detail", selectedId] }),
+        qc.invalidateQueries({ queryKey: ["admin", "pack", "rate-options", selectedId] }),
+        qc.invalidateQueries({ queryKey: ["admin", "pack", "rate-queue"] }),
+      ]);
+      // Re-price against the corrected destination straight away.
+      fetchMut.mutate();
+    },
+    onError: (err) => {
+      // Client-side validation errors are surfaced inline (recipientErrors);
+      // don't also throw them into the page banner.
+      if (err instanceof Error && err.message.startsWith("Fix the highlighted")) return;
+      handle(err);
+    },
+  });
 
   const selectMut = useMutation({
     mutationFn: async (rateProviderRef: string) => {
@@ -460,12 +566,38 @@ export default function AdminRatePickerPage(): JSX.Element {
                 </div>
               </div>
 
-              {/* Phase P-D — pack details summary. Renders read-only
-                  data from the order detail so the operator can see
-                  what was packed (and where it's going) alongside the
-                  rate options. Edit button opens the modal below. */}
+              {/* Pack details + recipient summary. Read-only by default;
+                  "Edit recipient" opens an inline form to correct the
+                  name / phone / email / address when a carrier refuses
+                  the shipment over the recipient details. Saving clears
+                  the cached rates server-side and auto re-fetches. */}
               {orderQ.data ? (
                 <div className="mt-4 rounded-md border border-line bg-cream-soft p-3 text-body-sm">
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <span className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
+                      Order details
+                    </span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        clear();
+                        setRecipientErrors({});
+                        setEditingRecipient((v) => !v);
+                      }}
+                      disabled={editRecipientMut.isPending}
+                    >
+                      {editingRecipient ? "Cancel edit" : "Edit recipient"}
+                    </Button>
+                  </div>
+                  {!orderQ.data.recipientPhone && !editingRecipient ? (
+                    <div className="mb-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-body-xs text-amber-900">
+                      No recipient phone on this order. UPS, FedEx and every
+                      Canada shipment are refused without one — add it via
+                      &ldquo;Edit recipient&rdquo; before fetching rates.
+                    </div>
+                  ) : null}
                   <div className="grid gap-x-4 gap-y-1 md:grid-cols-2">
                     <div>
                       <span className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
@@ -477,6 +609,11 @@ export default function AdminRatePickerPage(): JSX.Element {
                         : ""}
                       , {orderQ.data.shipCity} {orderQ.data.shipState}{" "}
                       {orderQ.data.shipPostalCode}
+                      {" · "}
+                      {orderQ.data.recipientPhone ?? "no phone"}
+                      {orderQ.data.recipientEmail
+                        ? ` · ${orderQ.data.recipientEmail}`
+                        : ""}
                     </div>
                     <div>
                       <span className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
@@ -523,6 +660,145 @@ export default function AdminRatePickerPage(): JSX.Element {
                       </div>
                     ) : null}
                   </div>
+
+                  {editingRecipient && recipientForm ? (
+                    <form
+                      className="mt-3 border-t border-line pt-3"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        editRecipientMut.mutate();
+                      }}
+                    >
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <Field label="Recipient name" error={recipientErrors.recipientName}>
+                          <Input
+                            value={recipientForm.recipientName}
+                            invalid={!!recipientErrors.recipientName}
+                            onChange={(e) =>
+                              setRecipientForm((f) => (f ? { ...f, recipientName: e.target.value } : f))
+                            }
+                          />
+                        </Field>
+                        <Field
+                          label="Phone (required)"
+                          error={recipientErrors.recipientPhone}
+                          hint="10-digit US/Canada number — the carrier refuses the shipment without it."
+                        >
+                          <Input
+                            type="tel"
+                            value={recipientForm.recipientPhone}
+                            invalid={!!recipientErrors.recipientPhone}
+                            onChange={(e) =>
+                              setRecipientForm((f) => (f ? { ...f, recipientPhone: e.target.value } : f))
+                            }
+                          />
+                        </Field>
+                        <Field label="Email (optional)" error={recipientErrors.recipientEmail}>
+                          <Input
+                            type="email"
+                            value={recipientForm.recipientEmail}
+                            invalid={!!recipientErrors.recipientEmail}
+                            onChange={(e) =>
+                              setRecipientForm((f) => (f ? { ...f, recipientEmail: e.target.value } : f))
+                            }
+                          />
+                        </Field>
+                        <Field label="Country" error={recipientErrors.shipCountry}>
+                          <select
+                            aria-label="Ship country"
+                            value={recipientForm.shipCountry}
+                            onChange={(e) =>
+                              setRecipientForm((f) =>
+                                f ? { ...f, shipCountry: e.target.value === "CA" ? "CA" : "US" } : f,
+                              )
+                            }
+                            className="h-11 w-full rounded-sm border border-line-strong bg-cream-soft px-3 text-body text-text"
+                          >
+                            <option value="US">United States</option>
+                            <option value="CA">Canada</option>
+                          </select>
+                        </Field>
+                        <Field
+                          label="Address line 1"
+                          error={recipientErrors.shipAddressLine1}
+                          className="md:col-span-2"
+                        >
+                          <Input
+                            value={recipientForm.shipAddressLine1}
+                            invalid={!!recipientErrors.shipAddressLine1}
+                            onChange={(e) =>
+                              setRecipientForm((f) => (f ? { ...f, shipAddressLine1: e.target.value } : f))
+                            }
+                          />
+                        </Field>
+                        <Field
+                          label="Address line 2 (optional)"
+                          error={recipientErrors.shipAddressLine2}
+                          className="md:col-span-2"
+                        >
+                          <Input
+                            value={recipientForm.shipAddressLine2}
+                            invalid={!!recipientErrors.shipAddressLine2}
+                            onChange={(e) =>
+                              setRecipientForm((f) => (f ? { ...f, shipAddressLine2: e.target.value } : f))
+                            }
+                          />
+                        </Field>
+                        <Field label="City" error={recipientErrors.shipCity}>
+                          <Input
+                            value={recipientForm.shipCity}
+                            invalid={!!recipientErrors.shipCity}
+                            onChange={(e) =>
+                              setRecipientForm((f) => (f ? { ...f, shipCity: e.target.value } : f))
+                            }
+                          />
+                        </Field>
+                        <div className="grid grid-cols-2 gap-3">
+                          <Field
+                            label={recipientForm.shipCountry === "CA" ? "Province" : "State"}
+                            error={recipientErrors.shipState}
+                          >
+                            <Input
+                              value={recipientForm.shipState}
+                              invalid={!!recipientErrors.shipState}
+                              maxLength={2}
+                              onChange={(e) =>
+                                setRecipientForm((f) =>
+                                  f ? { ...f, shipState: e.target.value.toUpperCase() } : f,
+                                )
+                              }
+                            />
+                          </Field>
+                          <Field label="Postal code" error={recipientErrors.shipPostalCode}>
+                            <Input
+                              value={recipientForm.shipPostalCode}
+                              invalid={!!recipientErrors.shipPostalCode}
+                              onChange={(e) =>
+                                setRecipientForm((f) =>
+                                  f ? { ...f, shipPostalCode: e.target.value.toUpperCase() } : f,
+                                )
+                              }
+                            />
+                          </Field>
+                        </div>
+                      </div>
+                      <div className="mt-3 flex items-center justify-between gap-3">
+                        <span className="text-body-xs text-text-muted">
+                          Saving clears the cached rates and re-prices against the
+                          corrected address.
+                        </span>
+                        <Button
+                          type="submit"
+                          variant="amber"
+                          size="sm"
+                          loading={editRecipientMut.isPending}
+                          disabled={editRecipientMut.isPending}
+                        >
+                          Save &amp; re-fetch rates
+                        </Button>
+                      </div>
+                    </form>
+                  ) : null}
                 </div>
               ) : null}
 
