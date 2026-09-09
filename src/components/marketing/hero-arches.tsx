@@ -38,7 +38,6 @@ const ARCHES: ReadonlyArray<Arch> = [
   { label: "Our warehouse", Icon: Warehouse, bg: "#d9e0d2", fg: "#3b4548", height: 440, src: "/hero/warehouse.webp" },
   { label: "Their doorstep", Icon: Home, bg: "#ecdcc4", fg: "#4a4136", height: 500, src: "/hero/doorstep.webp" },
   { label: "Anywhere", Icon: Globe, bg: "#ecdcc0", fg: "#4a4136", height: 440, src: "/hero/anywhere.webp" },
-  { label: "Happy buyer", Icon: Smile, bg: "#e7d3bf", fg: "#4a4136", height: 380, src: "/hero/happy-buyer.webp" },
 ];
 
 /** One domed arch card. `widthClass` controls sizing (flex-1 on desktop,

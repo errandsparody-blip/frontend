@@ -13,6 +13,7 @@ import {
   ScrollText,
   Settings,
   ShoppingBag,
+  Store,
   Tag,
   Undo2,
   X,
@@ -83,6 +84,7 @@ const NAV: NavItem[] = [
   { href: "/admin/shopper", label: "Shopper", icon: ShoppingBag, category: "shopper", pageKey: "admin.shopper.read" },
   { href: "/admin/finance", label: "Finance", icon: CreditCard, category: "wallet", pageKey: "admin.finance.read" },
   { href: "/admin/referrals", label: "Referrals", icon: Gift, superAdminOnly: true },
+  { href: "/admin/marketplace", label: "Marketplace", icon: Store, superAdminOnly: true },
   {
     href: "/admin/notifications",
     label: "Notifications",
