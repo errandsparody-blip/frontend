@@ -42,8 +42,8 @@ const config: Config = {
         },
       },
       fontFamily: {
-        sans: ['"Inter Tight"', '"Inter"', "ui-sans-serif", "system-ui"],
-        mono: ['"JetBrains Mono"', "ui-monospace", "SFMono-Regular", "Menlo"],
+        sans: ["var(--font-sans)", '"Inter Tight"', "ui-sans-serif", "system-ui"],
+        mono: ["var(--font-mono)", '"JetBrains Mono"', "ui-monospace", "SFMono-Regular", "Menlo"],
       },
       fontSize: {
         "display-xl": ["72px", { lineHeight: "1.05", letterSpacing: "-1.5px", fontWeight: "500" }],

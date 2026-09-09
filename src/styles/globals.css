@@ -32,8 +32,8 @@ body {
   background: var(--color-bg-primary);
   color: var(--color-text);
   font-family:
+    var(--font-sans),
     "Inter Tight",
-    "Inter",
     -apple-system,
     BlinkMacSystemFont,
     system-ui,
