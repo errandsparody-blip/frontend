@@ -82,6 +82,7 @@ function ProductRow({
     product.retailPriceCents != null ? (product.retailPriceCents / 100).toFixed(2) : "",
   );
   const [category, setCategory] = useState(product.category ?? "");
+  const [saved, setSaved] = useState(false);
 
   const save = useMutation({
     mutationFn: () =>
@@ -93,6 +94,9 @@ function ProductRow({
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["storefront-products"] });
       onSaved();
+      // Brief confirmation so the vendor knows the change persisted.
+      setSaved(true);
+      window.setTimeout(() => setSaved(false), 2500);
     },
     onError,
   });
@@ -119,9 +123,14 @@ function ProductRow({
           <span className="mb-1 block">Category</span>
           <Input aria-label="Category" value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Clothing" className="w-40" />
         </div>
-        <Button variant="outline" loading={save.isPending} onClick={() => { clearError(); save.mutate(); }}>
+        <Button variant="outline" loading={save.isPending} onClick={() => { clearError(); setSaved(false); save.mutate(); }}>
           Save
         </Button>
+        {saved ? (
+          <span role="status" className="text-[12px] font-medium text-emerald-600">
+            Saved ✓
+          </span>
+        ) : null}
       </div>
     </div>
   );
