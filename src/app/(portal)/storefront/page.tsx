@@ -31,10 +31,21 @@ interface Settings {
   hasActivePayoutAccount: boolean;
 }
 interface PayoutAccount {
-  processor: "STRIPE" | "PAYSTACK";
+  processor: "STRIPE" | "FLUTTERWAVE" | "PAYSTACK";
   status: string;
   chargesEnabled: boolean;
 }
+
+// Countries where Flutterwave can create a settlement subaccount + list banks.
+const FLW_COUNTRIES: Array<{ code: string; label: string }> = [
+  { code: "NG", label: "Nigeria" },
+  { code: "GH", label: "Ghana" },
+  { code: "KE", label: "Kenya" },
+  { code: "UG", label: "Uganda" },
+  { code: "TZ", label: "Tanzania" },
+  { code: "ZA", label: "South Africa" },
+  { code: "RW", label: "Rwanda" },
+];
 
 const ROOT = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "myusaerrands.com";
 
@@ -216,11 +227,15 @@ function PayoutCard({
   clearError: () => void;
 }) {
   const [bankName, setBankName] = useState("");
+  const [country, setCountry] = useState("NG");
   const [bankCode, setBankCode] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
   const banks = useQuery({
-    queryKey: ["paystack-banks"],
-    queryFn: () => api.get<Array<{ name: string; code: string }>>("/payments/paystack/banks"),
+    queryKey: ["flutterwave-banks", country],
+    queryFn: () =>
+      api.get<Array<{ name: string; code: string }>>(
+        `/payments/flutterwave/banks?country=${encodeURIComponent(country)}`,
+      ),
   });
 
   const connectStripe = useMutation({
@@ -228,12 +243,13 @@ function PayoutCard({
     onSuccess: (res) => { window.location.href = res.url; },
     onError,
   });
-  const connectPaystack = useMutation({
+  const connectFlutterwave = useMutation({
     mutationFn: () =>
-      api.post("/payments/paystack/connect", {
+      api.post("/payments/flutterwave/connect", {
         businessName: bankName.trim(),
-        settlementBank: bankCode.trim(),
+        accountBank: bankCode.trim(),
         accountNumber: accountNumber.trim(),
+        country,
       }),
     onSuccess: onChanged,
     onError,
@@ -262,13 +278,29 @@ function PayoutCard({
 
         <div className="rounded-md border border-line px-4 py-3">
           <div className="mb-2 flex items-center justify-between">
-            <div className="text-body-sm font-medium text-ink">Paystack</div>
+            <div className="text-body-sm font-medium text-ink">Flutterwave (bank payout)</div>
             <div className="text-[12px] text-text-muted">
-              {has("PAYSTACK") ? `Status: ${has("PAYSTACK")!.status}` : "Not connected"}
+              {has("FLUTTERWAVE") ? `Status: ${has("FLUTTERWAVE")!.status}` : "Not connected"}
             </div>
           </div>
-          <div className="grid gap-2 sm:grid-cols-3">
+          <p className="mb-2 text-[12px] text-text-muted">
+            Settle sales to your local bank in 30+ African countries. Pick your country, bank, and
+            account number.
+          </p>
+          <div className="grid gap-2 sm:grid-cols-2">
             <Input value={bankName} onChange={(e) => setBankName(e.target.value)} placeholder="Business name" />
+            <select
+              value={country}
+              onChange={(e) => { setCountry(e.target.value); setBankCode(""); }}
+              aria-label="Bank country"
+              className="rounded-md border border-line-strong bg-white px-3 py-2 text-body-sm outline-none focus:border-ink"
+            >
+              {FLW_COUNTRIES.map((c) => (
+                <option key={c.code} value={c.code}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
             <select
               value={bankCode}
               onChange={(e) => setBankCode(e.target.value)}
@@ -287,9 +319,9 @@ function PayoutCard({
             <Input value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} placeholder="Account number" />
           </div>
           <div className="mt-2">
-            <Button variant="outline" loading={connectPaystack.isPending}
-              onClick={() => { clearError(); connectPaystack.mutate(); }}>
-              {has("PAYSTACK") ? "Update Paystack" : "Connect Paystack"}
+            <Button variant="outline" loading={connectFlutterwave.isPending}
+              onClick={() => { clearError(); connectFlutterwave.mutate(); }}>
+              {has("FLUTTERWAVE") ? "Update Flutterwave" : "Connect Flutterwave"}
             </Button>
           </div>
         </div>

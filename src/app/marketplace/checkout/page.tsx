@@ -22,8 +22,8 @@ import { useMarketplaceCart } from "../cart-context";
 interface GroupState {
   options: ShippingOption[];
   speed: "STANDARD" | "EXPRESS" | null;
-  processors: Array<"STRIPE" | "PAYSTACK">;
-  processor: "STRIPE" | "PAYSTACK" | null;
+  processors: Array<"STRIPE" | "FLUTTERWAVE">;
+  processor: "STRIPE" | "FLUTTERWAVE" | null;
   fulfillmentFeeCents: number;
   error?: string;
 }
@@ -240,7 +240,7 @@ export default function MarketplaceCheckoutPage() {
                         <button key={p} type="button"
                           onClick={() => setByStore((prev) => ({ ...prev, [g.vendorSlug]: { ...prev[g.vendorSlug]!, processor: p } }))}
                           className={`rounded-full px-4 py-2 text-[12px] font-medium ${s.processor === p ? "bg-ink text-cream-soft" : "border border-line-strong bg-white text-text-muted hover:border-ink"}`}>
-                          {p === "STRIPE" ? "Card" : "Paystack"}
+                          {p === "STRIPE" ? "Card" : "Flutterwave"}
                         </button>
                       ))}
                     </div>

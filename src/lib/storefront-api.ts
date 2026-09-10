@@ -15,7 +15,7 @@ export interface Storefront {
   accentColor: string | null;
   about: string | null;
   currency: string;
-  availableProcessors: Array<"STRIPE" | "PAYSTACK">;
+  availableProcessors: Array<"STRIPE" | "FLUTTERWAVE">;
 }
 
 export interface StoreProduct {
@@ -114,7 +114,7 @@ export const storefrontApi = {
       buyerName?: string;
       buyerPhone?: string;
       shippingSpeed: "STANDARD" | "EXPRESS";
-      processor: "STRIPE" | "PAYSTACK";
+      processor: "STRIPE" | "FLUTTERWAVE";
       discountCode?: string;
     },
   ) =>
@@ -155,7 +155,7 @@ export interface CrossVendorGroupInput {
   slug: string;
   items: CartLine[];
   shippingSpeed: "STANDARD" | "EXPRESS";
-  processor: "STRIPE" | "PAYSTACK";
+  processor: "STRIPE" | "FLUTTERWAVE";
   discountCode?: string;
 }
 export interface CrossVendorCheckoutResult {

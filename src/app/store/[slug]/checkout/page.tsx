@@ -43,7 +43,7 @@ export default function CheckoutPage() {
   const processors = store.availableProcessors?.length
     ? store.availableProcessors
     : (["STRIPE"] as const);
-  const [processor, setProcessor] = useState<"STRIPE" | "PAYSTACK">(processors[0]!);
+  const [processor, setProcessor] = useState<"STRIPE" | "FLUTTERWAVE">(processors[0]!);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saveDetails, setSaveDetails] = useState(false);
@@ -251,7 +251,7 @@ export default function CheckoutPage() {
                 }`}
                 style={processor === p ? { background: "var(--store-accent)" } : undefined}
               >
-                {p === "STRIPE" ? "Card" : "Paystack"}
+                {p === "STRIPE" ? "Card" : "Flutterwave"}
               </button>
             ))}
           </div>
