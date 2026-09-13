@@ -9,7 +9,7 @@
  * fulfillment are charged a single time across the cart.
  */
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   formatUsd,
@@ -54,6 +54,33 @@ export default function MarketplaceCheckoutPage() {
     errors: Array<{ slug: string; message: string }>;
   }>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Persist the buyer's address + email so a trip out to pay and back doesn't
+  // wipe what they typed. sessionStorage (same-tab; clears when the tab closes).
+  const DRAFT_KEY = "mp_checkout";
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      const d = JSON.parse(raw) as Partial<{ addr: ShipAddressInput; email: string }>;
+      if (d.addr?.line1) setAddr((prev) => (prev.line1 ? prev : d.addr!));
+      if (d.email) setEmail((prev) => prev || d.email!);
+    } catch {
+      /* ignore malformed draft */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    try {
+      if (count === 0) {
+        sessionStorage.removeItem(DRAFT_KEY);
+        return;
+      }
+      sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ addr, email }));
+    } catch {
+      /* storage unavailable — non-fatal */
+    }
+  }, [addr, email, count]);
 
   const addressComplete =
     addr.recipientName && addr.line1 && addr.city && /^[A-Za-z]{2}$/.test(addr.state) && addr.postalCode;

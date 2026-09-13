@@ -48,6 +48,35 @@ export default function CheckoutPage() {
   const [error, setError] = useState<string | null>(null);
   const [saveDetails, setSaveDetails] = useState(false);
 
+  // Persist the half-filled checkout so a trip out to the payment page and back
+  // (cancel / browser back) doesn't wipe what the buyer typed. Per-store,
+  // sessionStorage (same-tab, clears when the tab closes).
+  const draftKey = `sf_checkout:${store.slug}`;
+
+  // Restore a saved draft on load, before the signed-in prefill runs (prefill
+  // only fills blanks, so restored values win).
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(draftKey);
+      if (!raw) return;
+      const d = JSON.parse(raw) as Partial<{
+        addr: ShipAddressInput;
+        email: string;
+        code: string;
+        processor: "STRIPE" | "FLUTTERWAVE";
+        speed: "STANDARD" | "EXPRESS";
+      }>;
+      if (d.addr?.line1) setAddr((prev) => (prev.line1 ? prev : d.addr!));
+      if (d.email) setEmail((prev) => prev || d.email!);
+      if (d.code) setCode((prev) => prev || d.code!);
+      if (d.processor && (processors as ReadonlyArray<string>).includes(d.processor)) setProcessor(d.processor);
+      if (d.speed) setSpeed(d.speed);
+    } catch {
+      /* ignore malformed draft */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // If the buyer is signed in, prefill their saved details.
   useEffect(() => {
     if (!getBuyerSession()) return;
@@ -63,6 +92,23 @@ export default function CheckoutPage() {
       })
       .catch(() => undefined);
   }, []);
+
+  // Save the draft as the buyer fills it in; drop it once the cart is empty
+  // (order placed / cleared) so a stale draft can't linger.
+  useEffect(() => {
+    try {
+      if (count === 0) {
+        sessionStorage.removeItem(draftKey);
+        return;
+      }
+      sessionStorage.setItem(
+        draftKey,
+        JSON.stringify({ addr, email, code, processor, speed }),
+      );
+    } catch {
+      /* storage unavailable — non-fatal */
+    }
+  }, [draftKey, addr, email, code, processor, speed, count]);
 
   const cartLines = useMemo(
     () => items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
