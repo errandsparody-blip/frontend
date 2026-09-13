@@ -227,6 +227,7 @@ function PayoutCard({
   clearError: () => void;
 }) {
   const [bankName, setBankName] = useState("");
+  const [businessEmail, setBusinessEmail] = useState("");
   const [country, setCountry] = useState("NG");
   const [bankCode, setBankCode] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
@@ -247,6 +248,7 @@ function PayoutCard({
     mutationFn: () =>
       api.post("/payments/flutterwave/connect", {
         businessName: bankName.trim(),
+        businessEmail: businessEmail.trim(),
         accountBank: bankCode.trim(),
         accountNumber: accountNumber.trim(),
         country,
@@ -289,6 +291,7 @@ function PayoutCard({
           </p>
           <div className="grid gap-2 sm:grid-cols-2">
             <Input value={bankName} onChange={(e) => setBankName(e.target.value)} placeholder="Business name" />
+            <Input type="email" value={businessEmail} onChange={(e) => setBusinessEmail(e.target.value)} placeholder="Business email" />
             <select
               value={country}
               onChange={(e) => { setCountry(e.target.value); setBankCode(""); }}
