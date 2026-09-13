@@ -12,6 +12,7 @@ import { useState } from "react";
 import { ErrorBanner } from "@/components/errors/error-banner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ProductGalleryUploader } from "@/components/portal/product-gallery-uploader";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
 import { api } from "@/lib/api-client";
@@ -27,6 +28,8 @@ interface VendorProduct {
   optionSize: string | null;
   optionColor: string | null;
   variantGroupId: string | null;
+  imageUrl: string | null;
+  imageUrls: string[];
 }
 
 export default function StorefrontProductsPage() {
@@ -136,6 +139,7 @@ function ProductRow({
   const [category, setCategory] = useState(product.category ?? "");
   const [size, setSize] = useState(product.optionSize ?? "");
   const [color, setColor] = useState(product.optionColor ?? "");
+  const [images, setImages] = useState<string[]>(product.imageUrls ?? []);
   const [saved, setSaved] = useState(false);
 
   const invalidate = () => void qc.invalidateQueries({ queryKey: ["storefront-products"] });
@@ -148,6 +152,7 @@ function ProductRow({
         category: category.trim() || null,
         optionSize: size.trim() || null,
         optionColor: color.trim() || null,
+        imageUrls: images,
       }),
     onSuccess: () => {
       invalidate();
@@ -207,6 +212,10 @@ function ProductRow({
         <Button variant="outline" loading={save.isPending} onClick={() => { clearError(); setSaved(false); save.mutate(); }}>
           Save
         </Button>
+      </div>
+      <div className="mt-3">
+        <span className="mb-1 block text-[12px] text-text-muted">Images</span>
+        <ProductGalleryUploader value={images} onChange={setImages} disabled={save.isPending} />
         {saved ? (
           <span role="status" className="text-[12px] font-medium text-emerald-600">
             Saved ✓
