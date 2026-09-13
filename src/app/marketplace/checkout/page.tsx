@@ -1,9 +1,12 @@
 "use client";
 
 /**
- * Cross-vendor checkout (Phase 2). One address + email; each store keeps its own
- * shipping speed + payment rail. On "Place orders" we create a sub-order per
- * store, then guide the buyer to pay each (money auto-splits to each vendor).
+ * Cross-vendor checkout (Phase 2). One address + email, and ONE delivery for the
+ * whole cart: everything ships from the USA Errands warehouse to the buyer as a
+ * single shipment, so the buyer picks one delivery speed and pays shipping once.
+ * Each store still keeps its own payment rail — on "Place orders" we create a
+ * sub-order per store (product money auto-splits to each vendor) while shipping +
+ * fulfillment are charged a single time across the cart.
  */
 import Link from "next/link";
 import { useMemo, useState } from "react";
@@ -19,12 +22,9 @@ import {
 
 import { useMarketplaceCart } from "../cart-context";
 
-interface GroupState {
-  options: ShippingOption[];
-  speed: "STANDARD" | "EXPRESS" | null;
+interface StorePay {
   processors: Array<"STRIPE" | "FLUTTERWAVE">;
   processor: "STRIPE" | "FLUTTERWAVE" | null;
-  fulfillmentFeeCents: number;
   error?: string;
 }
 
@@ -39,7 +39,14 @@ export default function MarketplaceCheckoutPage() {
     country: "US",
   });
   const [email, setEmail] = useState("");
-  const [byStore, setByStore] = useState<Record<string, GroupState>>({});
+  // One consolidated shipping quote for the whole cart.
+  const [options, setOptions] = useState<ShippingOption[]>([]);
+  const [speed, setSpeed] = useState<"STANDARD" | "EXPRESS" | null>(null);
+  const [fulfillmentFeeCents, setFulfillmentFeeCents] = useState(0);
+  const [taxCents, setTaxCents] = useState(0);
+  // Payment rail per store.
+  const [pay, setPay] = useState<Record<string, StorePay>>({});
+  const [quoted, setQuoted] = useState(false);
   const [quoting, setQuoting] = useState(false);
   const [placing, setPlacing] = useState(false);
   const [placed, setPlaced] = useState<null | {
@@ -50,17 +57,19 @@ export default function MarketplaceCheckoutPage() {
 
   const addressComplete =
     addr.recipientName && addr.line1 && addr.city && /^[A-Za-z]{2}$/.test(addr.state) && addr.postalCode;
-  const allReady =
-    groups.length > 0 &&
-    groups.every((g) => {
-      const s = byStore[g.vendorSlug];
-      return s && s.speed && s.processor;
-    });
+  const allRailsReady = groups.length > 0 && groups.every((g) => pay[g.vendorSlug]?.processor);
+  const allReady = quoted && !!speed && allRailsReady;
 
   const storeName = useMemo(
     () => Object.fromEntries(groups.map((g) => [g.vendorSlug, g.storeName])),
     [groups],
   );
+
+  const shippingCents = useMemo(
+    () => options.find((o) => o.speed === speed)?.costCents ?? 0,
+    [options, speed],
+  );
+  const totalCents = subtotalCents + shippingCents + fulfillmentFeeCents + taxCents;
 
   if (count === 0 && !placed) {
     return (
@@ -75,61 +84,55 @@ export default function MarketplaceCheckoutPage() {
     setError(null);
     setQuoting(true);
     try {
-      const next: Record<string, GroupState> = {};
-      await Promise.all(
-        groups.map(async (g) => {
-          const items = g.items.map((i) => ({ productId: i.productId, quantity: i.quantity }));
-          try {
-            const [quote, store] = await Promise.all([
-              storefrontApi.quote(g.vendorSlug, items, addr),
-              storefrontApi.getStore(g.vendorSlug),
-            ]);
-            const processors = store.availableProcessors?.length ? store.availableProcessors : (["STRIPE"] as const);
-            next[g.vendorSlug] = {
-              options: quote.shippingOptions,
-              speed: quote.shippingOptions[0]?.speed ?? null,
-              processors: [...processors],
-              processor: processors[0] ?? null,
-              fulfillmentFeeCents: quote.fulfillmentFeeCents,
-            };
-          } catch (e) {
-            next[g.vendorSlug] = {
-              options: [],
-              speed: null,
-              processors: [],
-              processor: null,
-              fulfillmentFeeCents: 0,
-              error: e instanceof StorefrontApiError ? e.message : "Couldn't quote this store.",
-            };
-          }
-        }),
+      // One shipping quote for the whole cart, plus each store's payment rails.
+      const quotePromise = marketplaceApi.quote(
+        groups.map((g) => ({
+          slug: g.vendorSlug,
+          items: g.items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+        })),
+        addr,
       );
-      setByStore(next);
+      const storesPromise = Promise.all(
+        groups.map(async (g) => [g.vendorSlug, await storefrontApi.getStore(g.vendorSlug)] as const),
+      );
+      const [quote, stores] = await Promise.all([quotePromise, storesPromise]);
+
+      setOptions(quote.shippingOptions);
+      setSpeed(quote.shippingOptions[0]?.speed ?? null);
+      setFulfillmentFeeCents(quote.fulfillmentFeeCents);
+      setTaxCents(quote.taxCents);
+
+      const nextPay: Record<string, StorePay> = {};
+      for (const [slug, store] of stores) {
+        const processors = store.availableProcessors?.length ? store.availableProcessors : (["STRIPE"] as const);
+        nextPay[slug] = { processors: [...processors], processor: processors[0] ?? null };
+      }
+      setPay(nextPay);
+      setQuoted(true);
+    } catch (e) {
+      setError(e instanceof StorefrontApiError ? e.message : "Couldn't calculate shipping for this address.");
     } finally {
       setQuoting(false);
     }
   }
 
   async function place() {
+    if (!speed) return;
     setError(null);
     setPlacing(true);
     try {
-      const payload = {
+      const res = await marketplaceApi.checkout({
         shipAddress: addr,
         buyerEmail: email.trim(),
         buyerName: addr.recipientName,
         buyerPhone: addr.phone,
-        groups: groups.map((g) => {
-          const s = byStore[g.vendorSlug]!;
-          return {
-            slug: g.vendorSlug,
-            items: g.items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
-            shippingSpeed: s.speed!,
-            processor: s.processor!,
-          };
-        }),
-      };
-      const res = await marketplaceApi.checkout(payload);
+        shippingSpeed: speed,
+        groups: groups.map((g) => ({
+          slug: g.vendorSlug,
+          items: g.items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+          processor: pay[g.vendorSlug]!.processor!,
+        })),
+      });
       setPlaced(res);
       if (res.errors.length === 0) clear();
     } catch (e) {
@@ -145,8 +148,8 @@ export default function MarketplaceCheckoutPage() {
       <div className="ue-rise-in mx-auto max-w-xl py-8">
         <h1 className="text-2xl font-semibold tracking-tight text-ink">Almost there</h1>
         <p className="mt-2 text-body-sm text-text-muted">
-          Each store is paid separately so your money goes straight to the right vendor. Complete each
-          payment below.
+          Your delivery is charged once for the whole order. Each store is paid separately so the
+          product money goes straight to the right vendor — complete each payment below.
         </p>
         <div className="mt-6 flex flex-col gap-3">
           {placed.results.map((r) => (
@@ -210,55 +213,64 @@ export default function MarketplaceCheckoutPage() {
           </button>
         </Section>
 
-        {groups.map((g) => {
-          const s = byStore[g.vendorSlug];
-          if (!s) return null;
-          return (
-            <Section key={g.vendorSlug} title={g.storeName}>
-              {s.error ? (
-                <div className="rounded-lg border-l-4 border-error bg-error/10 px-3 py-2 text-[12px] text-error">{s.error}</div>
-              ) : (
-                <>
-                  <div className="grid gap-2">
-                    {s.options.map((o) => (
-                      <label key={o.speed} className={`flex cursor-pointer items-center justify-between rounded-xl border px-4 py-3 ${s.speed === o.speed ? "border-ink bg-white" : "border-line bg-white hover:border-line-strong"}`}>
-                        <span className="flex items-center gap-3">
-                          <input type="radio" name={`speed-${g.vendorSlug}`} checked={s.speed === o.speed}
-                            onChange={() => setByStore((prev) => ({ ...prev, [g.vendorSlug]: { ...prev[g.vendorSlug]!, speed: o.speed } }))} />
-                          <span>
-                            <span className="block text-[14px] font-medium text-ink">{o.label}</span>
-                            <span className="block text-[12px] text-text-muted">{o.deliveryWindow}</span>
-                          </span>
-                        </span>
-                        <span className="text-[14px] font-semibold text-ink">{formatUsd(o.costCents)}</span>
-                      </label>
+        {quoted && options.length > 0 ? (
+          <Section title="Delivery (one shipment for your whole order)">
+            <div className="grid gap-2">
+              {options.map((o) => (
+                <label key={o.speed} className={`flex cursor-pointer items-center justify-between rounded-xl border px-4 py-3 ${speed === o.speed ? "border-ink bg-white" : "border-line bg-white hover:border-line-strong"}`}>
+                  <span className="flex items-center gap-3">
+                    <input type="radio" name="cart-speed" checked={speed === o.speed} onChange={() => setSpeed(o.speed)} />
+                    <span>
+                      <span className="block text-[14px] font-medium text-ink">{o.label}</span>
+                      <span className="block text-[12px] text-text-muted">{o.deliveryWindow}</span>
+                    </span>
+                  </span>
+                  <span className="text-[14px] font-semibold text-ink">{formatUsd(o.costCents)}</span>
+                </label>
+              ))}
+            </div>
+          </Section>
+        ) : null}
+
+        {quoted
+          ? groups.map((g) => {
+              const s = pay[g.vendorSlug];
+              if (!s || s.processors.length <= 1) return null;
+              return (
+                <Section key={g.vendorSlug} title={`Payment · ${g.storeName}`}>
+                  <div className="flex gap-2">
+                    {s.processors.map((p) => (
+                      <button key={p} type="button"
+                        onClick={() => setPay((prev) => ({ ...prev, [g.vendorSlug]: { ...prev[g.vendorSlug]!, processor: p } }))}
+                        className={`rounded-full px-4 py-2 text-[12px] font-medium ${s.processor === p ? "bg-ink text-cream-soft" : "border border-line-strong bg-white text-text-muted hover:border-ink"}`}>
+                        {p === "STRIPE" ? "Card" : "Flutterwave"}
+                      </button>
                     ))}
                   </div>
-                  {s.processors.length > 1 ? (
-                    <div className="mt-3 flex gap-2">
-                      {s.processors.map((p) => (
-                        <button key={p} type="button"
-                          onClick={() => setByStore((prev) => ({ ...prev, [g.vendorSlug]: { ...prev[g.vendorSlug]!, processor: p } }))}
-                          className={`rounded-full px-4 py-2 text-[12px] font-medium ${s.processor === p ? "bg-ink text-cream-soft" : "border border-line-strong bg-white text-text-muted hover:border-ink"}`}>
-                          {p === "STRIPE" ? "Card" : "Flutterwave"}
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
-                </>
-              )}
-            </Section>
-          );
-        })}
+                </Section>
+              );
+            })
+          : null}
       </div>
 
       <aside className="h-fit rounded-2xl border border-line bg-white p-5 md:sticky md:top-24">
         <div className="mb-3 font-mono text-[10px] uppercase tracking-[1.6px] text-text-subtle">Order summary</div>
-        <div className="flex items-center justify-between text-[13px]">
-          <span className="text-text-muted">Items ({count})</span>
-          <span className="font-medium text-ink">{formatUsd(subtotalCents)}</span>
-        </div>
-        <p className="mt-2 text-[12px] text-text-subtle">Shipping + fees shown per store above. You&apos;ll pay each store separately.</p>
+        <Row label={`Items (${count})`} value={formatUsd(subtotalCents)} />
+        {quoted ? (
+          <>
+            <Row label="Shipping" value={shippingCents ? formatUsd(shippingCents) : "—"} muted />
+            <Row label="Fulfillment" value={formatUsd(fulfillmentFeeCents)} muted />
+            {taxCents > 0 ? <Row label="Tax" value={formatUsd(taxCents)} muted /> : null}
+            <div className="my-3 border-t border-line" />
+            <Row label="Total" value={formatUsd(totalCents)} bold />
+            <p className="mt-2 text-[12px] text-text-subtle">
+              One delivery for your whole order. Product payment goes to each store separately at the
+              next step.
+            </p>
+          </>
+        ) : (
+          <p className="mt-2 text-[12px] text-text-subtle">Enter your address and calculate shipping to see the total.</p>
+        )}
         {error ? <div className="mt-4 rounded-lg border-l-4 border-error bg-error/10 px-3 py-2 text-[12px] text-error">{error}</div> : null}
         <button
           type="button"
@@ -266,7 +278,7 @@ export default function MarketplaceCheckoutPage() {
           onClick={place}
           className="mt-5 w-full rounded-full bg-ink px-6 py-3.5 text-[14px] font-semibold text-cream-soft transition-transform active:scale-[0.99] disabled:opacity-50"
         >
-          {placing ? "Placing orders…" : "Place orders"}
+          {placing ? "Placing orders…" : "Place order"}
         </button>
       </aside>
     </div>
@@ -282,6 +294,15 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       <h2 className="mb-3 font-mono text-[10px] uppercase tracking-[1.6px] text-text-subtle">{title}</h2>
       {children}
     </section>
+  );
+}
+
+function Row({ label, value, muted, bold }: { label: string; value: string; muted?: boolean; bold?: boolean }) {
+  return (
+    <div className={`flex items-center justify-between text-[13px] ${muted ? "mt-2" : ""}`}>
+      <span className={muted ? "text-text-muted" : "text-text-2"}>{label}</span>
+      <span className={bold ? "text-[15px] font-semibold text-ink" : "font-medium text-ink"}>{value}</span>
+    </div>
   );
 }
 

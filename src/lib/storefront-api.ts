@@ -154,7 +154,6 @@ async function mkReq<T>(path: string): Promise<T> {
 export interface CrossVendorGroupInput {
   slug: string;
   items: CartLine[];
-  shippingSpeed: "STANDARD" | "EXPRESS";
   processor: "STRIPE" | "FLUTTERWAVE";
   discountCode?: string;
 }
@@ -186,11 +185,18 @@ export const marketplaceApi = {
     ),
   categories: () => mkReq<string[]>("/categories"),
   stores: () => mkReq<FeaturedStore[]>("/stores"),
+  // One consolidated shipping quote for the whole cart (one shipment).
+  quote: (
+    groups: Array<{ slug: string; items: CartLine[] }>,
+    shipAddress: ShipAddressInput,
+  ) => mkPost<CheckoutQuote>("/quote", { shipAddress, groups }),
   checkout: (payload: {
     shipAddress: ShipAddressInput;
     buyerEmail: string;
     buyerName?: string;
     buyerPhone?: string;
+    // One delivery speed for the whole cart — one shipment, one shipping charge.
+    shippingSpeed: "STANDARD" | "EXPRESS";
     groups: CrossVendorGroupInput[];
   }) => mkPost<CrossVendorCheckoutResult>("/checkout", payload),
 };
