@@ -124,8 +124,14 @@ export const storefrontApi = {
     ),
 };
 
+const usdFormatter = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+});
+
 export function formatUsd(cents: number): string {
-  return `$${(cents / 100).toFixed(2)}`;
+  // Proper currency formatting with thousands separators, e.g. $200,000.00.
+  return usdFormatter.format((cents ?? 0) / 100);
 }
 
 // ---------------------------------------------------------------------------
