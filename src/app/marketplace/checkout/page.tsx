@@ -367,11 +367,7 @@ export default function MarketplaceCheckoutPage() {
         {quoted ? (
           <>
             <Row label="Shipping" value={shippingCents ? formatUsd(shippingCents) : "—"} muted />
-            <Row
-              label={groups.length > 1 ? `Fulfillment (${groups.length} stores)` : "Fulfillment"}
-              value={formatUsd(fulfillmentFeeCents)}
-              muted
-            />
+            <Row label="Fulfillment" value={formatUsd(fulfillmentFeeCents)} muted />
             {taxCents > 0 ? <Row label="Tax" value={formatUsd(taxCents)} muted /> : null}
             <div className="my-3 border-t border-line" />
             <Row label="Total" value={formatUsd(totalCents)} bold />
