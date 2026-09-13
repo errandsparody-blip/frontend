@@ -36,6 +36,15 @@ interface AdminStorefrontOrder {
   shipping_speed: string;
   tracking_number: string | null;
 }
+interface AdminFailedPayout {
+  reference: string;
+  business_name: string;
+  processor: string;
+  total_cents: number;
+  platform_fee_cents: number;
+  payout_status: string;
+  created_at: string;
+}
 
 export default function AdminMarketplacePage() {
   const { bannerError, handle, clear } = useApiErrorHandler();
@@ -50,6 +59,7 @@ export default function AdminMarketplacePage() {
       <div className="flex flex-col gap-8">
         <MarketplaceDiscounts onError={handle} clearError={clear} />
         <ReturnsQueue onError={handle} clearError={clear} />
+        <FailedPayouts onError={handle} clearError={clear} />
         <StorefrontOrders />
       </div>
     </div>
@@ -209,6 +219,54 @@ function ReturnsQueue({ onError, clearError }: { onError: (e: unknown) => void; 
                   Decline
                 </button>
               </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function FailedPayouts({ onError, clearError }: { onError: (e: unknown) => void; clearError: () => void }) {
+  const qc = useQueryClient();
+  const rows = useQuery({
+    queryKey: ["admin-failed-payouts"],
+    queryFn: () => api.get<AdminFailedPayout[]>("/admin/storefront/orders/payouts/failed"),
+  });
+  const retry = useMutation({
+    mutationFn: (reference: string) =>
+      api.post(`/admin/storefront/orders/${encodeURIComponent(reference)}/payout/retry`, {}),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-failed-payouts"] }),
+    onError,
+  });
+  const data = rows.data ?? [];
+  return (
+    <section className="rounded-lg border border-line bg-white p-6">
+      <h2 className="mb-4 font-mono text-mono-label uppercase tracking-[1.4px] text-text-muted">
+        Failed vendor payouts
+      </h2>
+      {rows.isLoading ? (
+        <div className="py-8 text-center font-mono text-mono-label text-text-subtle">Loading…</div>
+      ) : data.length === 0 ? (
+        <div className="py-8 text-center text-body-sm text-text-muted">No failed payouts.</div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {data.map((p) => (
+            <div key={p.reference} className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-line px-3 py-3 text-body-sm">
+              <div className="min-w-0">
+                <div className="font-mono font-medium text-ink">{p.reference}</div>
+                <div className="text-text-muted">
+                  {p.business_name} · {p.processor} · payout {usd(p.total_cents - p.platform_fee_cents)}
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={retry.isPending}
+                onClick={() => { clearError(); retry.mutate(p.reference); }}
+                className="rounded-md bg-ink px-3 py-1.5 text-[12px] font-medium text-white hover:bg-ink-elev disabled:opacity-50"
+              >
+                Retry payout
+              </button>
             </div>
           ))}
         </div>

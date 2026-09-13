@@ -161,29 +161,42 @@ function ProductCard({ product, index }: { product: StoreProduct; index: number 
         </Link>
         <div className="mt-auto flex items-center justify-between pt-3">
           <span className="text-[15px] font-semibold text-ink">
-            {formatUsd(product.retailPriceCents)}
+            {product.priceVaries
+              ? `from ${formatUsd(product.retailPriceCents)}`
+              : formatUsd(product.retailPriceCents)}
           </span>
-          <button
-            type="button"
-            onClick={() => {
-              add(
-                {
-                  productId: product.id,
-                  name: product.name,
-                  unitRetailCents: product.retailPriceCents,
-                  imageUrl: product.imageUrl,
-                  available: product.available,
-                },
-                1,
-              );
-              setAdded(true);
-              setTimeout(() => setAdded(false), 1200);
-            }}
-            className="rounded-full px-3 py-1.5 text-[11px] font-semibold text-white transition-transform active:scale-95"
-            style={{ background: "var(--store-accent)" }}
-          >
-            {added ? "Added ✓" : "Add"}
-          </button>
+          {product.variantGroupId ? (
+            // Variant listing — pick size/colour on the product page.
+            <Link
+              href={`/store/${store.slug}/products/${product.id}`}
+              className="rounded-full px-3 py-1.5 text-[11px] font-semibold text-white transition-transform active:scale-95"
+              style={{ background: "var(--store-accent)" }}
+            >
+              Options
+            </Link>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                add(
+                  {
+                    productId: product.id,
+                    name: product.name,
+                    unitRetailCents: product.retailPriceCents,
+                    imageUrl: product.imageUrl,
+                    available: product.available,
+                  },
+                  1,
+                );
+                setAdded(true);
+                setTimeout(() => setAdded(false), 1200);
+              }}
+              className="rounded-full px-3 py-1.5 text-[11px] font-semibold text-white transition-transform active:scale-95"
+              style={{ background: "var(--store-accent)" }}
+            >
+              {added ? "Added ✓" : "Add"}
+            </button>
+          )}
         </div>
       </div>
     </div>

@@ -26,6 +26,30 @@ export interface StoreProduct {
   retailPriceCents: number;
   imageUrl: string | null;
   available: number;
+  /** Set when this card is a size×colour variant group — the buyer must pick
+   *  options on the product page rather than quick-adding. */
+  variantGroupId?: string | null;
+  /** Group's variants aren't all one price → show "from $X". */
+  priceVaries?: boolean;
+}
+
+export interface ListingVariant {
+  productId: string;
+  optionSize: string | null;
+  optionColor: string | null;
+  retailPriceCents: number;
+  imageUrl: string | null;
+  imageUrls: string[];
+  available: number;
+}
+export interface PublicListing {
+  name: string;
+  category: string | null;
+  tags: string[];
+  variantGroupId: string | null;
+  sizes: string[];
+  colors: string[];
+  variants: ListingVariant[];
 }
 
 export interface ShippingOption {
@@ -42,6 +66,10 @@ export interface CheckoutQuote {
   fulfillmentFeeCents: number;
   taxCents: number;
   shippingOptions: ShippingOption[];
+  /** Diagnostic: the combined parcel the shipping estimate was priced on. A
+   *  huge weightOz means a product's weight data is wrong (carriers bill on
+   *  weight). Inspect in the quote response when a rate looks too high. */
+  parcel?: { weightOz: number; lengthIn: number; widthIn: number; heightIn: number };
 }
 
 export interface ShipAddressInput {
@@ -95,6 +123,9 @@ export const storefrontApi = {
   getCategories: (slug: string) => req<string[]>(`/${encodeURIComponent(slug)}/categories`),
   getProduct: (slug: string, id: string) =>
     req<StoreProduct>(`/${encodeURIComponent(slug)}/products/${id}`),
+  // Listing with size×colour variants; `id` may be a product or a group id.
+  getListing: (slug: string, id: string) =>
+    req<PublicListing>(`/${encodeURIComponent(slug)}/listing/${id}`),
   quote: (slug: string, items: CartLine[], shipAddress: ShipAddressInput) =>
     req<CheckoutQuote>(`/${encodeURIComponent(slug)}/quote`, {
       method: "POST",

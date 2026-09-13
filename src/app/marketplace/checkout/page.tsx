@@ -224,7 +224,9 @@ export default function MarketplaceCheckoutPage() {
               className="flex items-center justify-between rounded-xl border border-line bg-white px-4 py-3 transition-colors hover:border-ink"
             >
               <span>
-                <span className="block text-[14px] font-medium text-ink">{storeName[r.slug] ?? r.slug}</span>
+                <span className="block text-[14px] font-medium text-ink">
+                  {storeName[r.slug] ?? (r.slug === "cart" ? "Your order" : r.slug)}
+                </span>
                 <span className="block font-mono text-[12px] text-text-muted">{r.reference}</span>
               </span>
               <span className="rounded-full bg-ink px-4 py-1.5 text-[12px] font-semibold text-cream-soft">Pay →</span>

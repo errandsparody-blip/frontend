@@ -144,36 +144,45 @@ function FeedCard({ product: p, index }: { product: MarketplaceProduct; index: n
             <span className="font-mono text-[11px] uppercase tracking-[1.4px]">No image</span>
           </div>
         )}
-        <button
-          type="button"
-          onClick={(e) => {
-            e.preventDefault();
-            add(
-              {
-                productId: p.id,
-                vendorSlug: p.vendorSlug,
-                storeName: p.storeName,
-                name: p.name,
-                unitRetailCents: p.retailPriceCents,
-                imageUrl: p.imageUrl,
-                available: p.available,
-              },
-              1,
-            );
-            setAdded(true);
-            setTimeout(() => setAdded(false), 1200);
-          }}
-          className="absolute inset-x-3 bottom-3 translate-y-2 rounded-full bg-ink px-4 py-2 text-[11px] font-semibold uppercase tracking-[1.4px] text-cream-soft opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100"
-        >
-          {added ? "Added ✓" : "Add to cart"}
-        </button>
+        {p.variantGroupId ? (
+          // Variant listing — pick size/colour on the product page.
+          <span className="absolute inset-x-3 bottom-3 translate-y-2 rounded-full bg-ink px-4 py-2 text-center text-[11px] font-semibold uppercase tracking-[1.4px] text-cream-soft opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100">
+            Choose options
+          </span>
+        ) : (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              add(
+                {
+                  productId: p.id,
+                  vendorSlug: p.vendorSlug,
+                  storeName: p.storeName,
+                  name: p.name,
+                  unitRetailCents: p.retailPriceCents,
+                  imageUrl: p.imageUrl,
+                  available: p.available,
+                },
+                1,
+              );
+              setAdded(true);
+              setTimeout(() => setAdded(false), 1200);
+            }}
+            className="absolute inset-x-3 bottom-3 translate-y-2 rounded-full bg-ink px-4 py-2 text-[11px] font-semibold uppercase tracking-[1.4px] text-cream-soft opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100"
+          >
+            {added ? "Added ✓" : "Add to cart"}
+          </button>
+        )}
       </Link>
       <div className="mt-3">
         <div className="font-mono text-[10px] uppercase tracking-[1.4px] text-text-subtle">{p.storeName}</div>
         <Link href={href} className="mt-1 block text-[12px] font-semibold uppercase tracking-[0.6px] text-ink hover:underline">
           {p.name}
         </Link>
-        <div className="mt-1 text-[13px] text-text-muted">{formatUsd(p.retailPriceCents)}</div>
+        <div className="mt-1 text-[13px] text-text-muted">
+          {p.priceVaries ? `from ${formatUsd(p.retailPriceCents)}` : formatUsd(p.retailPriceCents)}
+        </div>
       </div>
     </div>
   );
