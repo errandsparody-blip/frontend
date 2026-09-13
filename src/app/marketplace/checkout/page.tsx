@@ -54,6 +54,11 @@ export default function MarketplaceCheckoutPage() {
     errors: Array<{ slug: string; message: string }>;
   }>(null);
   const [error, setError] = useState<string | null>(null);
+  // Per-store discount code: what's typed, what's applied, and any message.
+  const [codeInput, setCodeInput] = useState<Record<string, string>>({});
+  const [discounts, setDiscounts] = useState<Record<string, { code: string; cents: number } | null>>({});
+  const [codeMsg, setCodeMsg] = useState<Record<string, string>>({});
+  const [checking, setChecking] = useState<Record<string, boolean>>({});
 
   // Persist the buyer's address + email so a trip out to pay and back doesn't
   // wipe what they typed. sessionStorage (same-tab; clears when the tab closes).
@@ -96,7 +101,37 @@ export default function MarketplaceCheckoutPage() {
     () => options.find((o) => o.speed === speed)?.costCents ?? 0,
     [options, speed],
   );
-  const totalCents = subtotalCents + shippingCents + fulfillmentFeeCents + taxCents;
+  const discountTotalCents = useMemo(
+    () => Object.values(discounts).reduce((s, d) => s + (d?.cents ?? 0), 0),
+    [discounts],
+  );
+  const totalCents = Math.max(
+    0,
+    subtotalCents - discountTotalCents + shippingCents + fulfillmentFeeCents + taxCents,
+  );
+
+  // Validate a vendor discount code against that store's subtotal. A vendor code
+  // only ever discounts that vendor's goods (enforced server-side).
+  async function applyCode(slug: string, groupSubtotalCents: number) {
+    const code = (codeInput[slug] ?? "").trim();
+    if (!code) return;
+    setChecking((p) => ({ ...p, [slug]: true }));
+    try {
+      const r = await storefrontApi.validateDiscount(slug, code, groupSubtotalCents);
+      if (r.valid) {
+        setDiscounts((p) => ({ ...p, [slug]: { code: r.code ?? code, cents: r.discountCents ?? 0 } }));
+        setCodeMsg((p) => ({ ...p, [slug]: `−${formatUsd(r.discountCents ?? 0)} applied` }));
+      } else {
+        setDiscounts((p) => ({ ...p, [slug]: null }));
+        setCodeMsg((p) => ({ ...p, [slug]: r.reason ?? "That code isn't valid for this store." }));
+      }
+    } catch (e) {
+      setDiscounts((p) => ({ ...p, [slug]: null }));
+      setCodeMsg((p) => ({ ...p, [slug]: e instanceof StorefrontApiError ? e.message : "Couldn't check that code." }));
+    } finally {
+      setChecking((p) => ({ ...p, [slug]: false }));
+    }
+  }
 
   if (count === 0 && !placed) {
     return (
@@ -158,6 +193,7 @@ export default function MarketplaceCheckoutPage() {
           slug: g.vendorSlug,
           items: g.items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
           processor: pay[g.vendorSlug]!.processor!,
+          discountCode: discounts[g.vendorSlug]?.code,
         })),
       });
       setPlaced(res);
@@ -259,34 +295,83 @@ export default function MarketplaceCheckoutPage() {
           </Section>
         ) : null}
 
-        {quoted
-          ? groups.map((g) => {
-              const s = pay[g.vendorSlug];
-              if (!s || s.processors.length <= 1) return null;
-              return (
-                <Section key={g.vendorSlug} title={`Payment · ${g.storeName}`}>
-                  <div className="flex gap-2">
-                    {s.processors.map((p) => (
-                      <button key={p} type="button"
-                        onClick={() => setPay((prev) => ({ ...prev, [g.vendorSlug]: { ...prev[g.vendorSlug]!, processor: p } }))}
-                        className={`rounded-full px-4 py-2 text-[12px] font-medium ${s.processor === p ? "bg-ink text-cream-soft" : "border border-line-strong bg-white text-text-muted hover:border-ink"}`}>
-                        {p === "STRIPE" ? "Card" : "Flutterwave"}
-                      </button>
-                    ))}
-                  </div>
-                </Section>
-              );
-            })
-          : null}
+        {groups.map((g) => {
+          const s = pay[g.vendorSlug];
+          const applied = discounts[g.vendorSlug];
+          return (
+            <Section key={g.vendorSlug} title={`Store · ${g.storeName}`}>
+              {/* Vendor discount code — applies only to this store's items. */}
+              <div className="flex gap-2">
+                <input
+                  value={codeInput[g.vendorSlug] ?? ""}
+                  onChange={(e) => setCodeInput((p) => ({ ...p, [g.vendorSlug]: e.target.value.toUpperCase() }))}
+                  placeholder="Discount code"
+                  className={inputCls}
+                />
+                <button
+                  type="button"
+                  disabled={!!checking[g.vendorSlug] || !(codeInput[g.vendorSlug] ?? "").trim()}
+                  onClick={() => applyCode(g.vendorSlug, g.subtotalCents)}
+                  className="whitespace-nowrap rounded-full border border-line-strong bg-white px-4 py-2 text-[13px] font-semibold text-ink transition-colors hover:border-ink disabled:opacity-50"
+                >
+                  {checking[g.vendorSlug] ? "Checking…" : applied ? "Update" : "Apply"}
+                </button>
+              </div>
+              {codeMsg[g.vendorSlug] ? (
+                <p className={`mt-1 text-[12px] ${applied ? "text-ink" : "text-error"}`}>{codeMsg[g.vendorSlug]}</p>
+              ) : null}
+
+              {/* Payment rail — only when this store supports more than one. */}
+              {s && s.processors.length > 1 ? (
+                <div className="mt-3 flex gap-2">
+                  {s.processors.map((p) => (
+                    <button key={p} type="button"
+                      onClick={() => setPay((prev) => ({ ...prev, [g.vendorSlug]: { ...prev[g.vendorSlug]!, processor: p } }))}
+                      className={`rounded-full px-4 py-2 text-[12px] font-medium ${s.processor === p ? "bg-ink text-cream-soft" : "border border-line-strong bg-white text-text-muted hover:border-ink"}`}>
+                      {p === "STRIPE" ? "Card" : "Flutterwave"}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </Section>
+          );
+        })}
       </div>
 
       <aside className="h-fit rounded-2xl border border-line bg-white p-5 md:sticky md:top-24">
         <div className="mb-3 font-mono text-[10px] uppercase tracking-[1.6px] text-text-subtle">Order summary</div>
+
+        {/* Itemised, grouped by store — so the buyer sees exactly what they're paying for. */}
+        <div className="mb-3 max-h-64 space-y-3 overflow-auto">
+          {groups.map((g) => (
+            <div key={g.vendorSlug}>
+              <div className="text-[11px] font-medium uppercase tracking-wide text-text-subtle">{g.storeName}</div>
+              {g.items.map((it) => (
+                <div key={it.productId} className="mt-1 flex items-start justify-between gap-3 text-[12px]">
+                  <span className="text-text-2">
+                    {it.name}
+                    <span className="text-text-subtle"> × {it.quantity}</span>
+                  </span>
+                  <span className="whitespace-nowrap text-ink">{formatUsd(it.unitRetailCents * it.quantity)}</span>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+        <div className="my-3 border-t border-line" />
+
         <Row label={`Items (${count})`} value={formatUsd(subtotalCents)} />
+        {discountTotalCents > 0 ? (
+          <Row label="Discounts" value={`−${formatUsd(discountTotalCents)}`} muted />
+        ) : null}
         {quoted ? (
           <>
             <Row label="Shipping" value={shippingCents ? formatUsd(shippingCents) : "—"} muted />
-            <Row label="Fulfillment" value={formatUsd(fulfillmentFeeCents)} muted />
+            <Row
+              label={groups.length > 1 ? `Fulfillment (${groups.length} stores)` : "Fulfillment"}
+              value={formatUsd(fulfillmentFeeCents)}
+              muted
+            />
             {taxCents > 0 ? <Row label="Tax" value={formatUsd(taxCents)} muted /> : null}
             <div className="my-3 border-t border-line" />
             <Row label="Total" value={formatUsd(totalCents)} bold />
