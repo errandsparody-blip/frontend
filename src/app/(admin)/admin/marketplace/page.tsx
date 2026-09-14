@@ -58,6 +58,7 @@ export default function AdminMarketplacePage() {
       ) : null}
       <div className="flex flex-col gap-8">
         <MarketplaceDiscounts onError={handle} clearError={clear} />
+        <ReservationSweep onError={handle} clearError={clear} />
         <ReturnsQueue onError={handle} clearError={clear} />
         <FailedPayouts onError={handle} clearError={clear} />
         <StorefrontOrders />
@@ -131,6 +132,38 @@ function MarketplaceDiscounts({ onError, clearError }: { onError: (e: unknown) =
             </button>
           </div>
         ))}
+      </div>
+    </section>
+  );
+}
+
+function ReservationSweep({ onError, clearError }: { onError: (e: unknown) => void; clearError: () => void }) {
+  const [released, setReleased] = useState<number | null>(null);
+  const sweep = useMutation({
+    mutationFn: () => api.post<{ released: number }>("/admin/storefront/orders/reservations/sweep", {}),
+    onSuccess: (r) => setReleased(r.released),
+    onError,
+  });
+  return (
+    <section className="rounded-lg border border-line bg-white p-6">
+      <h2 className="mb-2 font-mono text-mono-label uppercase tracking-[1.4px] text-text-muted">
+        Inventory reservations
+      </h2>
+      <p className="mb-4 max-w-2xl text-body-sm text-text-muted">
+        Checkout holds a product&apos;s stock the moment a buyer reaches the payment step. If they don&apos;t pay, that
+        stock is released automatically within a few minutes — but you can free it now. Use this if a product has
+        disappeared from the storefront after abandoned or test checkouts (its available stock hit zero because units
+        are still reserved).
+      </p>
+      <div className="flex items-center gap-3">
+        <Button variant="outline" loading={sweep.isPending} onClick={() => { clearError(); setReleased(null); sweep.mutate(); }}>
+          Release abandoned-cart stock
+        </Button>
+        {released != null ? (
+          <span role="status" className="text-body-sm text-emerald-600">
+            {released === 0 ? "Nothing to release — no abandoned checkouts." : `Released ${released} abandoned checkout${released === 1 ? "" : "s"}.`}
+          </span>
+        ) : null}
       </div>
     </section>
   );
