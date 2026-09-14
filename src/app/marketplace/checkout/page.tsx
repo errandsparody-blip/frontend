@@ -29,6 +29,19 @@ interface StorePay {
   error?: string;
 }
 
+// Snapshot captured at "Place order" so a receipt can be rendered on return from
+// the hosted payment (when the cart + live quote are no longer in memory).
+interface ReceiptData {
+  email: string;
+  paidAt: string;
+  stores: Array<{ storeName: string; items: Array<{ name: string; quantity: number; totalCents: number }> }>;
+  subtotalCents: number;
+  discountCents: number;
+  shippingCents: number;
+  taxCents: number;
+  totalCents: number;
+}
+
 export default function MarketplaceCheckoutPage() {
   const router = useRouter();
   const { groups, subtotalCents, count, clear } = useMarketplaceCart();
@@ -44,7 +57,8 @@ export default function MarketplaceCheckoutPage() {
   // One consolidated shipping quote for the whole cart.
   const [options, setOptions] = useState<ShippingOption[]>([]);
   const [speed, setSpeed] = useState<"STANDARD" | "EXPRESS" | null>(null);
-  const [fulfillmentFeeCents, setFulfillmentFeeCents] = useState(0);
+  // Note: fulfillment is NOT a buyer charge — it's billed to the vendor at
+  // fulfillment. The buyer pays product + delivery (+ tax) only.
   const [taxCents, setTaxCents] = useState(0);
   // Payment rail per store.
   const [pay, setPay] = useState<Record<string, StorePay>>({});
@@ -55,6 +69,12 @@ export default function MarketplaceCheckoutPage() {
     results: Array<{ slug: string; reference: string; checkoutUrl: string }>;
     errors: Array<{ slug: string; message: string }>;
     storeName: Record<string, string>;
+    receipt?: ReceiptData;
+  }>(null);
+  // Set after the buyer returns from a successful hosted payment (?status=successful).
+  const [confirmed, setConfirmed] = useState<null | {
+    references: string[];
+    receipt?: ReceiptData;
   }>(null);
   // Whether we're showing the payment step ("pay") or the checkout form ("form").
   // Kept separate from `placed` so the buyer can step BACK to the form while the
@@ -90,12 +110,53 @@ export default function MarketplaceCheckoutPage() {
       if (rawPlaced) {
         const p = JSON.parse(rawPlaced);
         if (p?.results?.length) {
-          setPlaced({ results: p.results, errors: p.errors ?? [], storeName: p.storeName ?? {} });
+          setPlaced({ results: p.results, errors: p.errors ?? [], storeName: p.storeName ?? {}, receipt: p.receipt });
           setView("pay");
         }
       }
     } catch {
       /* ignore malformed placed */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Return from a successful hosted payment: the processor redirects to
+  // ?status=successful (or ?paid=1). Show a confirmation + receipt, then clear
+  // the cart and the remembered order so a refresh doesn't reopen the pay step.
+  useEffect(() => {
+    try {
+      const q = new URLSearchParams(window.location.search);
+      const ok = q.get("status") === "successful" || q.get("paid") === "1";
+      if (!ok) return;
+      let references: string[] = [];
+      let receipt: ReceiptData | undefined;
+      try {
+        const rawPlaced = sessionStorage.getItem(PLACED_KEY);
+        if (rawPlaced) {
+          const p = JSON.parse(rawPlaced);
+          references = (p?.results ?? []).map((r: { reference: string }) => r.reference);
+          receipt = p?.receipt;
+        }
+      } catch {
+        /* ignore */
+      }
+      // Fall back to the tx_ref (CART-<group>-<suffix> → CART-<group>).
+      if (references.length === 0) {
+        const txRef = q.get("tx_ref");
+        if (txRef) references = [txRef.replace(/-[a-z0-9]+$/i, "")];
+      }
+      setConfirmed({ references, receipt });
+      setPlaced(null);
+      setView("form");
+      try {
+        clear();
+      } catch {
+        /* non-fatal */
+      }
+      // Strip the query so a refresh doesn't re-trigger the confirmation.
+      window.history.replaceState({}, "", "/marketplace/checkout");
+    } catch {
+      /* non-fatal */
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -169,7 +230,7 @@ export default function MarketplaceCheckoutPage() {
   );
   const totalCents = Math.max(
     0,
-    subtotalCents - discountTotalCents + shippingCents + fulfillmentFeeCents + taxCents,
+    subtotalCents - discountTotalCents + shippingCents + taxCents,
   );
 
   // Validate a vendor discount code against that store's subtotal. A vendor code
@@ -193,6 +254,68 @@ export default function MarketplaceCheckoutPage() {
     } finally {
       setChecking((p) => ({ ...p, [slug]: false }));
     }
+  }
+
+  // Payment confirmed — highest priority (cart is cleared, so this must win over
+  // the empty-cart guard below).
+  if (confirmed) {
+    const r = confirmed.receipt;
+    return (
+      <div className="ue-rise-in mx-auto max-w-xl py-8" id="ue-receipt">
+        <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-full bg-ink text-cream-soft">✓</div>
+        <h1 className="text-2xl font-semibold tracking-tight text-ink">Payment received</h1>
+        <p className="mt-2 text-body-sm text-text-muted">
+          Your order is confirmed{r?.email ? <> — a receipt has been emailed to <strong>{r.email}</strong></> : null}.
+          We&apos;ll email you tracking as soon as it ships.
+        </p>
+
+        {confirmed.references.length > 0 ? (
+          <div className="mt-4 rounded-xl border border-line bg-white px-4 py-3">
+            <div className="font-mono text-[10px] uppercase tracking-[1.6px] text-text-subtle">Order reference</div>
+            {confirmed.references.map((ref) => (
+              <div key={ref} className="font-mono text-[13px] text-ink">{ref}</div>
+            ))}
+          </div>
+        ) : null}
+
+        {r ? (
+          <div className="mt-4 rounded-xl border border-line bg-white p-5">
+            <div className="mb-3 font-mono text-[10px] uppercase tracking-[1.6px] text-text-subtle">Receipt</div>
+            {r.stores.map((s, i) => (
+              <div key={i} className="mb-3">
+                <div className="text-[11px] font-medium uppercase tracking-wide text-text-subtle">{s.storeName}</div>
+                {s.items.map((it, j) => (
+                  <div key={j} className="mt-1 flex items-start justify-between gap-3 text-[12px]">
+                    <span className="text-text-2">{it.name}<span className="text-text-subtle"> × {it.quantity}</span></span>
+                    <span className="whitespace-nowrap text-ink">{formatUsd(it.totalCents)}</span>
+                  </div>
+                ))}
+              </div>
+            ))}
+            <div className="my-3 border-t border-line" />
+            <Row label="Items" value={formatUsd(r.subtotalCents)} />
+            {r.discountCents > 0 ? <Row label="Discounts" value={`−${formatUsd(r.discountCents)}`} muted /> : null}
+            <Row label="Delivery" value={r.shippingCents ? formatUsd(r.shippingCents) : "—"} muted />
+            {r.taxCents > 0 ? <Row label="Tax" value={formatUsd(r.taxCents)} muted /> : null}
+            <div className="my-3 border-t border-line" />
+            <Row label="Total paid" value={formatUsd(r.totalCents)} bold />
+          </div>
+        ) : (
+          <p className="mt-4 text-[12px] text-text-subtle">Your full itemised receipt has been emailed to you.</p>
+        )}
+
+        <div className="mt-6 flex flex-wrap items-center gap-4">
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="rounded-full bg-ink px-5 py-2.5 text-[13px] font-semibold text-cream-soft"
+          >
+            Download receipt (PDF)
+          </button>
+          <Link href="/marketplace" className="text-[13px] underline">Continue shopping</Link>
+        </div>
+      </div>
+    );
   }
 
   if (count === 0 && !placed) {
@@ -223,7 +346,6 @@ export default function MarketplaceCheckoutPage() {
 
       setOptions(quote.shippingOptions);
       setSpeed(quote.shippingOptions[0]?.speed ?? null);
-      setFulfillmentFeeCents(quote.fulfillmentFeeCents);
       setTaxCents(quote.taxCents);
 
       const nextPay: Record<string, StorePay> = {};
@@ -258,9 +380,26 @@ export default function MarketplaceCheckoutPage() {
           discountCode: discounts[g.vendorSlug]?.code,
         })),
       });
-      // Snapshot store labels alongside the result so the pay step still renders
-      // names even after the cart is emptied.
-      setPlaced({ ...res, storeName: { ...storeName } });
+      // Snapshot store labels + a receipt so the pay step and the post-payment
+      // confirmation still render after the cart + live quote leave memory.
+      const receipt: ReceiptData = {
+        email: email.trim(),
+        paidAt: new Date().toISOString(),
+        stores: groups.map((g) => ({
+          storeName: g.storeName,
+          items: g.items.map((i) => ({
+            name: i.name,
+            quantity: i.quantity,
+            totalCents: i.unitRetailCents * i.quantity,
+          })),
+        })),
+        subtotalCents,
+        discountCents: discountTotalCents,
+        shippingCents,
+        taxCents,
+        totalCents,
+      };
+      setPlaced({ ...res, storeName: { ...storeName }, receipt });
       setView("pay");
       // Add a history entry so the browser Back button returns here to the form
       // (handled by the popstate listener) rather than leaving the site.
@@ -504,8 +643,7 @@ export default function MarketplaceCheckoutPage() {
         ) : null}
         {quoted ? (
           <>
-            <Row label="Shipping" value={shippingCents ? formatUsd(shippingCents) : "—"} muted />
-            <Row label="Fulfillment" value={formatUsd(fulfillmentFeeCents)} muted />
+            <Row label="Delivery" value={shippingCents ? formatUsd(shippingCents) : "—"} muted />
             {taxCents > 0 ? <Row label="Tax" value={formatUsd(taxCents)} muted /> : null}
             <div className="my-3 border-t border-line" />
             <Row label="Total" value={formatUsd(totalCents)} bold />
