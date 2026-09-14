@@ -131,6 +131,80 @@ function StatusCard({ settings }: { settings: Settings }) {
   );
 }
 
+// Default store accent + a curated palette so vendors pick a color instead of
+// typing a hex code. The last "custom" swatch opens the OS colour picker for
+// anything outside the presets — still a visual pick, never free-typed text.
+const DEFAULT_ACCENT = "#0A0A0A";
+const ACCENT_PALETTE: ReadonlyArray<{ hex: string; name: string }> = [
+  { hex: "#0A0A0A", name: "Ink" },
+  { hex: "#1F2937", name: "Slate" },
+  { hex: "#B45309", name: "Amber" },
+  { hex: "#C2410C", name: "Rust" },
+  { hex: "#DC2626", name: "Red" },
+  { hex: "#DB2777", name: "Pink" },
+  { hex: "#7C3AED", name: "Violet" },
+  { hex: "#2563EB", name: "Blue" },
+  { hex: "#0EA5E9", name: "Sky" },
+  { hex: "#0D9488", name: "Teal" },
+  { hex: "#16A34A", name: "Green" },
+  { hex: "#65A30D", name: "Olive" },
+];
+
+function AccentColorPicker({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (hex: string) => void;
+}) {
+  const current = (value || DEFAULT_ACCENT).toLowerCase();
+  const isPreset = ACCENT_PALETTE.some((c) => c.hex.toLowerCase() === current);
+  return (
+    <div className="flex flex-wrap items-center gap-2 py-1">
+      {ACCENT_PALETTE.map((c) => {
+        const selected = c.hex.toLowerCase() === current;
+        return (
+          <button
+            key={c.hex}
+            type="button"
+            title={c.name}
+            aria-label={`Accent colour ${c.name}`}
+            aria-pressed={selected}
+            onClick={() => onChange(c.hex)}
+            className={
+              "h-8 w-8 rounded-full transition-transform hover:scale-110 " +
+              (selected ? "ring-2 ring-ink ring-offset-2" : "ring-1 ring-line-strong")
+            }
+            style={{ background: c.hex }}
+          />
+        );
+      })}
+      {/* Custom — opens the native colour palette; the hidden input overlays a
+          rainbow swatch (or the chosen colour when a non-preset is active). */}
+      <label
+        title="More colours"
+        aria-label="Pick a custom accent colour"
+        className={
+          "relative flex h-8 w-8 cursor-pointer items-center justify-center rounded-full transition-transform hover:scale-110 " +
+          (!isPreset ? "ring-2 ring-ink ring-offset-2" : "ring-1 ring-line-strong")
+        }
+        style={{
+          background: !isPreset
+            ? current
+            : "conic-gradient(from 0deg, #ef4444, #f59e0b, #22c55e, #06b6d4, #3b82f6, #a855f7, #ef4444)",
+        }}
+      >
+        <input
+          type="color"
+          value={current}
+          onChange={(e) => onChange(e.target.value)}
+          className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+        />
+      </label>
+    </div>
+  );
+}
+
 function PresentationCard({
   settings,
   onSaved,
@@ -144,7 +218,7 @@ function PresentationCard({
 }) {
   const [displayName, setDisplayName] = useState(settings.displayName ?? "");
   const [about, setAbout] = useState(settings.about ?? "");
-  const [accentColor, setAccentColor] = useState(settings.accentColor ?? "#0A0A0A");
+  const [accentColor, setAccentColor] = useState(settings.accentColor ?? DEFAULT_ACCENT);
   const [logoUrl, setLogoUrl] = useState(settings.logoUrl ?? "");
   const [bannerUrl, setBannerUrl] = useState(settings.bannerUrl ?? "");
 
@@ -170,7 +244,9 @@ function PresentationCard({
             className="w-full rounded-md border border-line-strong bg-white px-3 py-2 text-body-sm outline-none focus:border-ink" />
         </Field>
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Accent color"><Input type="text" value={accentColor} onChange={(e) => setAccentColor(e.target.value)} placeholder="#0A0A0A" /></Field>
+          <Field label="Accent color">
+            <AccentColorPicker value={accentColor} onChange={setAccentColor} />
+          </Field>
           <Field label="Logo URL (optional)"><Input value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} /></Field>
         </div>
         <Field label="Banner URL (optional)"><Input value={bannerUrl} onChange={(e) => setBannerUrl(e.target.value)} /></Field>
