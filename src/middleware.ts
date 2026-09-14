@@ -36,15 +36,43 @@ function storeSubdomain(host: string): string | null {
   return null;
 }
 
+// Shared, cross-vendor app routes that must render on a store subdomain AS-IS,
+// never rewritten under /store/<slug>. The single marketplace cart + checkout
+// live here, so a buyer on olonts.myusaerrands.com adding to cart and checking
+// out stays on these exact paths (same origin) instead of 404-ing under
+// /store/<slug>/marketplace/*. Store pages themselves use absolute /store/…
+// links (handled by the early return above), so the subdomain only needs to map
+// its ROOT to the store catalog.
+const SHARED_APP_PREFIXES = [
+  "/marketplace",
+  "/account",
+  "/track",
+  "/login",
+  "/signup",
+  "/dashboard",
+  "/admin",
+];
+
+function isSharedAppPath(pathname: string): boolean {
+  return SHARED_APP_PREFIXES.some(
+    (p) => pathname === p || pathname.startsWith(`${p}/`),
+  );
+}
+
 export async function middleware(req: NextRequest) {
   const host = req.headers.get("host") ?? "";
   const url = req.nextUrl;
   if (url.pathname.startsWith("/store/")) return NextResponse.next();
+  // Shared routes (marketplace cart/checkout, account, etc.) render untouched
+  // on a store subdomain — they are NOT store-scoped.
+  if (isSharedAppPath(url.pathname)) return NextResponse.next();
 
-  // 1. Platform subdomain: [slug].myusaerrands.com → /store/[slug].
+  // 1. Platform subdomain: [slug].myusaerrands.com → /store/[slug]. Only the
+  //    root maps to the catalog; store links are absolute /store/… already.
   const label = storeSubdomain(host);
   if (label && !RESERVED_SUBDOMAINS.has(label)) {
-    return rewriteToStore(url, label);
+    if (url.pathname === "/") return rewriteToStore(url, label);
+    return NextResponse.next();
   }
 
   // 2. Custom domain (Phase 3): a verified vendor host → /store/[slug].
@@ -53,7 +81,7 @@ export async function middleware(req: NextRequest) {
   if (label === null && process.env.NEXT_PUBLIC_CUSTOM_DOMAINS === "1") {
     const bare = (host.split(":")[0] ?? "").toLowerCase();
     const slug = await resolveCustomHost(bare);
-    if (slug) return rewriteToStore(url, slug);
+    if (slug && url.pathname === "/") return rewriteToStore(url, slug);
   }
 
   return NextResponse.next();
