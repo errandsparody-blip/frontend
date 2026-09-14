@@ -9,6 +9,7 @@
  * fulfillment are charged a single time across the cart.
  */
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import {
@@ -29,6 +30,7 @@ interface StorePay {
 }
 
 export default function MarketplaceCheckoutPage() {
+  const router = useRouter();
   const { groups, subtotalCents, count, clear } = useMarketplaceCart();
   const [addr, setAddr] = useState<ShipAddressInput>({
     recipientName: "",
@@ -52,7 +54,12 @@ export default function MarketplaceCheckoutPage() {
   const [placed, setPlaced] = useState<null | {
     results: Array<{ slug: string; reference: string; checkoutUrl: string }>;
     errors: Array<{ slug: string; message: string }>;
+    storeName: Record<string, string>;
   }>(null);
+  // Whether we're showing the payment step ("pay") or the checkout form ("form").
+  // Kept separate from `placed` so the buyer can step BACK to the form while the
+  // placed order (and its payment links) is still remembered and resumable.
+  const [view, setView] = useState<"form" | "pay">("form");
   const [error, setError] = useState<string | null>(null);
   // Per-store discount code: what's typed, what's applied, and any message.
   const [codeInput, setCodeInput] = useState<Record<string, string>>({});
@@ -63,15 +70,32 @@ export default function MarketplaceCheckoutPage() {
   // Persist the buyer's address + email so a trip out to pay and back doesn't
   // wipe what they typed. sessionStorage (same-tab; clears when the tab closes).
   const DRAFT_KEY = "mp_checkout";
+  // Persist the PLACED order (payment links) too. Once orders are created they
+  // reserve stock and wait for payment — if the buyer navigates away we must be
+  // able to bring them back to the exact "pay each store" step, not strand them.
+  const PLACED_KEY = "mp_placed";
   useEffect(() => {
     try {
       const raw = sessionStorage.getItem(DRAFT_KEY);
-      if (!raw) return;
-      const d = JSON.parse(raw) as Partial<{ addr: ShipAddressInput; email: string }>;
-      if (d.addr?.line1) setAddr((prev) => (prev.line1 ? prev : d.addr!));
-      if (d.email) setEmail((prev) => prev || d.email!);
+      if (raw) {
+        const d = JSON.parse(raw) as Partial<{ addr: ShipAddressInput; email: string }>;
+        if (d.addr?.line1) setAddr((prev) => (prev.line1 ? prev : d.addr!));
+        if (d.email) setEmail((prev) => prev || d.email!);
+      }
     } catch {
       /* ignore malformed draft */
+    }
+    try {
+      const rawPlaced = sessionStorage.getItem(PLACED_KEY);
+      if (rawPlaced) {
+        const p = JSON.parse(rawPlaced);
+        if (p?.results?.length) {
+          setPlaced({ results: p.results, errors: p.errors ?? [], storeName: p.storeName ?? {} });
+          setView("pay");
+        }
+      }
+    } catch {
+      /* ignore malformed placed */
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -86,6 +110,43 @@ export default function MarketplaceCheckoutPage() {
       /* storage unavailable — non-fatal */
     }
   }, [addr, email, count]);
+  useEffect(() => {
+    try {
+      if (placed) sessionStorage.setItem(PLACED_KEY, JSON.stringify(placed));
+      else sessionStorage.removeItem(PLACED_KEY);
+    } catch {
+      /* storage unavailable — non-fatal */
+    }
+  }, [placed]);
+
+  // Browser Back from the payment step returns to the checkout form instead of
+  // leaving the site — we push a history entry when entering "pay" and step the
+  // view back on popstate. The placed order stays remembered so it's resumable.
+  useEffect(() => {
+    const onPop = () => setView("form");
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
+  // Fully finish this order: forget the placed links and empty the cart.
+  function finishOrder() {
+    setPlaced(null);
+    setView("form");
+    clear();
+    router.push("/marketplace");
+  }
+  // Leave the payment step to review/adjust the cart, keeping the order resumable.
+  function backToForm() {
+    setView("form");
+  }
+  function resumePayment() {
+    setView("pay");
+    try {
+      window.history.pushState({ ueStep: "pay" }, "");
+    } catch {
+      /* history unavailable — non-fatal */
+    }
+  }
 
   const addressComplete =
     addr.recipientName && addr.line1 && addr.city && /^[A-Za-z]{2}$/.test(addr.state) && addr.postalCode;
@@ -196,8 +257,21 @@ export default function MarketplaceCheckoutPage() {
           discountCode: discounts[g.vendorSlug]?.code,
         })),
       });
-      setPlaced(res);
-      if (res.errors.length === 0) clear();
+      // Snapshot store labels alongside the result so the pay step still renders
+      // names even after the cart is emptied.
+      setPlaced({ ...res, storeName: { ...storeName } });
+      setView("pay");
+      // Add a history entry so the browser Back button returns here to the form
+      // (handled by the popstate listener) rather than leaving the site.
+      try {
+        window.history.pushState({ ueStep: "pay" }, "");
+      } catch {
+        /* history unavailable — non-fatal */
+      }
+      // Note: we intentionally do NOT clear the cart here. The order is placed
+      // but unpaid; keeping the cart lets the buyer step back to review, and the
+      // resume banner keeps them from double-ordering. The cart is emptied only
+      // when they explicitly finish (finishOrder).
     } catch (e) {
       setError(e instanceof StorefrontApiError ? e.message : "Couldn't place your orders.");
     } finally {
@@ -206,9 +280,18 @@ export default function MarketplaceCheckoutPage() {
   }
 
   // Guided payment step after orders are created.
-  if (placed) {
+  if (placed && view === "pay") {
+    const label = (slug: string) =>
+      placed.storeName[slug] ?? storeName[slug] ?? (slug === "cart" ? "Your order" : slug);
     return (
       <div className="ue-rise-in mx-auto max-w-xl py-8">
+        <button
+          type="button"
+          onClick={backToForm}
+          className="mb-4 inline-flex items-center gap-1 text-[13px] text-text-muted transition-colors hover:text-ink"
+        >
+          ← Back to checkout
+        </button>
         <h1 className="text-2xl font-semibold tracking-tight text-ink">Almost there</h1>
         <p className="mt-2 text-body-sm text-text-muted">
           Your delivery is charged once for the whole order. Each store is paid separately so the
@@ -224,9 +307,7 @@ export default function MarketplaceCheckoutPage() {
               className="flex items-center justify-between rounded-xl border border-line bg-white px-4 py-3 transition-colors hover:border-ink"
             >
               <span>
-                <span className="block text-[14px] font-medium text-ink">
-                  {storeName[r.slug] ?? (r.slug === "cart" ? "Your order" : r.slug)}
-                </span>
+                <span className="block text-[14px] font-medium text-ink">{label(r.slug)}</span>
                 <span className="block font-mono text-[12px] text-text-muted">{r.reference}</span>
               </span>
               <span className="rounded-full bg-ink px-4 py-1.5 text-[12px] font-semibold text-cream-soft">Pay →</span>
@@ -236,18 +317,42 @@ export default function MarketplaceCheckoutPage() {
         {placed.errors.length > 0 ? (
           <div className="mt-4 rounded-lg border-l-4 border-error bg-error/10 px-3 py-2 text-[12px] text-error">
             Some stores couldn&apos;t be checked out:{" "}
-            {placed.errors.map((e) => `${storeName[e.slug] ?? e.slug} (${e.message})`).join("; ")}
+            {placed.errors.map((e) => `${label(e.slug)} (${e.message})`).join("; ")}
           </div>
         ) : null}
-        <Link href="/marketplace" className="mt-6 inline-block text-[13px] underline">
-          Back to marketplace
-        </Link>
+        <p className="mt-6 text-[12px] text-text-subtle">
+          Payment opens in a new tab, so this page stays here — come back to pay any store you haven&apos;t
+          yet. Your order is held for a short while; if it isn&apos;t paid it&apos;s released automatically.
+        </p>
+        <div className="mt-4 flex flex-wrap items-center gap-4">
+          <button type="button" onClick={backToForm} className="text-[13px] underline">
+            Review my cart
+          </button>
+          <button type="button" onClick={finishOrder} className="text-[13px] text-text-muted underline hover:text-ink">
+            I&apos;ve finished — clear my cart
+          </button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="ue-rise-in mx-auto grid max-w-5xl gap-8 md:grid-cols-[1fr_360px]">
+    <div className="ue-rise-in mx-auto max-w-5xl">
+      {placed ? (
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-ink bg-ink/5 px-4 py-3">
+          <span className="text-body-sm text-ink">
+            You&apos;ve placed this order — it&apos;s waiting for payment.
+          </span>
+          <button
+            type="button"
+            onClick={resumePayment}
+            className="rounded-full bg-ink px-4 py-2 text-[12px] font-semibold text-cream-soft"
+          >
+            Resume payment →
+          </button>
+        </div>
+      ) : null}
+      <div className="grid gap-8 md:grid-cols-[1fr_360px]">
       <div>
         <h1 className="mb-6 text-2xl font-semibold tracking-tight text-ink">Checkout</h1>
 
@@ -391,6 +496,7 @@ export default function MarketplaceCheckoutPage() {
           {placing ? "Placing orders…" : "Place order"}
         </button>
       </aside>
+      </div>
     </div>
   );
 }
