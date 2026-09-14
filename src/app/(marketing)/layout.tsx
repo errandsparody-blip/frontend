@@ -88,6 +88,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
               <FooterLink href="/signup">Get started</FooterLink>
             </FooterCol>
             <FooterCol heading="Buyers">
+              <FooterLink href="/marketplace">Shop the marketplace</FooterLink>
               <FooterLink href="/shopper">Shop for me</FooterLink>
               <FooterLink href="/track">Track a shipment</FooterLink>
             </FooterCol>

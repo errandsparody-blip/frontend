@@ -9,7 +9,7 @@ import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { Suspense, useEffect } from "react";
 
-import { useCart } from "../../cart-context";
+import { useMarketplaceCart } from "../../../../marketplace/cart-context";
 import { useStore } from "../../store-shell";
 
 function Confirmation() {
@@ -17,7 +17,7 @@ function Confirmation() {
   const params = useParams<{ reference: string }>();
   const search = useSearchParams();
   const paid = search.get("paid") === "1";
-  const { clear } = useCart();
+  const { clear } = useMarketplaceCart();
 
   useEffect(() => {
     if (paid) clear();

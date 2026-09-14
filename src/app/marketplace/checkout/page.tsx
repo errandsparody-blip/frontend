@@ -1,12 +1,15 @@
 "use client";
 
 /**
- * Cross-vendor checkout (Phase 2). One address + email, and ONE delivery for the
- * whole cart: everything ships from the USA Errands warehouse to the buyer as a
- * single shipment, so the buyer picks one delivery speed and pays shipping once.
- * Each store still keeps its own payment rail — on "Place orders" we create a
- * sub-order per store (product money auto-splits to each vendor) while shipping +
- * fulfillment are charged a single time across the cart.
+ * The single marketplace checkout — the ONLY checkout in the app (vendor
+ * storefronts share this cart + checkout; there is no separate per-store
+ * checkout). One address + email, and ONE delivery for the whole cart:
+ * everything ships from the USA Errands warehouse as a single shipment, so the
+ * buyer picks one delivery speed and pays delivery once.
+ *
+ * Customer-facing by design: the buyer sees only what they pay for — items,
+ * delivery, tax, total. Internal mechanics (fulfillment, per-vendor payout,
+ * payment rails) are never surfaced here.
  */
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -434,8 +437,7 @@ export default function MarketplaceCheckoutPage() {
         </button>
         <h1 className="text-2xl font-semibold tracking-tight text-ink">Almost there</h1>
         <p className="mt-2 text-body-sm text-text-muted">
-          Your delivery is charged once for the whole order. Each store is paid separately so the
-          product money goes straight to the right vendor — complete each payment below.
+          You&apos;re one step away — complete your secure payment below to place your order.
         </p>
         <div className="mt-6 flex flex-col gap-3">
           {placed.results.map((r) => (
@@ -572,12 +574,13 @@ export default function MarketplaceCheckoutPage() {
           </Section>
         ) : null}
 
+        {/* Discount codes — one entry per store, so a store's promo applies to its
+            own items. No vendor/payment internals are shown; the customer just
+            enters a code. */}
         {groups.map((g) => {
-          const s = pay[g.vendorSlug];
           const applied = discounts[g.vendorSlug];
           return (
-            <Section key={g.vendorSlug} title={`Store · ${g.storeName}`}>
-              {/* Vendor discount code — applies only to this store's items. */}
+            <Section key={g.vendorSlug} title={groups.length > 1 ? `Discount · ${g.storeName}` : "Discount code"}>
               <div className="flex gap-2">
                 <input
                   value={codeInput[g.vendorSlug] ?? ""}
@@ -596,19 +599,6 @@ export default function MarketplaceCheckoutPage() {
               </div>
               {codeMsg[g.vendorSlug] ? (
                 <p className={`mt-1 text-[12px] ${applied ? "text-ink" : "text-error"}`}>{codeMsg[g.vendorSlug]}</p>
-              ) : null}
-
-              {/* Payment rail — only when this store supports more than one. */}
-              {s && s.processors.length > 1 ? (
-                <div className="mt-3 flex gap-2">
-                  {s.processors.map((p) => (
-                    <button key={p} type="button"
-                      onClick={() => setPay((prev) => ({ ...prev, [g.vendorSlug]: { ...prev[g.vendorSlug]!, processor: p } }))}
-                      className={`rounded-full px-4 py-2 text-[12px] font-medium ${s.processor === p ? "bg-ink text-cream-soft" : "border border-line-strong bg-white text-text-muted hover:border-ink"}`}>
-                      {p === "STRIPE" ? "Card" : "Flutterwave"}
-                    </button>
-                  ))}
-                </div>
               ) : null}
             </Section>
           );
@@ -648,8 +638,7 @@ export default function MarketplaceCheckoutPage() {
             <div className="my-3 border-t border-line" />
             <Row label="Total" value={formatUsd(totalCents)} bold />
             <p className="mt-2 text-[12px] text-text-subtle">
-              One delivery for your whole order. Product payment goes to each store separately at the
-              next step.
+              One delivery for your whole order.
             </p>
           </>
         ) : (

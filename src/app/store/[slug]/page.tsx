@@ -10,7 +10,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { formatUsd, storefrontApi, type StoreProduct } from "@/lib/storefront-api";
 
-import { useCart } from "./cart-context";
+import { useMarketplaceCart } from "../../marketplace/cart-context";
 import { useStore } from "./store-shell";
 
 export default function StorefrontCatalogPage() {
@@ -123,7 +123,7 @@ function Chip({
 
 function ProductCard({ product, index }: { product: StoreProduct; index: number }) {
   const store = useStore();
-  const { add } = useCart();
+  const { add } = useMarketplaceCart();
   const [added, setAdded] = useState(false);
 
   return (
@@ -181,6 +181,8 @@ function ProductCard({ product, index }: { product: StoreProduct; index: number 
                 add(
                   {
                     productId: product.id,
+                    vendorSlug: store.slug,
+                    storeName: store.displayName,
                     name: product.name,
                     unitRetailCents: product.retailPriceCents,
                     imageUrl: product.imageUrl,

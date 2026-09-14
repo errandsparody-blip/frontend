@@ -12,13 +12,13 @@ import { useEffect, useMemo, useState } from "react";
 
 import { formatUsd, storefrontApi, type PublicListing } from "@/lib/storefront-api";
 
-import { useCart } from "../../cart-context";
+import { useMarketplaceCart } from "../../../../marketplace/cart-context";
 import { useStore } from "../../store-shell";
 
 export default function ProductDetailPage() {
   const store = useStore();
   const router = useRouter();
-  const { add } = useCart();
+  const { add } = useMarketplaceCart();
   const params = useParams<{ id: string }>();
   const [listing, setListing] = useState<PublicListing | null>(null);
   const [state, setState] = useState<"loading" | "ok" | "error">("loading");
@@ -232,6 +232,8 @@ export default function ProductDetailPage() {
                 add(
                   {
                     productId: selected.productId,
+                    vendorSlug: store.slug,
+                    storeName: store.displayName,
                     name: label ? `${listing.name} (${label})` : listing.name,
                     unitRetailCents: selected.retailPriceCents,
                     imageUrl: mainImage ?? selected.imageUrl,
@@ -239,7 +241,7 @@ export default function ProductDetailPage() {
                   },
                   qty,
                 );
-                router.push(`/store/${store.slug}/cart`);
+                router.push(`/marketplace/cart`);
               }}
               className="flex-1 rounded-full px-6 py-3 text-[13px] font-semibold text-white transition-transform active:scale-[0.98] disabled:opacity-50"
               style={{ background: "var(--store-accent)" }}

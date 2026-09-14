@@ -67,7 +67,7 @@ export default function MarketplaceCartPage() {
         <span className="text-lg font-semibold text-ink">{formatUsd(subtotalCents)}</span>
       </div>
       <p className="mt-2 text-center text-[12px] text-text-subtle">
-        Shipping is calculated per store at checkout.
+        Delivery is calculated at checkout.
       </p>
       <Link
         href="/marketplace/checkout"

@@ -12,7 +12,10 @@ import { createContext, useContext, useEffect, useState } from "react";
 
 import { storefrontApi, type Storefront } from "@/lib/storefront-api";
 
-import { CartProvider, useCart } from "./cart-context";
+// One cart for the whole marketplace — a vendor storefront shares the SAME cart
+// as /marketplace (no separate per-store cart), so items added on a store show up
+// in the marketplace cart and check out through the single marketplace checkout.
+import { MarketplaceCartProvider, useMarketplaceCart } from "../../marketplace/cart-context";
 
 const StoreContext = createContext<Storefront | null>(null);
 export function useStore(): Storefront {
@@ -66,7 +69,7 @@ export function StorefrontShell({ children }: { children: React.ReactNode }) {
 
   return (
     <StoreContext.Provider value={store}>
-      <CartProvider slug={slug}>
+      <MarketplaceCartProvider>
         <div
           className="min-h-screen bg-cream-soft text-ink"
           style={{ ["--store-accent" as string]: accent }}
@@ -76,7 +79,7 @@ export function StorefrontShell({ children }: { children: React.ReactNode }) {
           <footer className="border-t border-line px-5 py-8 md:px-8">
             <div className="mx-auto flex w-full max-w-6xl flex-col items-center gap-1">
               <div className="font-mono text-[10px] uppercase tracking-[1.6px] text-text-subtle">
-                Fulfilled by USA Errands
+                Powered by USA Errands
               </div>
               <div className="text-[12px] text-text-subtle">
                 Secure checkout · Tracking by email
@@ -84,14 +87,14 @@ export function StorefrontShell({ children }: { children: React.ReactNode }) {
             </div>
           </footer>
         </div>
-      </CartProvider>
+      </MarketplaceCartProvider>
     </StoreContext.Provider>
   );
 }
 
 function StoreHeader() {
   const store = useStore();
-  const { count } = useCart();
+  const { count } = useMarketplaceCart();
   const base = `/store/${store.slug}`;
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-cream-soft/80 backdrop-blur-md">
