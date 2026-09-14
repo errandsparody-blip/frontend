@@ -148,6 +148,7 @@ export default function MarketplaceCheckoutPage() {
     }
   }
 
+  const isCA = (addr.country ?? "US") === "CA";
   const addressComplete =
     addr.recipientName && addr.line1 && addr.city && /^[A-Za-z]{2}$/.test(addr.state) && addr.postalCode;
   const allRailsReady = groups.length > 0 && groups.every((g) => pay[g.vendorSlug]?.processor);
@@ -365,14 +366,44 @@ export default function MarketplaceCheckoutPage() {
 
         <Section title="Delivery address">
           <div className="grid gap-3 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <label className="block">
+                <span className="mb-1 block text-[12px] font-medium text-text-2">Country</span>
+                <select
+                  value={addr.country ?? "US"}
+                  onChange={(e) =>
+                    // Switching country clears the region + postal so a US ZIP
+                    // can't linger on a Canadian address (or vice versa).
+                    setAddr({ ...addr, country: e.target.value, state: "", postalCode: "" })
+                  }
+                  className={inputCls}
+                >
+                  <option value="US">United States</option>
+                  <option value="CA">Canada</option>
+                </select>
+              </label>
+            </div>
             <Text label="Full name" value={addr.recipientName} onChange={(v) => setAddr({ ...addr, recipientName: v })} />
             <Text label="Phone (optional)" value={addr.phone ?? ""} onChange={(v) => setAddr({ ...addr, phone: v })} />
             <div className="sm:col-span-2"><Text label="Address" value={addr.line1} onChange={(v) => setAddr({ ...addr, line1: v })} /></div>
             <div className="sm:col-span-2"><Text label="Apt, suite (optional)" value={addr.line2 ?? ""} onChange={(v) => setAddr({ ...addr, line2: v })} /></div>
             <Text label="City" value={addr.city} onChange={(v) => setAddr({ ...addr, city: v })} />
-            <Text label="State" value={addr.state} onChange={(v) => setAddr({ ...addr, state: v.toUpperCase() })} />
-            <Text label="ZIP" value={addr.postalCode} onChange={(v) => setAddr({ ...addr, postalCode: v })} />
+            <Text
+              label={isCA ? "Province" : "State"}
+              value={addr.state}
+              onChange={(v) => setAddr({ ...addr, state: v.toUpperCase() })}
+            />
+            <Text
+              label={isCA ? "Postal code" : "ZIP"}
+              value={addr.postalCode}
+              onChange={(v) => setAddr({ ...addr, postalCode: isCA ? v.toUpperCase() : v })}
+            />
           </div>
+          {isCA ? (
+            <p className="mt-2 text-[12px] text-text-subtle">
+              Use the 2-letter province (e.g. ON, BC, QC). Duties and taxes may apply on delivery.
+            </p>
+          ) : null}
           <button
             type="button"
             disabled={!addressComplete || quoting}
