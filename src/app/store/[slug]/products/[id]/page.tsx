@@ -13,6 +13,8 @@ import { useEffect, useMemo, useState } from "react";
 
 import { formatUsd, storefrontApi, type PublicListing } from "@/lib/storefront-api";
 
+import { BackLink } from "@/components/ui/back-link";
+
 import { useMarketplaceCart } from "../../../../marketplace/cart-context";
 import { useStore } from "../../store-shell";
 
@@ -93,14 +95,17 @@ export default function ProductDetailPage() {
   const colorInStock = (c: string) =>
     variants.some((v) => v.optionColor === c && (!hasSizes || v.optionSize === size) && v.available > 0);
 
+  // Return to wherever the buyer actually came from — the marketplace if they
+  // arrived from there, or the storefront if they were browsing the store.
+  // Falls back to the store when there's no in-app history (e.g. a deep link).
+  const goBack = () => {
+    if (typeof window !== "undefined" && window.history.length > 1) router.back();
+    else router.push(`/store/${store.slug}`);
+  };
+
   return (
     <div className="ue-rise-in">
-      <Link
-        href={`/store/${store.slug}`}
-        className="mb-6 inline-flex items-center gap-1 text-[12px] text-text-muted hover:text-ink"
-      >
-        ← Back
-      </Link>
+      <BackLink onClick={goBack} />
       <div className="grid gap-8 md:grid-cols-2">
         {/* Gallery */}
         <div>
