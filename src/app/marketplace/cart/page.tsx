@@ -3,30 +3,38 @@
 /** Cross-vendor cart (Phase 2) — grouped by store, then one guided checkout. */
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import { formatUsd } from "@/lib/storefront-api";
+
+import { BackLink } from "@/components/ui/back-link";
 
 import { useMarketplaceCart } from "../cart-context";
 
 export default function MarketplaceCartPage() {
+  const router = useRouter();
   const { groups, setQty, remove, subtotalCents, count } = useMarketplaceCart();
 
   if (count === 0) {
     return (
-      <div className="ue-rise-in py-20 text-center">
-        <h1 className="text-xl font-semibold text-ink">Your cart is empty</h1>
-        <Link
-          href="/marketplace"
-          className="mt-6 inline-block rounded-full bg-ink px-6 py-3 text-[13px] font-semibold text-cream-soft"
-        >
-          Browse the marketplace
-        </Link>
+      <div className="ue-rise-in mx-auto max-w-3xl pt-8 md:pt-10">
+        <BackLink onClick={() => router.back()} />
+        <div className="py-16 text-center">
+          <h1 className="text-xl font-semibold text-ink">Your cart is empty</h1>
+          <Link
+            href="/marketplace"
+            className="mt-6 inline-block rounded-full bg-ink px-6 py-3 text-[13px] font-semibold text-cream-soft"
+          >
+            Browse the marketplace
+          </Link>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="ue-rise-in mx-auto max-w-3xl">
+    <div className="ue-rise-in mx-auto max-w-3xl pt-8 md:pt-10">
+      <BackLink onClick={() => router.back()} />
       <h1 className="mb-6 text-2xl font-semibold tracking-tight text-ink">Your cart</h1>
       <div className="flex flex-col gap-5">
         {groups.map((g) => (

@@ -24,6 +24,8 @@ import {
   type ShippingOption,
 } from "@/lib/storefront-api";
 
+import { BackLink } from "@/components/ui/back-link";
+
 import { useMarketplaceCart } from "../cart-context";
 
 interface StorePay {
@@ -479,7 +481,8 @@ export default function MarketplaceCheckoutPage() {
   }
 
   return (
-    <div className="ue-rise-in mx-auto max-w-5xl">
+    <div className="ue-rise-in mx-auto max-w-5xl pt-8 md:pt-10">
+      <BackLink onClick={() => router.back()} />
       {placed ? (
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-ink bg-ink/5 px-4 py-3">
           <span className="text-body-sm text-ink">
