@@ -28,6 +28,21 @@ const nextConfig = {
   poweredByHeader: false,
   compress: true,
   experimental: { serverActions: { bodySizeLimit: "1mb" } },
+  // Image optimization: product/store images live on Cloudflare R2
+  // (pub-*.r2.dev) and are often large PNGs. Next/Image resizes them to the
+  // rendered size and re-encodes to AVIF/WebP on the fly (cached at the edge),
+  // so the marketplace ships small, modern images instead of full-res originals.
+  images: {
+    remotePatterns: [
+      { protocol: "https", hostname: "**.r2.dev" },
+      // Allow a future custom R2/CDN image domain without a code change.
+      ...(process.env.NEXT_PUBLIC_IMAGE_HOST
+        ? [{ protocol: "https", hostname: process.env.NEXT_PUBLIC_IMAGE_HOST }]
+        : []),
+    ],
+    formats: ["image/avif", "image/webp"],
+    minimumCacheTTL: 2_592_000, // 30 days — product images rarely change
+  },
   async headers() {
     return [
       {

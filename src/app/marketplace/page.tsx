@@ -5,6 +5,7 @@
  * shop-by-store strip, underline category tabs, and a clean product grid. Mixes
  * products from every featured store; items add to the global cross-vendor cart.
  */
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
@@ -133,11 +134,12 @@ function FeedCard({ product: p, index }: { product: MarketplaceProduct; index: n
     <div className="ue-rise-in group" style={{ animationDelay: `${Math.min(index * 45, 400)}ms` }}>
       <Link href={href} className="relative block aspect-[3/4] overflow-hidden bg-cream-deep">
         {p.imageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <Image
             src={p.imageUrl}
             alt={p.name}
-            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+            fill
+            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+            className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-text-subtle">

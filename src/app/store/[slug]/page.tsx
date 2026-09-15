@@ -5,6 +5,7 @@
  * minimal: a quiet hero, category filter chips, and a responsive grid of
  * product cards that rise in with a subtle stagger.
  */
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
@@ -38,8 +39,9 @@ export default function StorefrontCatalogPage() {
       {/* Hero */}
       <section className="ue-rise-in mb-10 overflow-hidden rounded-2xl border border-line bg-white">
         {store.bannerUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={store.bannerUrl} alt="" className="h-44 w-full object-cover md:h-56" />
+          <div className="relative h-44 w-full md:h-56">
+            <Image src={store.bannerUrl} alt="" fill sizes="100vw" className="object-cover" priority />
+          </div>
         ) : (
           <div
             className="h-28 w-full md:h-36"
@@ -132,13 +134,14 @@ function ProductCard({ product, index }: { product: StoreProduct; index: number 
       style={{ animationDelay: `${Math.min(index * 55, 400)}ms` }}
     >
       <Link href={`/store/${store.slug}/products/${product.id}`} className="block">
-        <div className="aspect-square w-full overflow-hidden bg-cream-deep">
+        <div className="relative aspect-square w-full overflow-hidden bg-cream-deep">
           {product.imageUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
+            <Image
               src={product.imageUrl}
               alt={product.name}
-              className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+              fill
+              sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
+              className="object-cover transition-transform duration-500 group-hover:scale-[1.04]"
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-text-subtle">

@@ -1,6 +1,7 @@
 "use client";
 
 /** Cross-vendor cart (Phase 2) — grouped by store, then one guided checkout. */
+import Image from "next/image";
 import Link from "next/link";
 
 import { formatUsd } from "@/lib/storefront-api";
@@ -39,10 +40,9 @@ export default function MarketplaceCartPage() {
             <div className="divide-y divide-line">
               {g.items.map((i) => (
                 <div key={i.productId} className="flex items-center gap-3 p-4">
-                  <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-cream-deep">
+                  <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-cream-deep">
                     {i.imageUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={i.imageUrl} alt="" className="h-full w-full object-cover" />
+                      <Image src={i.imageUrl} alt="" fill sizes="56px" className="object-cover" />
                     ) : null}
                   </div>
                   <div className="min-w-0 flex-1">

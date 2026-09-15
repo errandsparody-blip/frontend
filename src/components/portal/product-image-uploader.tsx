@@ -20,6 +20,7 @@ import { ImagePlus, Loader2, X } from "lucide-react";
 import { useId, useRef, useState } from "react";
 
 import { api } from "@/lib/api-client";
+import { compressImage } from "@/lib/compress-image";
 import { convertHeicToJpeg, HeicConversionError, isHeicFile } from "@/lib/heic-to-jpeg";
 
 const ACCEPT = "image/jpeg,image/png,image/gif,image/webp,image/heic";
@@ -93,6 +94,10 @@ export function ProductImageUploader({ value, onChange, disabled }: Props): JSX.
           return;
         }
       }
+
+      // Downscale + re-encode to WebP so we store a light, web-optimized image
+      // (keeps the marketplace fast); falls back to the original on any failure.
+      file = await compressImage(file);
 
       const presigned = await api.post<PresignResponse>("/products/uploads", {
         filename: file.name,

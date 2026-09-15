@@ -13,6 +13,7 @@ import { ImagePlus, Loader2, Star, X } from "lucide-react";
 import { useRef, useState } from "react";
 
 import { api } from "@/lib/api-client";
+import { compressImage } from "@/lib/compress-image";
 import { convertHeicToJpeg, HeicConversionError, isHeicFile } from "@/lib/heic-to-jpeg";
 
 const ACCEPT = "image/jpeg,image/png,image/gif,image/webp,image/heic";
@@ -66,6 +67,9 @@ export function ProductGalleryUploader({ value, onChange, disabled }: Props): JS
           return;
         }
       }
+      // Downscale + re-encode to WebP so gallery images stay light.
+      file = await compressImage(file);
+
       const presigned = await api.post<PresignResponse>("/products/uploads", {
         filename: file.name,
         contentType: file.type,

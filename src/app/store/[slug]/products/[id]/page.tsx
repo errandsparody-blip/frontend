@@ -6,6 +6,7 @@
  * resolves to a specific variant, and its price, images, and stock update. Out-
  * of-stock combinations are disabled. Add-to-cart adds the resolved variant.
  */
+import Image from "next/image";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -104,10 +105,16 @@ export default function ProductDetailPage() {
         {/* Gallery */}
         <div>
           <div className="overflow-hidden rounded-2xl border border-line bg-white">
-            <div className="aspect-square w-full bg-cream-deep">
+            <div className="relative aspect-square w-full bg-cream-deep">
               {mainImage ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={mainImage} alt={listing.name} className="h-full w-full object-cover" />
+                <Image
+                  src={mainImage}
+                  alt={listing.name}
+                  fill
+                  sizes="(max-width: 768px) 100vw, 50vw"
+                  className="object-cover"
+                  priority
+                />
               ) : (
                 <div className="flex h-full w-full items-center justify-center text-text-subtle">
                   <span className="font-mono text-[11px] uppercase tracking-[1.4px]">No image</span>
@@ -122,10 +129,9 @@ export default function ProductDetailPage() {
                   key={src + i}
                   type="button"
                   onClick={() => setImgIdx(i)}
-                  className={`h-16 w-16 overflow-hidden rounded-lg border ${i === imgIdx ? "border-ink" : "border-line hover:border-line-strong"}`}
+                  className={`relative h-16 w-16 overflow-hidden rounded-lg border ${i === imgIdx ? "border-ink" : "border-line hover:border-line-strong"}`}
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={src} alt="" className="h-full w-full object-cover" />
+                  <Image src={src} alt="" fill sizes="64px" className="object-cover" />
                 </button>
               ))}
             </div>
