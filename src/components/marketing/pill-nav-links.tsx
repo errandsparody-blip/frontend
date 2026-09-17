@@ -14,7 +14,8 @@ import type { JSX } from "react";
 
 const LINKS: ReadonlyArray<{ href: string; label: string }> = [
   { href: "/", label: "Home" },
-  { href: "/marketplace", label: "Marketplace" },
+  // Marketplace not ready yet — hidden from the nav for now.
+  // { href: "/marketplace", label: "Marketplace" },
   { href: "/services", label: "Services" },
   { href: "/pricing", label: "Pricing" },
   { href: "/faq", label: "FAQ" },

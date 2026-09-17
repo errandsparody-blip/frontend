@@ -44,10 +44,9 @@ const NAV_LINKS: ReadonlyArray<{ href: string; label: string; accent?: boolean }
   { href: "/pricing", label: "Pricing" },
   { href: "/faq", label: "FAQ" },
   { href: "/contact", label: "Contact" },
-  // Buyer products get the amber accent treatment, since they're distinct
-  // consumer-direct entries: the marketplace (shop vendor storefronts) and
-  // the personal shopper (we buy from any U.S. store URL).
-  { href: "/marketplace", label: "Marketplace", accent: true },
+  // Personal shopper (we buy from any U.S. store URL) gets the amber accent.
+  // Marketplace not ready yet — hidden from the nav for now:
+  // { href: "/marketplace", label: "Marketplace", accent: true },
   { href: "/shopper", label: "Shop for me", accent: true },
   { href: "/integrations", label: "Store integration" },
   { href: "/security", label: "Security" },

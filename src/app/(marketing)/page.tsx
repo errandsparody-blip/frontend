@@ -43,8 +43,8 @@ export default function HomePage() {
                     aria-hidden
                   />
                 </Link>
-                {/* Buyer entry — shop the vendor storefronts (the marketplace).
-                    Sits directly under the seller CTA as a prominent light pill. */}
+                {/* Marketplace not ready yet — hero "Shop the marketplace" button
+                    hidden for now. Restore this block to re-enable it.
                 <Link
                   href="/marketplace"
                   className="group inline-flex items-center gap-2 rounded-full bg-[#fbf8f2] px-7 py-3.5 text-body font-medium text-ink shadow-1 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-white"
@@ -55,6 +55,7 @@ export default function HomePage() {
                     aria-hidden
                   />
                 </Link>
+                */}
                 {/* Personal shopper is a different service (we buy from ANY U.S.
                     store URL), so the copy is reworded to not read as a dup. */}
                 <Link

@@ -37,7 +37,7 @@ export function SiteMark({ className = "h-6 w-6", label = "USA Errands" }: SiteM
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src="/myusalogo-mark.png"
+      src="/usa-errands-logo.png"
       alt={label}
       className={`${className} object-contain`}
     />
