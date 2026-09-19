@@ -299,7 +299,6 @@ export default function ProductDetailPage() {
             push("Material", listing.material);
             push("Care", listing.careInstructions);
             push("Brand", listing.brand);
-            push("Ships from", listing.shipsFrom);
             if (!listing.description && rows.length === 0) return null;
             return (
               <details open className="group mt-6 border-t border-line pt-4">

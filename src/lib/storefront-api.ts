@@ -58,7 +58,6 @@ export interface PublicListing {
   material: string | null;
   careInstructions: string | null;
   brand: string | null;
-  shipsFrom: string | null;
 }
 
 export interface ShippingOption {

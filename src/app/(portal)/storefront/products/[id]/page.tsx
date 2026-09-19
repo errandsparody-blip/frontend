@@ -40,7 +40,6 @@ interface VendorProductDetail {
   material: string | null;
   careInstructions: string | null;
   brand: string | null;
-  shipsFrom: string | null;
 }
 
 const GENDERS = ["", "For Her", "For Him", "Unisex", "Kids"] as const;
@@ -108,7 +107,6 @@ function DetailForm({
   const [material, setMaterial] = useState(product.material ?? "");
   const [care, setCare] = useState(product.careInstructions ?? "");
   const [brand, setBrand] = useState(product.brand ?? "");
-  const [shipsFrom, setShipsFrom] = useState(product.shipsFrom ?? "");
   const [saved, setSaved] = useState(false);
 
   const save = useMutation({
@@ -124,7 +122,6 @@ function DetailForm({
         material: material.trim() || null,
         careInstructions: care.trim() || null,
         brand: brand.trim() || null,
-        shipsFrom: shipsFrom.trim() || null,
       }),
     onSuccess: () => {
       onSaved();
@@ -201,9 +198,6 @@ function DetailForm({
             </Field>
             <Field label="Brand">
               <Input value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="Brand name" />
-            </Field>
-            <Field label="Ships from">
-              <Input value={shipsFrom} onChange={(e) => setShipsFrom(e.target.value)} placeholder="Nigeria" />
             </Field>
           </div>
 
