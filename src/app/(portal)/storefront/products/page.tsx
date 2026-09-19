@@ -30,6 +30,7 @@ interface VendorProduct {
   variantGroupId: string | null;
   imageUrl: string | null;
   imageUrls: string[];
+  availableStock: number;
 }
 
 export default function StorefrontProductsPage() {
@@ -63,11 +64,19 @@ export default function StorefrontProductsPage() {
 
   const items = products.data ?? [];
 
+  // Preview the sizes we'd merge — pulled straight from each selected product's
+  // own Size field (vendors don't retype sizes; they come from the listing).
+  const selectedProducts = items.filter((p) => selected.has(p.id));
+  const mergeSizes = selectedProducts
+    .map((p) => p.optionSize?.trim())
+    .filter((s): s is string => Boolean(s));
+  const missingSize = selectedProducts.some((p) => !p.optionSize?.trim());
+
   return (
     <div className="mx-auto max-w-3xl">
       <PageHeader
         title="Storefront products"
-        description="Choose what buyers can see and buy, set retail prices, and group size/colour variants into one listing."
+        description="Choose what buyers can see and buy, set retail prices, and merge same-product sizes into one marketplace listing."
       />
       <Link href="/storefront" className="mb-4 inline-block text-[13px] text-amber hover:underline">
         ← Back to storefront
@@ -79,15 +88,27 @@ export default function StorefrontProductsPage() {
         </div>
       ) : null}
 
-      {/* Group action bar — appears when 2+ products are selected. */}
+      {/* Merge action bar — appears when 2+ products are selected. The sizes are
+          taken from each product's own Size field, not entered here. */}
       {selected.size >= 2 ? (
-        <div className="mb-4 flex items-center justify-between rounded-lg border border-ink bg-ink/5 px-4 py-3">
-          <span className="text-body-sm text-ink">
-            {selected.size} products selected — group them as one listing (size/colour variants).
-          </span>
-          <Button variant="primary" loading={group.isPending} onClick={() => { clear(); group.mutate(); }}>
-            Group as one listing
-          </Button>
+        <div className="mb-4 rounded-lg border border-ink bg-ink/5 px-4 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <span className="text-body-sm text-ink">
+              Merge {selected.size} products into one marketplace listing (size variants).
+            </span>
+            <Button variant="primary" loading={group.isPending} onClick={() => { clear(); group.mutate(); }}>
+              Merge as one listing
+            </Button>
+          </div>
+          <p className="mt-2 text-[12px] text-text-muted">
+            {mergeSizes.length > 0 ? (
+              <>Buyers will pick a size: <span className="font-medium text-ink">{mergeSizes.join(", ")}</span>. </>
+            ) : null}
+            Sizes come from each product&apos;s Size field below.
+            {missingSize ? (
+              <span className="text-error"> Set a Size on every selected product first so shoppers can tell them apart.</span>
+            ) : null}
+          </p>
         </div>
       ) : null}
 
@@ -179,10 +200,13 @@ function ProductRow({
           </span>
         </label>
         <div className="flex items-center gap-2">
+          <StatusPill tone={product.availableStock > 0 ? "info" : "warning"}>
+            {product.availableStock > 0 ? `${product.availableStock} in stock` : "Out of stock"}
+          </StatusPill>
           {product.variantGroupId ? (
             <button type="button" onClick={() => { clearError(); ungroup.mutate(); }}
               className="rounded-full border border-line-strong px-2.5 py-1 text-[11px] font-medium text-text-muted hover:border-ink">
-              Grouped · ungroup
+              Merged · unmerge
             </button>
           ) : null}
           <StatusPill tone={listed ? "success" : "neutral"}>{listed ? "Listed" : "Hidden"}</StatusPill>
