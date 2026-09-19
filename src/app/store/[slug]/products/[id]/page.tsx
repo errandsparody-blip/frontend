@@ -330,7 +330,7 @@ export default function ProductDetailPage() {
                 <p>
                   {store.displayName} accepts returns within{" "}
                   <span className="font-medium text-ink">{listing.returnWindowDays} days</span> of your
-                  order shipping. Items should be unused and in their original condition. 
+                  order delivery. Items should be unused and in their original condition. 
                 </p>
               ) : (
                 <p>
