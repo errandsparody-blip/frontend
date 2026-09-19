@@ -50,6 +50,8 @@ export interface PublicListing {
   sizes: string[];
   colors: string[];
   variants: ListingVariant[];
+  returnsAllowed: boolean;
+  returnWindowDays: number;
 }
 
 export interface ShippingOption {

@@ -6,6 +6,7 @@
  * resolves to a specific variant, and its price, images, and stock update. Out-
  * of-stock combinations are disabled. Add-to-cart adds the resolved variant.
  */
+import { Check, ChevronDown, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -260,6 +261,56 @@ export default function ProductDetailPage() {
               {selected && available > 0 ? "Add to cart" : selected ? "Out of stock" : "Select options"}
             </button>
           </div>
+
+          {/* Trust line — quick reassurances, incl. the vendor's returns stance. */}
+          <ul className="mt-6 flex flex-col gap-1.5 border-t border-line pt-5 text-[13px] text-text-muted">
+            <li className="flex items-center gap-2">
+              <Check className="h-4 w-4 text-success" aria-hidden />
+              Buyer protection on every order
+            </li>
+            <li className="flex items-center gap-2">
+              {listing.returnsAllowed ? (
+                <>
+                  <Check className="h-4 w-4 text-success" aria-hidden />
+                  Returns within {listing.returnWindowDays} days
+                </>
+              ) : (
+                <>
+                  <X className="h-4 w-4 text-text-subtle" aria-hidden />
+                  Final sale — no returns
+                </>
+              )}
+            </li>
+            <li className="flex items-center gap-2">
+              <Check className="h-4 w-4 text-success" aria-hidden />
+              Payment goes directly to the maker
+            </li>
+          </ul>
+
+          {/* Returns & exchanges — the vendor's declared policy, in full. */}
+          <details className="group mt-4 border-t border-line pt-4">
+            <summary className="flex cursor-pointer list-none items-center justify-between text-[15px] font-semibold text-ink">
+              Returns &amp; exchanges
+              <ChevronDown className="h-4 w-4 text-text-subtle transition-transform group-open:rotate-180" aria-hidden />
+            </summary>
+            <div className="mt-3 text-[13px] leading-relaxed text-text-muted">
+              {listing.returnsAllowed ? (
+                <p>
+                  {store.displayName} accepts returns within{" "}
+                  <span className="font-medium text-ink">{listing.returnWindowDays} days</span> of your
+                  order shipping. Items should be unused and in their original condition. Start a return
+                  from your order in your account, and once it&apos;s approved you&apos;ll be refunded to
+                  your original payment method.
+                </p>
+              ) : (
+                <p>
+                  {store.displayName} sells this item as final sale — it can&apos;t be returned or
+                  exchanged. If it arrives damaged or not as described, contact support and we&apos;ll
+                  help make it right.
+                </p>
+              )}
+            </div>
+          </details>
         </div>
       </div>
     </div>
