@@ -31,7 +31,8 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useMemo, useState } from "react";
 
 import {
   formatUsd,
@@ -46,6 +47,16 @@ import { useMarketplaceCart } from "./cart-context";
 const CATEGORY_ICONS: LucideIcon[] = [Shirt, Sparkles, Home, Watch, ShoppingBag, Heart, Tag, Gift];
 
 export default function MarketplacePage() {
+  return (
+    <Suspense fallback={<div className="py-20 text-center font-mono text-mono-label text-text-subtle">Loading…</div>}>
+      <MarketplaceInner />
+    </Suspense>
+  );
+}
+
+function MarketplaceInner() {
+  const searchParams = useSearchParams();
+  const searchQuery = (searchParams.get("q") ?? "").trim();
   const [categories, setCategories] = useState<string[]>([]);
   const [active, setActive] = useState<string | null>(null);
   const [products, setProducts] = useState<MarketplaceProduct[]>([]);
@@ -75,6 +86,18 @@ export default function MarketplacePage() {
     for (const p of allProducts) m.set(p.vendorSlug, (m.get(p.vendorSlug) ?? 0) + 1);
     return m;
   }, [allProducts]);
+
+  // Search runs client-side over the unfiltered snapshot: name, store, category
+  // and tags. Empty query → normal browsing.
+  const searching = searchQuery.length > 0;
+  const searchResults = useMemo(() => {
+    if (!searching) return [];
+    const terms = searchQuery.toLowerCase().split(/\s+/).filter(Boolean);
+    return allProducts.filter((p) => {
+      const hay = [p.name, p.storeName, p.category ?? "", ...(p.tags ?? [])].join(" ").toLowerCase();
+      return terms.every((t) => hay.includes(t));
+    });
+  }, [searching, searchQuery, allProducts]);
 
   const collage = allProducts.filter((p) => p.imageUrl).slice(0, 4);
   const featured = stores[0] ?? null;
@@ -158,7 +181,7 @@ export default function MarketplacePage() {
 
       {/* ---------------------------------------------------------- Categories */}
       {categories.length > 0 ? (
-        <section className="mb-16">
+        <section id="categories" className="mb-16 scroll-mt-6">
           <SectionHead
             eyebrow="Shop by category"
             title="Find your aisle"
@@ -273,29 +296,54 @@ export default function MarketplacePage() {
 
       {/* ---------------------------------------------------------- Products */}
       <section id="products" className="mb-16 scroll-mt-6">
-        <SectionHead eyebrow="Picked for you" title="Shop everything" />
-
-        {categories.length > 0 ? (
-          <nav className="mb-8 flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-line pb-3">
-            <Tab active={active === null} onClick={() => setActive(null)}>All</Tab>
-            {categories.map((c) => (
-              <Tab key={c} active={active === c} onClick={() => setActive(c)}>{c}</Tab>
-            ))}
-          </nav>
-        ) : null}
-
-        {loading ? (
-          <div className="py-20 text-center font-mono text-mono-label text-text-subtle">Loading…</div>
-        ) : products.length === 0 ? (
-          <div className="rounded-2xl border border-line bg-white px-6 py-16 text-center text-body-sm text-text-muted">
-            No products in the marketplace yet.
-          </div>
+        {searching ? (
+          <>
+            <SectionHead
+              eyebrow="Search"
+              title={`Results for “${searchQuery}”`}
+              subtitle={`${searchResults.length} ${searchResults.length === 1 ? "match" : "matches"} across the marketplace.`}
+              action={<Link href="/marketplace" className="text-[13px] font-semibold text-amber hover:underline">Clear search →</Link>}
+            />
+            {searchResults.length === 0 ? (
+              <div className="rounded-2xl border border-line bg-white px-6 py-16 text-center text-body-sm text-text-muted">
+                Nothing matched “{searchQuery}”. Try a different word, or{" "}
+                <Link href="/marketplace" className="font-medium text-ink underline">browse everything</Link>.
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-x-5 gap-y-10 md:grid-cols-3 lg:grid-cols-4">
+                {searchResults.map((p, i) => (
+                  <FeedCard key={`${p.vendorSlug}-${p.id}`} product={p} index={i} />
+                ))}
+              </div>
+            )}
+          </>
         ) : (
-          <div className="grid grid-cols-2 gap-x-5 gap-y-10 md:grid-cols-3 lg:grid-cols-4">
-            {products.map((p, i) => (
-              <FeedCard key={`${p.vendorSlug}-${p.id}`} product={p} index={i} />
-            ))}
-          </div>
+          <>
+            <SectionHead eyebrow="Picked for you" title="Shop everything" />
+
+            {categories.length > 0 ? (
+              <nav className="mb-8 flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-line pb-3">
+                <Tab active={active === null} onClick={() => setActive(null)}>All</Tab>
+                {categories.map((c) => (
+                  <Tab key={c} active={active === c} onClick={() => setActive(c)}>{c}</Tab>
+                ))}
+              </nav>
+            ) : null}
+
+            {loading ? (
+              <div className="py-20 text-center font-mono text-mono-label text-text-subtle">Loading…</div>
+            ) : products.length === 0 ? (
+              <div className="rounded-2xl border border-line bg-white px-6 py-16 text-center text-body-sm text-text-muted">
+                No products in the marketplace yet.
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-x-5 gap-y-10 md:grid-cols-3 lg:grid-cols-4">
+                {products.map((p, i) => (
+                  <FeedCard key={`${p.vendorSlug}-${p.id}`} product={p} index={i} />
+                ))}
+              </div>
+            )}
+          </>
         )}
       </section>
 
@@ -346,20 +394,20 @@ export default function MarketplacePage() {
 
 const FAQS: ReadonlyArray<{ q: string; a: string }> = [
   {
-    q: "Do items from different vendors really ship together?",
-    a: "Yes. Every vendor stores their inventory in our US warehouse, so a multi-vendor order is consolidated and shipped to you as one delivery.",
+    q: "Will I owe duties or taxes on delivery?",
+    a: "Yes — but only if your order is shipping to Canada. U.S. orders don't attract duties or taxes. Canadian orders may, depending on order value — assessed on delivery and separate from what you pay at checkout.",
   },
   {
-    q: "Do I pay shipping once, or per vendor?",
-    a: "Once. You pay a single delivery fee for the whole cart at checkout, no matter how many vendors it spans.",
+    q: "What's the return policy?",
+    a: "Returns are set by each vendor — some accept them within a set window, others don't. See the Returns section above for what's consistent across every vendor.",
   },
   {
-    q: "Where do items ship from?",
-    a: "Locally, from the US — not from overseas. That's the point of storing inventory with USA Errands.",
+    q: "How fast is delivery once my order ships?",
+    a: "Because every order ships locally from the US rather than internationally, delivery is typically just a few working days — no waiting on overseas transit.",
   },
   {
-    q: "How do returns work?",
-    a: "Returns are set by each vendor; the product page shows whether returns are accepted and the window. Approved returns are refunded to your original payment method.",
+    q: "Is my payment secure?",
+    a: "Yes. Checkout is encrypted end-to-end, and USA Errands never stores your full card details.",
   },
 ];
 

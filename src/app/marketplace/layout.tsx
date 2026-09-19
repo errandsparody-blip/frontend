@@ -1,6 +1,9 @@
 "use client";
 
+import { Search, ShoppingBag, User } from "lucide-react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 
 import { MarketplaceCartProvider, useMarketplaceCart } from "./cart-context";
 
@@ -9,7 +12,9 @@ export default function MarketplaceLayout({ children }: { children: React.ReactN
     <MarketplaceCartProvider>
       <div className="min-h-screen bg-cream-soft text-ink">
         <AnnouncementBar />
-        <MarketplaceHeader />
+        <Suspense fallback={<div className="h-[72px] border-b border-line bg-cream-soft" />}>
+          <MarketplaceHeader />
+        </Suspense>
         <main className="mx-auto w-full max-w-6xl px-5 pb-24 md:px-8">{children}</main>
       </div>
     </MarketplaceCartProvider>
@@ -21,43 +26,92 @@ function AnnouncementBar() {
   return (
     <div className="bg-ink px-4 py-2.5 text-center">
       <span className="font-mono text-[10px] uppercase tracking-[1.6px] text-cream-soft md:text-[11px]">
-        USA &amp; international orders: duties and taxes may apply upon delivery.
+        Orders shipping to Canada may attract duties and taxes upon delivery.
       </span>
     </div>
   );
 }
 
+const NAV_LINKS: ReadonlyArray<{ href: string; label: string }> = [
+  { href: "/marketplace#products", label: "Shop all" },
+  { href: "/marketplace#categories", label: "Categories" },
+  { href: "/marketplace#vendors", label: "Vendors" },
+  { href: "/signup", label: "Sell with us" },
+];
+
 function MarketplaceHeader() {
   const { count } = useMarketplaceCart();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [q, setQ] = useState("");
+
+  // Keep the field in sync with the URL (so a shared /marketplace?q= link fills it).
+  useEffect(() => {
+    setQ(searchParams.get("q") ?? "");
+  }, [searchParams]);
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const query = q.trim();
+    router.push(query ? `/marketplace?q=${encodeURIComponent(query)}#products` : "/marketplace");
+  };
+
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-cream-soft/85 backdrop-blur-md">
-      <div className="mx-auto grid w-full max-w-6xl grid-cols-[1fr_auto_1fr] items-center gap-2 px-5 py-4 md:px-8">
-        {/* Left — country / region (display for now; single US/USD region). */}
-        <div className="hidden items-center md:flex">
-          <span className="inline-flex items-center gap-1 rounded-full border border-line-strong bg-white px-3 py-1.5 font-mono text-[10px] uppercase tracking-[1.4px] text-text-muted">
-            United States | USD $
-            <svg width="10" height="10" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-              <path d="M2.5 4.5L6 8l3.5-3.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
+      <div className="mx-auto flex w-full max-w-6xl items-center gap-3 px-5 py-3.5 md:gap-5 md:px-8">
+        {/* Wordmark. */}
+        <Link href="/marketplace" className="flex shrink-0 items-baseline gap-1.5 leading-none">
+          <span className="text-[17px] font-semibold tracking-tight text-ink">USA Errands</span>
+          <span className="hidden font-mono text-[10px] uppercase tracking-[2px] text-amber sm:inline">
+            Marketplace
           </span>
-        </div>
-
-        {/* Center — wordmark. */}
-        <Link href="/marketplace" className="flex flex-col items-center justify-center leading-none">
-          <span className="text-[17px] font-semibold uppercase tracking-[3px] text-ink">USA Errands</span>
-          <span className="mt-0.5 font-mono text-[9px] uppercase tracking-[3.4px] text-text-subtle">Marketplace</span>
         </Link>
 
-        {/* Right — cart. */}
-        <div className="flex items-center justify-end">
+        {/* Search — products or vendors. */}
+        <form onSubmit={submit} className="relative min-w-0 flex-1" role="search">
+          <Search
+            className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-text-subtle"
+            aria-hidden
+          />
+          <input
+            type="search"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search products or vendors"
+            aria-label="Search products or vendors"
+            className="h-11 w-full rounded-full border border-line-strong bg-white pl-10 pr-4 text-body-sm text-ink outline-none transition-colors placeholder:text-text-subtle focus:border-ink"
+          />
+        </form>
+
+        {/* Nav — hidden on small screens (search stays; links live in the page). */}
+        <nav className="hidden items-center gap-6 lg:flex">
+          {NAV_LINKS.map((l) => (
+            <Link key={l.href} href={l.href} className="text-[13px] font-medium text-ink hover:text-amber">
+              {l.label}
+            </Link>
+          ))}
+        </nav>
+
+        {/* Account + cart. */}
+        <div className="flex shrink-0 items-center gap-1">
+          <Link
+            href="/account"
+            aria-label="Your account"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full text-ink hover:bg-ink/5"
+          >
+            <User className="h-5 w-5" aria-hidden />
+          </Link>
           <Link
             href="/marketplace/cart"
-            className="relative flex items-center gap-2 rounded-full border border-line-strong bg-white px-4 py-2 text-[12px] font-medium text-ink transition-colors hover:border-ink"
+            aria-label={`Cart, ${count} ${count === 1 ? "item" : "items"}`}
+            className="relative inline-flex h-10 w-10 items-center justify-center rounded-full text-ink hover:bg-ink/5"
           >
-            Cart
-            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-ink px-1 text-[11px] font-semibold text-cream-soft">
-              {count}
-            </span>
+            <ShoppingBag className="h-5 w-5" aria-hidden />
+            {count > 0 ? (
+              <span className="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber px-1 text-[10px] font-semibold text-ink">
+                {count}
+              </span>
+            ) : null}
           </Link>
         </div>
       </div>
