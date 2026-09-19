@@ -13,6 +13,7 @@
  * /storefront/setup; this page is deliberately light so vendors land somewhere
  * calm and pick where to go.
  */
+import { FileText, Package, Settings, ShoppingBag, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import type { JSX } from "react";
 
@@ -22,7 +23,7 @@ interface Action {
   href: string;
   title: string;
   description: string;
-  icon: string;
+  Icon: LucideIcon;
 }
 
 const ACTIONS: ReadonlyArray<Action> = [
@@ -31,21 +32,21 @@ const ACTIONS: ReadonlyArray<Action> = [
     title: "Setup storefront",
     description:
       "Your store's name and look, payout account, going live, discount codes, and custom domains.",
-    icon: "🛠️",
+    Icon: Settings,
   },
   {
     href: "/storefront/products",
     title: "Manage products",
     description:
       "Add items from your inventory, set prices and variants, and choose what shows in your store.",
-    icon: "📦",
+    Icon: Package,
   },
   {
     href: "/storefront/orders",
     title: "Storefront orders",
     description:
       "See orders customers place through your store, track fulfillment, and handle returns.",
-    icon: "🧾",
+    Icon: ShoppingBag,
   },
 ];
 
@@ -64,23 +65,23 @@ export default function StorefrontHubPage(): JSX.Element {
         rel="noreferrer"
         className="mb-8 inline-flex items-center gap-2 rounded-full border border-ink bg-ink px-4 py-2 text-[13px] font-semibold text-cream-soft transition-transform hover:-translate-y-0.5"
       >
-        <span aria-hidden>📄</span>
+        <FileText className="h-4 w-4" aria-hidden />
         Read the storefront guide
       </a>
 
       {/* Three main actions. */}
       <div className="grid gap-4 sm:grid-cols-3">
-        {ACTIONS.map((action) => (
+        {ACTIONS.map(({ href, title, description, Icon }) => (
           <Link
-            key={action.href}
-            href={action.href}
+            key={href}
+            href={href}
             className="group flex flex-col rounded-2xl border border-line bg-white p-5 shadow-1 transition-transform hover:-translate-y-0.5 hover:shadow-2"
           >
-            <span aria-hidden className="text-2xl">
-              {action.icon}
+            <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-cream-soft text-ink">
+              <Icon className="h-5 w-5" aria-hidden />
             </span>
             <span className="mt-3 flex items-center gap-1 text-[15px] font-semibold text-ink">
-              {action.title}
+              {title}
               <span
                 aria-hidden
                 className="translate-x-0 text-text-subtle transition-transform group-hover:translate-x-0.5"
@@ -89,7 +90,7 @@ export default function StorefrontHubPage(): JSX.Element {
               </span>
             </span>
             <span className="mt-1 text-[13px] leading-relaxed text-text-muted">
-              {action.description}
+              {description}
             </span>
           </Link>
         ))}
