@@ -29,6 +29,8 @@ interface Settings {
   bannerUrl: string | null;
   accentColor: string | null;
   about: string | null;
+  returnsAllowed: boolean;
+  returnWindowDays: number;
   hasActivePayoutAccount: boolean;
 }
 interface PayoutAccount {
@@ -85,6 +87,7 @@ export default function StorefrontSetupPage() {
           <SlugCard settings={s} onSaved={() => qc.invalidateQueries({ queryKey: ["storefront-settings"] })} onError={handle} clearError={clear} />
           <PayoutCard accounts={accounts.data ?? []} onChanged={() => { void accounts.refetch(); void settings.refetch(); }} onError={handle} clearError={clear} />
           <GoLiveCard settings={s} onChanged={() => qc.invalidateQueries({ queryKey: ["storefront-settings"] })} onError={handle} clearError={clear} />
+          <ReturnsPolicyCard settings={s} onSaved={() => qc.invalidateQueries({ queryKey: ["storefront-settings"] })} onError={handle} clearError={clear} />
           <DiscountsCard onError={handle} clearError={clear} />
           <DomainsCard onError={handle} clearError={clear} />
           <div className="flex gap-3">
@@ -472,6 +475,77 @@ function GoLiveCard({
           </div>
         </div>
       )}
+    </Card>
+  );
+}
+
+function ReturnsPolicyCard({
+  settings,
+  onSaved,
+  onError,
+  clearError,
+}: {
+  settings: Settings;
+  onSaved: () => void;
+  onError: (e: unknown) => void;
+  clearError: () => void;
+}) {
+  const [allowed, setAllowed] = useState(settings.returnsAllowed);
+  const [windowDays, setWindowDays] = useState(String(settings.returnWindowDays ?? 30));
+
+  const save = useMutation({
+    // displayName is required by the settings upsert, so we carry the current
+    // one through unchanged alongside the returns fields.
+    mutationFn: () =>
+      api.put("/storefront/settings", {
+        displayName: settings.displayName ?? "",
+        returnsAllowed: allowed,
+        returnWindowDays: Math.max(1, Math.min(365, Number(windowDays) || 30)),
+      }),
+    onSuccess: onSaved,
+    onError,
+  });
+
+  return (
+    <Card title="Returns policy">
+      <p className="mb-4 text-body-sm text-text-muted">
+        Decide whether buyers can request a return, and how long they have after an order ships.
+      </p>
+      <div className="flex flex-col gap-4">
+        <label className="flex items-center gap-3 rounded-md border border-line px-4 py-3">
+          <input
+            type="checkbox"
+            checked={allowed}
+            onChange={(e) => setAllowed(e.target.checked)}
+            className="h-4 w-4 rounded border-line text-ink focus:ring-ink"
+          />
+          <span>
+            <span className="block text-body-sm font-medium text-ink">Accept returns</span>
+            <span className="block text-[12px] text-text-muted">
+              When off, buyers can&apos;t open a return request on your orders.
+            </span>
+          </span>
+        </label>
+
+        {allowed ? (
+          <Field label="Return window (days after shipment)">
+            <Input
+              type="number"
+              min={1}
+              max={365}
+              value={windowDays}
+              onChange={(e) => setWindowDays(e.target.value)}
+              className="w-32"
+            />
+          </Field>
+        ) : null}
+
+        <div>
+          <Button variant="primary" loading={save.isPending} onClick={() => { clearError(); save.mutate(); }}>
+            Save returns policy
+          </Button>
+        </div>
+      </div>
     </Card>
   );
 }
