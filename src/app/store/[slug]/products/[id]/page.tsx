@@ -264,10 +264,7 @@ export default function ProductDetailPage() {
 
           {/* Trust line — quick reassurances, incl. the vendor's returns stance. */}
           <ul className="mt-6 flex flex-col gap-1.5 border-t border-line pt-5 text-[13px] text-text-muted">
-            <li className="flex items-center gap-2">
-              <Check className="h-4 w-4 text-success" aria-hidden />
-              Buyer protection on every order
-            </li>
+            
             <li className="flex items-center gap-2">
               {listing.returnsAllowed ? (
                 <>
@@ -281,10 +278,7 @@ export default function ProductDetailPage() {
                 </>
               )}
             </li>
-            <li className="flex items-center gap-2">
-              <Check className="h-4 w-4 text-success" aria-hidden />
-              Payment goes directly to the maker
-            </li>
+            
           </ul>
 
           {/* Product details — vendor-authored description + attribute table. */}
@@ -336,9 +330,7 @@ export default function ProductDetailPage() {
                 <p>
                   {store.displayName} accepts returns within{" "}
                   <span className="font-medium text-ink">{listing.returnWindowDays} days</span> of your
-                  order shipping. Items should be unused and in their original condition. Start a return
-                  from your order in your account, and once it&apos;s approved you&apos;ll be refunded to
-                  your original payment method.
+                  order shipping. Items should be unused and in their original condition. 
                 </p>
               ) : (
                 <p>
