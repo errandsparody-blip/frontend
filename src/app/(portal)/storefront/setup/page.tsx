@@ -512,9 +512,10 @@ function ReturnsPolicyCard({
         Decide whether buyers can request a return, and how long they have after an order ships.
       </p>
       <div className="flex flex-col gap-4">
-        <label className="flex items-center gap-3 rounded-md border border-line px-4 py-3">
+        <div className="flex items-center gap-3 rounded-md border border-line px-4 py-3">
           <input
             type="checkbox"
+            aria-label="Accept returns"
             checked={allowed}
             onChange={(e) => setAllowed(e.target.checked)}
             className="h-4 w-4 rounded border-line text-ink focus:ring-ink"
@@ -525,7 +526,7 @@ function ReturnsPolicyCard({
               When off, buyers can&apos;t open a return request on your orders.
             </span>
           </span>
-        </label>
+        </div>
 
         {allowed ? (
           <Field label="Return window (days after shipment)">
