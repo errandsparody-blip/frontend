@@ -488,7 +488,7 @@ export function ProductForm({
         <Field label="Display name" error={errors.name?.message} className="md:col-span-2">
           <Input
             type="text"
-            placeholder="T-shirt — Black, M"
+            placeholder="T-shirt"
             invalid={!!errors.name}
             disabled={locked}
             {...register("name")}
