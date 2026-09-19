@@ -462,12 +462,12 @@ export function ProductForm({
           />
         </Field>
         <Field
-          label="Variant"
+          label="Size / variant"
           error={errors.variant?.message}
           hint={
             locked
               ? "Locked — already used in SKU ids. Archive and create a new product to change."
-              : "Default: STD."
+              : "The size or option shown on your storefront (e.g. S, M, L, 42, or a colour). Leave as STD if this product has no size."
           }
         >
           <Controller
@@ -476,7 +476,7 @@ export function ProductForm({
             render={({ field }) => (
               <SuggestInput
                 namespace="product-variant"
-                placeholder="STD"
+                placeholder="e.g. M (or STD for no size)"
                 invalid={!!errors.variant}
                 disabled={locked}
                 value={field.value ?? ""}
