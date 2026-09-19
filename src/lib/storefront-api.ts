@@ -52,6 +52,13 @@ export interface PublicListing {
   variants: ListingVariant[];
   returnsAllowed: boolean;
   returnWindowDays: number;
+  description: string | null;
+  fit: string | null;
+  gender: string | null;
+  material: string | null;
+  careInstructions: string | null;
+  brand: string | null;
+  shipsFrom: string | null;
 }
 
 export interface ShippingOption {

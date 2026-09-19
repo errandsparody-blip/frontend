@@ -25,12 +25,18 @@ interface VendorProduct {
   listed: boolean;
   retailPriceCents: number | null;
   category: string | null;
-  optionSize: string | null;
+  /** The product's inventory variant — the source of truth for its size. */
+  variant: string;
   optionColor: string | null;
   variantGroupId: string | null;
   imageUrl: string | null;
   imageUrls: string[];
   availableStock: number;
+}
+
+/** Size shown/merged for a product comes from its variant; "STD" = no size. */
+function sizeOf(variant: string): string | null {
+  return variant && variant.toUpperCase() !== "STD" ? variant : null;
 }
 
 export default function StorefrontProductsPage() {
@@ -68,9 +74,9 @@ export default function StorefrontProductsPage() {
   // own Size field (vendors don't retype sizes; they come from the listing).
   const selectedProducts = items.filter((p) => selected.has(p.id));
   const mergeSizes = selectedProducts
-    .map((p) => p.optionSize?.trim())
+    .map((p) => sizeOf(p.variant))
     .filter((s): s is string => Boolean(s));
-  const missingSize = selectedProducts.some((p) => !p.optionSize?.trim());
+  const missingSize = selectedProducts.some((p) => !sizeOf(p.variant));
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -158,21 +164,22 @@ function ProductRow({
     product.retailPriceCents != null ? (product.retailPriceCents / 100).toFixed(2) : "",
   );
   const [category, setCategory] = useState(product.category ?? "");
-  const [size, setSize] = useState(product.optionSize ?? "");
-  const [color, setColor] = useState(product.optionColor ?? "");
   const [images, setImages] = useState<string[]>(product.imageUrls ?? []);
   const [saved, setSaved] = useState(false);
+
+  const size = sizeOf(product.variant);
 
   const invalidate = () => void qc.invalidateQueries({ queryKey: ["storefront-products"] });
 
   const save = useMutation({
+    // Size/colour and rich details are NOT edited here — size derives from the
+    // product's variant, and colour/details live on the Edit details page.
+    // Omitting those fields leaves them untouched server-side.
     mutationFn: () =>
       api.patch(`/storefront/products/${product.id}/listing`, {
         listed,
         retailPriceCents: price ? Math.round(Number(price) * 100) : undefined,
         category: category.trim() || null,
-        optionSize: size.trim() || null,
-        optionColor: color.trim() || null,
         imageUrls: images,
       }),
     onSuccess: () => {
@@ -227,11 +234,10 @@ function ProductRow({
         </div>
         <div className="text-[12px] text-text-muted">
           <span className="mb-1 block">Size</span>
-          <Input aria-label="Size" value={size} onChange={(e) => setSize(e.target.value)} placeholder="M" className="w-20" />
-        </div>
-        <div className="text-[12px] text-text-muted">
-          <span className="mb-1 block">Colour</span>
-          <Input aria-label="Colour" value={color} onChange={(e) => setColor(e.target.value)} placeholder="White" className="w-28" />
+          {/* Read-only — size comes from the product's variant (its listing). */}
+          <div className="flex h-11 items-center rounded-sm border border-line bg-cream-soft px-3 text-body-sm text-ink">
+            {size ?? <span className="text-text-subtle">One size</span>}
+          </div>
         </div>
         <Button variant="outline" loading={save.isPending} onClick={() => { clearError(); setSaved(false); save.mutate(); }}>
           Save
@@ -245,6 +251,15 @@ function ProductRow({
             Saved ✓
           </span>
         ) : null}
+      </div>
+      <div className="mt-3 border-t border-line pt-3">
+        <Link
+          href={`/storefront/products/${product.id}`}
+          className="inline-flex items-center gap-1 text-[13px] font-medium text-amber hover:underline"
+        >
+          Edit product details (description, colour, fit, material…)
+          <span aria-hidden>→</span>
+        </Link>
       </div>
     </div>
   );

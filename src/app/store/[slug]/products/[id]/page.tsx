@@ -287,6 +287,45 @@ export default function ProductDetailPage() {
             </li>
           </ul>
 
+          {/* Product details — vendor-authored description + attribute table. */}
+          {(() => {
+            const rows: Array<{ label: string; value: string }> = [];
+            const push = (label: string, value: string | null | undefined) => {
+              if (value && value.trim()) rows.push({ label, value: value.trim() });
+            };
+            push("Fit", listing.fit);
+            push("Colour", selected?.optionColor ?? listing.colors.join(", "));
+            push("Gender", listing.gender);
+            push("Material", listing.material);
+            push("Care", listing.careInstructions);
+            push("Brand", listing.brand);
+            push("Ships from", listing.shipsFrom);
+            if (!listing.description && rows.length === 0) return null;
+            return (
+              <details open className="group mt-6 border-t border-line pt-4">
+                <summary className="flex cursor-pointer list-none items-center justify-between text-[15px] font-semibold text-ink">
+                  Product details
+                  <ChevronDown className="h-4 w-4 text-text-subtle transition-transform group-open:rotate-180" aria-hidden />
+                </summary>
+                {listing.description ? (
+                  <p className="mt-3 whitespace-pre-line text-[13px] leading-relaxed text-text-muted">
+                    {listing.description}
+                  </p>
+                ) : null}
+                {rows.length > 0 ? (
+                  <dl className="mt-4 divide-y divide-line border-t border-line">
+                    {rows.map((r) => (
+                      <div key={r.label} className="flex gap-4 py-2.5">
+                        <dt className="w-32 shrink-0 text-[12px] text-text-subtle">{r.label}</dt>
+                        <dd className="text-[13px] text-ink">{r.value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                ) : null}
+              </details>
+            );
+          })()}
+
           {/* Returns & exchanges — the vendor's declared policy, in full. */}
           <details className="group mt-4 border-t border-line pt-4">
             <summary className="flex cursor-pointer list-none items-center justify-between text-[15px] font-semibold text-ink">
