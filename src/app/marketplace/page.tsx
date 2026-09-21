@@ -353,6 +353,7 @@ function MarketplaceInner() {
           eyebrow="Know before you buy"
           title="Returns"
           subtitle="Return policies are set by each vendor. Here's what's consistent across the marketplace."
+          action={<Link href="/marketplace/returns" className="text-[13px] font-semibold text-amber hover:underline">Start a return →</Link>}
         />
         <div className="grid gap-4 md:grid-cols-3">
           <InfoCard

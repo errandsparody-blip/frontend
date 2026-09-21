@@ -16,8 +16,12 @@ interface StorefrontOrder {
   buyer_email: string;
   status: string;
   total_cents: number;
+  product_subtotal_cents: number;
+  discount_cents: number;
   shipping_speed: string;
   tracking_number: string | null;
+  payout_status: string;
+  payout_release_at: string | null;
   created_at: string;
 }
 
@@ -27,6 +31,33 @@ function tone(status: string) {
   if (status === "PENDING_PAYMENT") return "neutral" as const;
   if (status === "CANCELLED" || status === "REFUNDED") return "error" as const;
   return "info" as const;
+}
+
+// The vendor's own earning on a sub-order = product subtotal − discount they
+// funded (shipping + tax are the platform's). Delivery/fees never accrue to them.
+const vendorEarnCents = (o: StorefrontOrder) =>
+  Math.max(0, (o.product_subtotal_cents ?? 0) - (o.discount_cents ?? 0));
+
+/** How the vendor's payout for this order stands. */
+function payoutLabel(o: StorefrontOrder): { text: string; tone: "success" | "warning" | "neutral" | "error" | "info" } {
+  switch (o.payout_status) {
+    case "PAID":
+      return { text: "Paid out", tone: "success" };
+    case "HELD":
+      return {
+        text: o.payout_release_at
+          ? `Held · releases ${new Date(o.payout_release_at).toLocaleDateString()}`
+          : "Held",
+        tone: "warning",
+      };
+    case "PENDING":
+    case "FAILED":
+      return { text: "Processing", tone: "info" };
+    case "CANCELLED":
+      return { text: "Refunded", tone: "neutral" };
+    default:
+      return { text: "—", tone: "neutral" };
+  }
 }
 
 export default function StorefrontOrdersPage() {
@@ -55,23 +86,26 @@ export default function StorefrontOrdersPage() {
               <tr className="border-b border-line text-left font-mono text-[11px] uppercase tracking-[1.2px] text-text-subtle">
                 <th className="px-4 py-3">Order</th>
                 <th className="px-4 py-3">Buyer</th>
-                <th className="px-4 py-3">Paid</th>
-                <th className="px-4 py-3">Speed</th>
+                <th className="px-4 py-3">You earn</th>
                 <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Payout</th>
                 <th className="px-4 py-3">Tracking</th>
               </tr>
             </thead>
             <tbody>
-              {(orders.data ?? []).map((o) => (
-                <tr key={o.reference} className="border-b border-line last:border-0">
-                  <td className="px-4 py-3 font-mono font-medium text-ink">{o.reference}</td>
-                  <td className="px-4 py-3 text-text-muted">{o.buyer_email}</td>
-                  <td className="px-4 py-3 font-medium text-ink">{usd(o.total_cents)}</td>
-                  <td className="px-4 py-3 text-text-muted">{o.shipping_speed}</td>
-                  <td className="px-4 py-3"><StatusPill tone={tone(o.status)}>{o.status.replace(/_/g, " ")}</StatusPill></td>
-                  <td className="px-4 py-3 font-mono text-[12px] text-text-muted">{o.tracking_number ?? "—"}</td>
-                </tr>
-              ))}
+              {(orders.data ?? []).map((o) => {
+                const p = payoutLabel(o);
+                return (
+                  <tr key={o.reference} className="border-b border-line last:border-0">
+                    <td className="px-4 py-3 font-mono font-medium text-ink">{o.reference}</td>
+                    <td className="px-4 py-3 text-text-muted">{o.buyer_email}</td>
+                    <td className="px-4 py-3 font-medium text-ink">{usd(vendorEarnCents(o))}</td>
+                    <td className="px-4 py-3"><StatusPill tone={tone(o.status)}>{o.status.replace(/_/g, " ")}</StatusPill></td>
+                    <td className="px-4 py-3"><StatusPill tone={p.tone}>{p.text}</StatusPill></td>
+                    <td className="px-4 py-3 font-mono text-[12px] text-text-muted">{o.tracking_number ?? "—"}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

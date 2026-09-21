@@ -35,6 +35,8 @@ interface AdminStorefrontOrder {
   total_cents: number;
   shipping_speed: string;
   tracking_number: string | null;
+  payout_status: string;
+  payout_release_at: string | null;
 }
 interface AdminFailedPayout {
   reference: string;
@@ -178,6 +180,8 @@ interface ReturnRequest {
   buyer_email: string;
   total_cents: number;
   business_name: string;
+  return_tracking_number: string | null;
+  received_at: string | null;
   created_at: string;
 }
 
@@ -199,6 +203,11 @@ function ReturnsQueue({ onError, clearError }: { onError: (e: unknown) => void; 
   const reject = useMutation({
     mutationFn: (v: { id: string; note: string }) =>
       api.post(`/admin/storefront/returns/${v.id}/reject`, { note: v.note }),
+    onSuccess: invalidate,
+    onError,
+  });
+  const received = useMutation({
+    mutationFn: (id: string) => api.post(`/admin/storefront/returns/${id}/received`, {}),
     onSuccess: invalidate,
     onError,
   });
@@ -224,13 +233,34 @@ function ReturnsQueue({ onError, clearError }: { onError: (e: unknown) => void; 
                   {r.business_name} · {r.buyer_email} · {usd(r.total_cents)}
                 </div>
                 <div className="mt-1 text-text-2">“{r.reason}”</div>
+                <div className="mt-1 flex flex-wrap items-center gap-2 text-[12px] text-text-subtle">
+                  <span>Return tracking: <span className="font-mono text-ink">{r.return_tracking_number ?? "—"}</span></span>
+                  {r.received_at ? (
+                    <StatusPill tone="success">Parcel received</StatusPill>
+                  ) : (
+                    <StatusPill tone="warning">Awaiting parcel</StatusPill>
+                  )}
+                </div>
               </div>
               <div className="flex items-center gap-2">
+                {!r.received_at ? (
+                  <button
+                    type="button"
+                    disabled={received.isPending}
+                    onClick={() => { clearError(); received.mutate(r.id); }}
+                    className="rounded-md border border-line-strong px-3 py-1.5 text-[12px] font-medium text-ink hover:border-ink disabled:opacity-50"
+                  >
+                    Mark received
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   disabled={approve.isPending}
                   onClick={() => {
-                    if (window.confirm(`Approve return ${r.reference} and refund ${usd(r.total_cents)}?`)) {
+                    const warn = r.received_at
+                      ? `Approve return ${r.reference} and refund ${usd(r.total_cents)}?`
+                      : `The parcel isn't marked received yet. Approve return ${r.reference} and refund ${usd(r.total_cents)} anyway?`;
+                    if (window.confirm(warn)) {
                       clearError();
                       approve.mutate(r.id);
                     }
@@ -319,6 +349,11 @@ function StorefrontOrders() {
       api.post(`/admin/storefront/orders/${encodeURIComponent(reference)}/refund`, {}),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-storefront-orders"] }),
   });
+  const release = useMutation({
+    mutationFn: (reference: string) =>
+      api.post(`/admin/storefront/orders/${encodeURIComponent(reference)}/payout/release`, {}),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-storefront-orders"] }),
+  });
   const REFUNDABLE = new Set(["PAID", "FULFILLING", "SHIPPED", "DELIVERED"]);
   return (
     <section className="rounded-lg border border-line bg-white p-6">
@@ -336,7 +371,7 @@ function StorefrontOrders() {
               <tr className="border-b border-line text-left font-mono text-[11px] uppercase tracking-[1.2px] text-text-subtle">
                 <th className="px-3 py-2">Order</th><th className="px-3 py-2">Vendor</th>
                 <th className="px-3 py-2">Buyer</th><th className="px-3 py-2">Paid</th>
-                <th className="px-3 py-2">Speed</th><th className="px-3 py-2">Status</th><th className="px-3 py-2">Tracking</th><th className="px-3 py-2"></th>
+                <th className="px-3 py-2">Speed</th><th className="px-3 py-2">Status</th><th className="px-3 py-2">Payout</th><th className="px-3 py-2">Tracking</th><th className="px-3 py-2"></th>
               </tr>
             </thead>
             <tbody>
@@ -352,22 +387,53 @@ function StorefrontOrders() {
                       {o.status.replace(/_/g, " ")}
                     </StatusPill>
                   </td>
+                  <td className="px-3 py-2">
+                    {o.payout_status === "HELD" ? (
+                      <StatusPill tone="warning">
+                        Held{o.payout_release_at ? ` · ${new Date(o.payout_release_at).toLocaleDateString()}` : ""}
+                      </StatusPill>
+                    ) : o.payout_status === "PAID" ? (
+                      <StatusPill tone="success">Paid</StatusPill>
+                    ) : o.payout_status === "CANCELLED" ? (
+                      <StatusPill tone="neutral">Cancelled</StatusPill>
+                    ) : o.payout_status === "FAILED" ? (
+                      <StatusPill tone="error">Failed</StatusPill>
+                    ) : (
+                      <span className="text-[12px] text-text-subtle">{o.payout_status.toLowerCase()}</span>
+                    )}
+                  </td>
                   <td className="px-3 py-2 font-mono text-[12px] text-text-muted">{o.tracking_number ?? "—"}</td>
                   <td className="px-3 py-2 text-right">
-                    {REFUNDABLE.has(o.status) ? (
-                      <button
-                        type="button"
-                        disabled={refund.isPending}
-                        onClick={() => {
-                          if (window.confirm(`Refund order ${o.reference} in full (${usd(o.total_cents)})?`)) {
-                            refund.mutate(o.reference);
-                          }
-                        }}
-                        className="text-[12px] font-medium text-error hover:underline disabled:opacity-50"
-                      >
-                        Refund
-                      </button>
-                    ) : null}
+                    <div className="flex items-center justify-end gap-3">
+                      {o.payout_status === "HELD" ? (
+                        <button
+                          type="button"
+                          disabled={release.isPending}
+                          onClick={() => {
+                            if (window.confirm(`Release the held vendor payout for ${o.reference} now?`)) {
+                              release.mutate(o.reference);
+                            }
+                          }}
+                          className="text-[12px] font-medium text-amber hover:underline disabled:opacity-50"
+                        >
+                          Release payout
+                        </button>
+                      ) : null}
+                      {REFUNDABLE.has(o.status) ? (
+                        <button
+                          type="button"
+                          disabled={refund.isPending}
+                          onClick={() => {
+                            if (window.confirm(`Refund order ${o.reference} in full (${usd(o.total_cents)})?`)) {
+                              refund.mutate(o.reference);
+                            }
+                          }}
+                          className="text-[12px] font-medium text-error hover:underline disabled:opacity-50"
+                        >
+                          Refund
+                        </button>
+                      ) : null}
+                    </div>
                   </td>
                 </tr>
               ))}

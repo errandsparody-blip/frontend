@@ -244,4 +244,31 @@ export const marketplaceApi = {
     shippingSpeed: "STANDARD" | "EXPRESS";
     groups: CrossVendorGroupInput[];
   }) => mkPost<CrossVendorCheckoutResult>("/checkout", payload),
+  // Self-service returns.
+  returnsLookup: (reference: string, email: string) =>
+    mkPost<ReturnLookup>("/returns/lookup", { reference, email }),
+  returnsRequest: (payload: {
+    email: string;
+    references: string[];
+    reason: string;
+    trackingNumber: string;
+  }) => mkPost<ReturnRequestResult>("/returns", payload),
 };
+
+export interface ReturnLookupSubOrder {
+  reference: string;
+  storeName: string;
+  status: string;
+  items: Array<{ name: string; qty: number }>;
+  returnable: boolean;
+  reason: string | null;
+  existingReturn: string | null;
+}
+export interface ReturnLookup {
+  buyerName: string | null;
+  subOrders: ReturnLookupSubOrder[];
+}
+export interface ReturnRequestResult {
+  created: Array<{ orderReference: string; returnReference: string }>;
+  skipped: Array<{ orderReference: string; message: string }>;
+}

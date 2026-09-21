@@ -47,7 +47,7 @@ export default function ProductDetailPage() {
       .catch(() => setState("error"));
   }, [store.slug, params.id]);
 
-  const variants = listing?.variants ?? [];
+  const variants = useMemo(() => listing?.variants ?? [], [listing]);
   const hasSizes = (listing?.sizes.length ?? 0) > 0;
   const hasColors = (listing?.colors.length ?? 0) > 0;
 
