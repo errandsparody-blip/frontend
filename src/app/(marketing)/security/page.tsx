@@ -1,18 +1,9 @@
 /**
  * Security marketing page.
  *
- * Goals:
- *   - Reassure prospective vendors that money + inventory + PII are taken
- *     seriously, with concrete-but-uncluttered specifics.
- *   - Stay light: the previous version had four "pillars", eight threat
- *     cards, nine spec tiles, and five compliance paragraphs. Marketing
- *     audiences glaze over before card #10. This rewrite keeps the
- *     substance but compresses to four sections — Hero, Four promises,
- *     Practical facts, Closing CTA — and is mobile-responsive throughout.
- *
- * If a prospect wants the full threat-model spreadsheet we'll show them
- * privately during evaluation — it doesn't need to live on the marketing
- * site.
+ * Copy per the "Security section — update" brief: a plain-English promise that
+ * money, inventory, and personal data are protected, five "how we protect you"
+ * cards, a responsible-disclosure contact, and a closing note.
  */
 
 import Link from "next/link";
@@ -22,7 +13,7 @@ import { Button } from "@/components/ui/button";
 export const metadata = {
   title: "Security — USA Errands",
   description:
-    "Tenant isolation, immutable audit, AES-256-GCM encryption, mandatory MFA. The security posture as it actually exists in the code.",
+    "Your money. Your inventory. Our responsibility. How USA Errands protects your account, data, and funds — and how to report a security issue.",
 };
 
 export default function SecurityPage() {
@@ -33,94 +24,74 @@ export default function SecurityPage() {
         <div className="mx-auto max-w-[84rem] px-5 py-16 sm:px-8 sm:py-24 lg:py-32">
           <div className="font-mono text-mono-eyebrow uppercase text-amber">Security</div>
           <h1 className="mt-3 max-w-3xl text-display font-medium leading-[1.05] tracking-[-0.6px] text-ink sm:text-display-lg sm:tracking-[-1.2px]">
-            Built for vendor money.
+            Your money. Your inventory.
             <br />
-            <span className="text-amber">Audited at every layer.</span>
+            <span className="text-amber">Our responsibility.</span>
           </h1>
           <p className="mt-6 max-w-2xl text-body sm:mt-8 sm:text-body-lg text-text-muted">
-            We hold your inventory and your money. The platform is engineered like that&apos;s true —
-            append-only ledgers, mandatory two-factor auth, tenant isolation enforced top to bottom.
+            At USA Errands, security is built into every part of our platform. We protect your
+            account, inventory, and funds with safeguards designed to keep your information secure and
+            your transactions trustworthy.
           </p>
         </div>
       </section>
 
-      {/* FOUR PROMISES — replaces the old Four-Pillars + Threat-Model + Tech-Summary stack */}
+      {/* HOW WE PROTECT YOU */}
       <section className="mx-auto max-w-[84rem] px-5 py-14 sm:px-8 sm:py-20">
-        <div className="font-mono text-mono-eyebrow uppercase text-amber">What we promise</div>
+        <div className="font-mono text-mono-eyebrow uppercase text-amber">How we protect you</div>
         <h2 className="mt-3 max-w-2xl text-h1 sm:text-display font-medium leading-[1.05] tracking-[-0.4px] sm:tracking-[-0.8px] text-ink">
-          Four guarantees, in plain English.
+          Safeguards on your account, data, and funds.
         </h2>
 
         <div className="mt-10 grid gap-4 sm:gap-6 md:grid-cols-2">
           <Promise
-            title="Strict tenant isolation"
-            body="Every query is scoped to your vendor identifier across the service, controller, database trigger, and continuous-integration test layers. Cross-tenant requests return a 404 response; the existence of other vendor accounts is never disclosed."
+            title="Your account is protected"
+            body="We use strong authentication and security controls to help prevent unauthorized access. Multi-factor authentication is required, and sensitive actions may require additional verification."
           />
           <Promise
-            title="Provable financial integrity"
-            body="Wallets, ledgers, and audit logs are enforced as append-only at the database layer. The sum of ledger entries reconciles to the wallet balance on a nightly basis. No record is ever modified or deleted, including by USA Errands personnel."
+            title="Your data stays isolated"
+            body="Your account and business data are kept separate from other customers. Access is restricted to the information associated with your account."
           />
           <Promise
-            title="Encryption and secrets management"
-            body="Passwords are hashed with Argon2id. Multi-factor authentication secrets are encrypted with AES-256-GCM. Session tokens are stored as SHA-256 hashes. Every registration is screened against the Have I Been Pwned breach corpus, and all responses are protected by Helmet, a strict Content Security Policy, and HSTS preload."
+            title="Financial records are protected"
+            body="Wallet balances, transactions, and audit records are protected using database-level controls designed to prevent unauthorized changes. Financial records are regularly reconciled to help maintain accuracy."
           />
           <Promise
-            title="Mandatory multi-factor authentication"
-            body="Time-based one-time passwords (RFC 6238) are required at initial login. Refresh tokens rotate on each use, and any replay attempt revokes the entire session family. Transactions above $500 require step-up re-authentication, and repeated failed login attempts trigger an exponential lockout."
+            title="Sensitive information is encrypted"
+            body="Passwords and sensitive authentication information are securely protected using industry-standard encryption and hashing technologies. Our platform also uses additional security measures to protect data and connections."
+          />
+          <Promise
+            title="We monitor for suspicious activity"
+            body="We use security controls designed to detect and limit suspicious login attempts and unauthorized session activity. Higher-value transactions may require additional authentication."
+          />
+          <Promise
+            title="Built with security in mind"
+            body="USA Errands provides logistics infrastructure for international sellers and shopping services for buyers. Protecting your information, inventory, and funds is fundamental to how we operate."
           />
         </div>
       </section>
 
-      {/* PRACTICAL FACTS — compressed compliance summary, no spec-tile wall */}
-      {/* <section className="border-y border-line bg-cream-soft">
-        <div className="mx-auto max-w-[84rem] px-5 py-14 sm:px-8 sm:py-20">
-          <div className="font-mono text-mono-eyebrow uppercase text-amber">Practical facts</div>
-          <h2 className="mt-3 max-w-2xl text-h1 sm:text-display font-medium leading-[1.05] tracking-[-0.4px] sm:tracking-[-0.8px] text-ink">
-            What we hold. What we don&apos;t.
-          </h2>
-
-          <dl className="mt-8 grid gap-x-10 gap-y-5 text-body text-text sm:mt-10 sm:grid-cols-2 sm:text-body-lg">
-            <Fact label="Card data">
-              Never touches our servers. Stripe Elements + PaymentIntents only.
-            </Fact>
-            <Fact label="Government IDs">
-              Handled by Stripe Identity. We see the verification status, not the document.
-            </Fact>
-            <Fact label="Customer PII">
-              Stored behind tenant scoping + audit. Encryption-at-rest via the managed database.
-            </Fact>
-            <Fact label="Audit retention">7 years on every financial event.</Fact>
-            <Fact label="Backups">
-              Nightly, weekly, monthly. 30 / 90 / 365 day retention.
-            </Fact>
-            <Fact label="Sessions">
-              Access token 15 min · Refresh 30 days, rotated on every use.
-            </Fact>
-            <Fact label="DB safety">
-              Statement timeout 10s. Lock timeout 5s. Idle-in-transaction 30s.
-            </Fact>
-            <Fact label="SOC 2">
-              On the roadmap once volume justifies the auditor cost.
-            </Fact>
-          </dl>
-        </div>
-      </section> */}
-
-      {/* CLOSING — disclosure + CTA combined */}
+      {/* SEE SOMETHING? TELL US — disclosure + CTA */}
       <section className="mx-auto max-w-[84rem] px-5 py-14 sm:px-8 sm:py-24">
         <div className="rounded-md border border-line bg-ink p-6 text-text-inv sm:p-12">
-          <div className="font-mono text-mono-eyebrow uppercase text-amber">Disclosure + start</div>
+          <div className="font-mono text-mono-eyebrow uppercase text-amber">See something? Tell us.</div>
           <h2 className="mt-3 max-w-2xl text-h1 sm:text-display font-medium leading-[1.05] tracking-[-0.4px] sm:tracking-[-0.8px]">
-            Found something? Tell us.
+            Report a security issue.
           </h2>
           <p className="mt-4 max-w-xl text-body sm:text-body-lg text-text-inv/75">
-            Email{" "}
+            Security is an ongoing responsibility. If you believe you&apos;ve discovered a security
+            issue or vulnerability, please let us know so we can investigate and address it. We take
+            every report seriously and appreciate responsible disclosure.
+          </p>
+          <p className="mt-4 text-body sm:text-body-lg">
+            <span className="font-mono text-mono-label uppercase text-amber">Security contact</span>
+            <br />
             <a
               href="mailto:security@myusaerrands.com"
               className="text-amber underline-offset-2 hover:underline"
             >
-              hello@myusaerrands.com
-            </a>{" "}
+              security@myusaerrands.com
+            </a>
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Link href="/signup">
@@ -140,24 +111,11 @@ export default function SecurityPage() {
   );
 }
 
-// ===========================================================================
-// Tiny presentational helpers — kept inline so the file stays self-contained.
-// ===========================================================================
-
 function Promise({ title, body }: { title: string; body: string }) {
   return (
     <article className="rounded-md border border-line bg-white p-6 sm:p-7">
       <h3 className="text-h2 sm:text-h1 font-semibold tracking-[-0.2px] text-ink">{title}</h3>
       <p className="mt-3 text-body sm:text-body-lg text-text-muted">{body}</p>
     </article>
-  );
-}
-
-function Fact({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <dt className="font-mono text-mono-label uppercase text-amber">{label}</dt>
-      <dd className="mt-1 text-text">{children}</dd>
-    </div>
   );
 }

@@ -4,28 +4,24 @@ import { FadeUp } from "@/components/marketing/fade-up";
 import { Button } from "@/components/ui/button";
 
 export const metadata = {
-  title: "Store integration — USA Errands",
+  title: "Connect your store — USA Errands",
   description:
-    "Connect your online store and orders fulfill themselves. When a customer checks out, the order flows straight into our warehouse — no manual entry, billed from your wallet.",
+    "Connect your online store to USA Errands and send orders directly to our warehouse. We pick, pack, and ship to your customers — no manual order entry, no spreadsheets, no extra work.",
 };
 
-// Three plain steps. Deliberately short — the page sells the idea; the
-// technical reference lives behind the vendor login.
-const STEPS = [
+// The reassurance points from the store-integration section copy.
+const POINTS = [
   {
-    n: "01",
-    title: "Get your key",
-    body: "Sign in and create an API key from your dashboard. One click. It's how your store proves it's you.",
+    title: "No manual order entry",
+    body: "Paid orders flow straight to our warehouse — nothing to copy or re-type.",
   },
   {
-    n: "02",
-    title: "Match your products",
-    body: "Set each product's SKU on your store to its USA Errands product code. That's how we know which stored item sold.",
+    title: "No spreadsheets",
+    body: "Inventory and orders stay in sync automatically. No trackers to keep up to date.",
   },
   {
-    n: "03",
-    title: "Sell as normal",
-    body: "When a customer pays on your store, the order arrives with us automatically. We pick, pack, and ship it — and bill the fee to your wallet.",
+    title: "No extra work",
+    body: "Once it's connected, it runs on its own. You sell; we handle the rest.",
   },
 ] as const;
 
@@ -40,13 +36,15 @@ export default function IntegrationsMarketingPage() {
               Store integration
             </div>
             <h1 className="mt-4 max-w-3xl text-display font-medium leading-[1.04] tracking-[-1.2px] text-ink">
-              Connect your store. Orders fulfill themselves.
+              Connect Your Store to USA Errands
             </h1>
-            <p className="mt-6 max-w-2xl text-body-lg text-text-muted">
-              Already selling on your own website? Link it to your USA Errands
-              account and every paid order comes straight to our warehouse — no
-              copying, no re-typing. We ship it and charge the fee to your
-              wallet. How your customer pays you stays entirely on your side.
+            <p className="mt-6 max-w-2xl text-body-lg font-medium text-ink">
+              Automate your fulfillment and let us handle the rest.
+            </p>
+            <p className="mt-4 max-w-2xl text-body-lg text-text-muted">
+              Connect your online store to USA Errands and send orders directly to our warehouse.
+              We&apos;ll pick, pack, and ship your orders to your customers while you focus on
+              growing your business.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link href="/signup">
@@ -64,27 +62,20 @@ export default function IntegrationsMarketingPage() {
         </div>
       </section>
 
-      {/* HOW IT WORKS — three steps */}
+      {/* NO MANUAL ORDER ENTRY / SPREADSHEETS / EXTRA WORK */}
       <section className="border-b border-line">
         <div className="mx-auto max-w-[84rem] px-8 py-24">
           <FadeUp>
-            <div className="font-mono text-mono-eyebrow uppercase text-amber">
-              How it works
-            </div>
-            <h2 className="mt-3 max-w-2xl text-h2 font-medium leading-tight tracking-[-0.5px] text-ink">
-              Three steps, then it runs on its own.
+            <h2 className="max-w-2xl text-h2 font-medium leading-tight tracking-[-0.5px] text-ink">
+              No manual order entry. No spreadsheets. No extra work.
             </h2>
           </FadeUp>
-
           <div className="mt-12 grid gap-6 md:grid-cols-3">
-            {STEPS.map((s, i) => (
-              <FadeUp key={s.n} delay={i * 80}>
+            {POINTS.map((p, i) => (
+              <FadeUp key={p.title} delay={i * 80}>
                 <div className="h-full rounded-md border border-line bg-white p-8">
-                  <div className="font-mono text-mono-label uppercase tracking-[1.4px] text-amber">
-                    {s.n}
-                  </div>
-                  <h3 className="mt-4 text-h3 text-ink">{s.title}</h3>
-                  <p className="mt-2 text-body-sm text-text-muted">{s.body}</p>
+                  <h3 className="text-h3 text-ink">{p.title}</h3>
+                  <p className="mt-2 text-body-sm text-text-muted">{p.body}</p>
                 </div>
               </FadeUp>
             ))}
@@ -92,68 +83,33 @@ export default function IntegrationsMarketingPage() {
         </div>
       </section>
 
-      {/* WORKS WITH + WHAT HAPPENS ON HOLD */}
+      {/* WORKS WITH EVERY STORE */}
       <section className="border-b border-line">
-        <div className="mx-auto grid max-w-[84rem] gap-16 px-8 py-24 lg:grid-cols-[1fr_1fr] lg:items-center">
+        <div className="mx-auto max-w-[84rem] px-8 py-24">
           <FadeUp>
             <div className="font-mono text-mono-eyebrow uppercase text-amber">
-              Works with any store
+              Works with every store
             </div>
-            <h2 className="mt-3 text-h2 font-medium leading-tight tracking-[-0.5px] text-ink">
-              Your website, Shopify, WooCommerce — anything.
+            <h2 className="mt-3 max-w-2xl text-h2 font-medium leading-tight tracking-[-0.5px] text-ink">
+              Shopify, WooCommerce, Amazon, or your own store.
             </h2>
-            <p className="mt-4 text-body text-text-muted">
-              There&apos;s no app to install. If your store can send an order
-              when a customer checks out, it can connect to us. Your developer
-              points it at one secure address using your key — and that&apos;s
-              the whole integration.
+            <p className="mt-4 max-w-2xl text-body text-text-muted">
+              Connect your Shopify, WooCommerce, Amazon or custom e-commerce store with USA Errands.
+              Simple setup. Reliable fulfillment.
             </p>
-          </FadeUp>
-
-          <FadeUp delay={80}>
-            <div className="rounded-md border border-line bg-white p-8">
-              <div className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
-                Nothing slips through
-              </div>
-              <ul className="mt-4 flex flex-col gap-4 text-body">
-                <li className="border-t border-line pt-4 first:border-t-0 first:pt-0">
-                  <div className="font-medium text-ink">Wallet runs low</div>
-                  <p className="mt-1 text-body-sm text-text-muted">
-                    The order is held — never lost — and ships the moment you
-                    top up. We&apos;ll let you know.
-                  </p>
-                </li>
-                <li className="border-t border-line pt-4">
-                  <div className="font-medium text-ink">An item doesn&apos;t match</div>
-                  <p className="mt-1 text-body-sm text-text-muted">
-                    If a product code doesn&apos;t line up with your stock, we
-                    hold the order and flag it so you can fix it.
-                  </p>
-                </li>
-                <li className="border-t border-line pt-4">
-                  <div className="font-medium text-ink">No double orders</div>
-                  <p className="mt-1 text-body-sm text-text-muted">
-                    Re-sends are safe — the same store order never creates a
-                    duplicate.
-                  </p>
-                </li>
-              </ul>
-            </div>
           </FadeUp>
         </div>
       </section>
 
-      {/* CTA */}
+      {/* FOCUS ON SELLING — closing CTA */}
       <section className="bg-cream-soft">
         <div className="mx-auto max-w-[84rem] px-8 py-24">
           <FadeUp>
             <h2 className="max-w-2xl text-h2 font-medium leading-tight tracking-[-0.5px] text-ink">
-              Ready to connect your store?
+              Focus on Selling. We&apos;ll Handle Fulfillment.
             </h2>
             <p className="mt-4 max-w-2xl text-body text-text-muted">
-              Integration is available to active vendors with inventory in our
-              warehouse. Create your key from the dashboard — full developer
-              instructions are right there when you do.
+              Once connected, your orders flow directly to USA Errands for fulfillment.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link href="/signup">

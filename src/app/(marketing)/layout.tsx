@@ -94,7 +94,8 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
             </FooterCol>
             <FooterCol heading="Trust">
               <FooterLink href="/security">Security</FooterLink>
-              <FooterLink href="/legal/terms">Terms</FooterLink>
+              {/* Terms hidden for now. */}
+              {/* <FooterLink href="/legal/terms">Terms</FooterLink> */}
               <FooterLink href="/legal/privacy">Privacy</FooterLink>
             </FooterCol>
           </div>
