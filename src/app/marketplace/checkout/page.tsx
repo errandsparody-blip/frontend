@@ -25,8 +25,14 @@ import {
 } from "@/lib/storefront-api";
 
 import { BackLink } from "@/components/ui/back-link";
+import { BuyerTermsContent, BUYER_TERMS_VERSION } from "@/components/legal/buyer-terms-content";
+import { TermsGateModal } from "@/components/legal/terms-gate-modal";
 
 import { useMarketplaceCart } from "../cart-context";
+
+// Buyers accept the current Terms of Service once (per browser) before placing
+// their first order; a new version resets the requirement.
+const BUYER_TOS_KEY = `ue_buyer_tos_${BUYER_TERMS_VERSION}`;
 
 interface StorePay {
   processors: Array<"STRIPE" | "FLUTTERWAVE">;
@@ -70,6 +76,7 @@ export default function MarketplaceCheckoutPage() {
   const [quoted, setQuoted] = useState(false);
   const [quoting, setQuoting] = useState(false);
   const [placing, setPlacing] = useState(false);
+  const [showTos, setShowTos] = useState(false);
   const [placed, setPlaced] = useState<null | {
     results: Array<{ slug: string; reference: string; checkoutUrl: string }>;
     errors: Array<{ slug: string; message: string }>;
@@ -367,6 +374,33 @@ export default function MarketplaceCheckoutPage() {
     }
   }
 
+  // Gate "Place order" behind the buyer Terms of Service (shown as a modal that
+  // must be scrolled + accepted). Acceptance is remembered per browser + version.
+  function attemptPlace() {
+    if (!speed) return;
+    let accepted = false;
+    try {
+      accepted = window.localStorage.getItem(BUYER_TOS_KEY) === "1";
+    } catch {
+      accepted = false;
+    }
+    if (accepted) {
+      void place();
+    } else {
+      setShowTos(true);
+    }
+  }
+
+  function acceptTos() {
+    try {
+      window.localStorage.setItem(BUYER_TOS_KEY, "1");
+    } catch {
+      /* private mode — accept for this session anyway */
+    }
+    setShowTos(false);
+    void place();
+  }
+
   async function place() {
     if (!speed) return;
     setError(null);
@@ -651,13 +685,28 @@ export default function MarketplaceCheckoutPage() {
         <button
           type="button"
           disabled={!email || !addressComplete || !allReady || placing}
-          onClick={place}
+          onClick={attemptPlace}
           className="mt-5 w-full rounded-full bg-ink px-6 py-3.5 text-[14px] font-semibold text-cream-soft transition-transform active:scale-[0.99] disabled:opacity-50"
         >
           {placing ? "Placing orders…" : "Place order"}
         </button>
+        <p className="mt-2 text-center text-[11px] text-text-subtle">
+          Placing your order means you accept our Terms of Service.
+        </p>
       </aside>
       </div>
+
+      <TermsGateModal
+        open={showTos}
+        eyebrow="Before you check out"
+        title="Terms of Service"
+        agreeLabel="I have read and agree to the Terms of Service."
+        acceptLabel="Accept & place order"
+        onAccept={acceptTos}
+        onClose={() => setShowTos(false)}
+      >
+        <BuyerTermsContent />
+      </TermsGateModal>
     </div>
   );
 }

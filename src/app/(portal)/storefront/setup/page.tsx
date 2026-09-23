@@ -16,8 +16,14 @@ import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
 import { BackLink } from "@/components/ui/back-link";
+import { TermsGateModal } from "@/components/legal/terms-gate-modal";
+import { VendorPolicyContent, VENDOR_POLICY_VERSION } from "@/components/legal/vendor-policy-content";
 import { api } from "@/lib/api-client";
 import { useApiErrorHandler } from "@/lib/errors";
+
+// Vendors acknowledge the current Storefront & Marketplace Policy before going
+// live; a new version resets the requirement.
+const VENDOR_POLICY_KEY = `ue_vendor_policy_${VENDOR_POLICY_VERSION}`;
 
 interface Settings {
   slug: string | null;
@@ -430,6 +436,7 @@ function GoLiveCard({
   onError: (e: unknown) => void;
   clearError: () => void;
 }) {
+  const [showPolicy, setShowPolicy] = useState(false);
   const enable = useMutation({ mutationFn: () => api.post("/storefront/enable"), onSuccess: onChanged, onError });
   const disable = useMutation({ mutationFn: () => api.post("/storefront/disable"), onSuccess: onChanged, onError });
   const feature = useMutation({
@@ -437,6 +444,29 @@ function GoLiveCard({
     onSuccess: onChanged,
     onError,
   });
+
+  // Require the vendor to read + acknowledge the Storefront & Marketplace Policy
+  // before going live. Remembered per browser + version.
+  function attemptGoLive() {
+    clearError();
+    let acked = false;
+    try {
+      acked = window.localStorage.getItem(VENDOR_POLICY_KEY) === "1";
+    } catch {
+      acked = false;
+    }
+    if (acked) enable.mutate();
+    else setShowPolicy(true);
+  }
+  function acknowledgePolicy() {
+    try {
+      window.localStorage.setItem(VENDOR_POLICY_KEY, "1");
+    } catch {
+      /* private mode — proceed anyway */
+    }
+    setShowPolicy(false);
+    enable.mutate();
+  }
 
   return (
     <Card title="Go live">
@@ -471,10 +501,22 @@ function GoLiveCard({
             </div>
           )}
           <div>
-            <Button variant="primary" loading={enable.isPending} onClick={() => { clearError(); enable.mutate(); }}>Go live</Button>
+            <Button variant="primary" loading={enable.isPending} onClick={attemptGoLive}>Go live</Button>
           </div>
         </div>
       )}
+
+      <TermsGateModal
+        open={showPolicy}
+        eyebrow="Before you go live"
+        title="Storefront & Marketplace Policy"
+        agreeLabel="I have read and agree to this Storefront & Marketplace Policy, including the fees in Section 2 and the payout timing in Section 7."
+        acceptLabel="Agree & go live"
+        onAccept={acknowledgePolicy}
+        onClose={() => setShowPolicy(false)}
+      >
+        <VendorPolicyContent />
+      </TermsGateModal>
     </Card>
   );
 }
