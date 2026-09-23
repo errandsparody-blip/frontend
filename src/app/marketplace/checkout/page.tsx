@@ -25,6 +25,7 @@ import {
 } from "@/lib/storefront-api";
 
 import { BackLink } from "@/components/ui/back-link";
+import { AddressAutocomplete } from "@/components/checkout/address-autocomplete";
 import { BuyerTermsContent, BUYER_TERMS_VERSION } from "@/components/legal/buyer-terms-content";
 import { TermsGateModal } from "@/components/legal/terms-gate-modal";
 
@@ -33,6 +34,29 @@ import { useMarketplaceCart } from "../cart-context";
 // Buyers accept the current Terms of Service once (per browser) before placing
 // their first order; a new version resets the requirement.
 const BUYER_TOS_KEY = `ue_buyer_tos_${BUYER_TERMS_VERSION}`;
+
+// State / province options keyed to the two supported countries. Values are the
+// 2-letter codes shipping + customs require, so the region can't be free-typed
+// (e.g. "DELAWARE") and silently fail validation.
+const US_STATES: ReadonlyArray<[string, string]> = [
+  ["AL", "Alabama"], ["AK", "Alaska"], ["AZ", "Arizona"], ["AR", "Arkansas"], ["CA", "California"],
+  ["CO", "Colorado"], ["CT", "Connecticut"], ["DE", "Delaware"], ["DC", "District of Columbia"],
+  ["FL", "Florida"], ["GA", "Georgia"], ["HI", "Hawaii"], ["ID", "Idaho"], ["IL", "Illinois"],
+  ["IN", "Indiana"], ["IA", "Iowa"], ["KS", "Kansas"], ["KY", "Kentucky"], ["LA", "Louisiana"],
+  ["ME", "Maine"], ["MD", "Maryland"], ["MA", "Massachusetts"], ["MI", "Michigan"], ["MN", "Minnesota"],
+  ["MS", "Mississippi"], ["MO", "Missouri"], ["MT", "Montana"], ["NE", "Nebraska"], ["NV", "Nevada"],
+  ["NH", "New Hampshire"], ["NJ", "New Jersey"], ["NM", "New Mexico"], ["NY", "New York"],
+  ["NC", "North Carolina"], ["ND", "North Dakota"], ["OH", "Ohio"], ["OK", "Oklahoma"], ["OR", "Oregon"],
+  ["PA", "Pennsylvania"], ["RI", "Rhode Island"], ["SC", "South Carolina"], ["SD", "South Dakota"],
+  ["TN", "Tennessee"], ["TX", "Texas"], ["UT", "Utah"], ["VT", "Vermont"], ["VA", "Virginia"],
+  ["WA", "Washington"], ["WV", "West Virginia"], ["WI", "Wisconsin"], ["WY", "Wyoming"],
+];
+const CA_PROVINCES: ReadonlyArray<[string, string]> = [
+  ["AB", "Alberta"], ["BC", "British Columbia"], ["MB", "Manitoba"], ["NB", "New Brunswick"],
+  ["NL", "Newfoundland and Labrador"], ["NS", "Nova Scotia"], ["NT", "Northwest Territories"],
+  ["NU", "Nunavut"], ["ON", "Ontario"], ["PE", "Prince Edward Island"], ["QC", "Quebec"],
+  ["SK", "Saskatchewan"], ["YT", "Yukon"],
+];
 
 interface StorePay {
   processors: Array<"STRIPE" | "FLUTTERWAVE">;
@@ -543,6 +567,22 @@ export default function MarketplaceCheckoutPage() {
         </Section>
 
         <Section title="Delivery address">
+          <div className="mb-3">
+            <AddressAutocomplete
+              country={addr.country ?? "US"}
+              onPick={(a) => {
+                const cc = a.country === "CA" ? "CA" : "US";
+                setAddr({
+                  ...addr,
+                  country: cc,
+                  line1: a.line1 || addr.line1,
+                  city: a.city,
+                  state: a.state,
+                  postalCode: a.postalCode,
+                });
+              }}
+            />
+          </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="sm:col-span-2">
               <label className="block">
@@ -566,11 +606,23 @@ export default function MarketplaceCheckoutPage() {
             <div className="sm:col-span-2"><Text label="Address" value={addr.line1} onChange={(v) => setAddr({ ...addr, line1: v })} /></div>
             <div className="sm:col-span-2"><Text label="Apt, suite (optional)" value={addr.line2 ?? ""} onChange={(v) => setAddr({ ...addr, line2: v })} /></div>
             <Text label="City" value={addr.city} onChange={(v) => setAddr({ ...addr, city: v })} />
-            <Text
-              label={isCA ? "Province" : "State"}
-              value={addr.state}
-              onChange={(v) => setAddr({ ...addr, state: v.toUpperCase() })}
-            />
+            <label className="block">
+              <span className="mb-1 block text-[12px] font-medium text-text-2">
+                {isCA ? "Province" : "State"}
+              </span>
+              <select
+                value={addr.state}
+                onChange={(e) => setAddr({ ...addr, state: e.target.value })}
+                className={inputCls}
+              >
+                <option value="">{isCA ? "Select province" : "Select state"}</option>
+                {(isCA ? CA_PROVINCES : US_STATES).map(([code, name]) => (
+                  <option key={code} value={code}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </label>
             <Text
               label={isCA ? "Postal code" : "ZIP"}
               value={addr.postalCode}

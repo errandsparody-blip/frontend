@@ -9,8 +9,10 @@ import { useState } from "react";
 
 import { ErrorBanner } from "@/components/errors/error-banner";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
+import { PromptDialog } from "@/components/ui/prompt-dialog";
 import { StatusPill } from "@/components/ui/status-pill";
 import { api } from "@/lib/api-client";
 import { useApiErrorHandler } from "@/lib/errors";
@@ -211,6 +213,8 @@ function ReturnsQueue({ onError, clearError }: { onError: (e: unknown) => void; 
     onSuccess: invalidate,
     onError,
   });
+  const [pendingApprove, setPendingApprove] = useState<ReturnRequest | null>(null);
+  const [pendingDecline, setPendingDecline] = useState<ReturnRequest | null>(null);
 
   return (
     <section className="rounded-lg border border-line bg-white p-6">
@@ -256,15 +260,7 @@ function ReturnsQueue({ onError, clearError }: { onError: (e: unknown) => void; 
                 <button
                   type="button"
                   disabled={approve.isPending}
-                  onClick={() => {
-                    const warn = r.received_at
-                      ? `Approve return ${r.reference} and refund ${usd(r.total_cents)}?`
-                      : `The parcel isn't marked received yet. Approve return ${r.reference} and refund ${usd(r.total_cents)} anyway?`;
-                    if (window.confirm(warn)) {
-                      clearError();
-                      approve.mutate(r.id);
-                    }
-                  }}
+                  onClick={() => { clearError(); setPendingApprove(r); }}
                   className="rounded-md bg-ink px-3 py-1.5 text-[12px] font-medium text-white hover:bg-ink-elev disabled:opacity-50"
                 >
                   Approve + refund
@@ -272,11 +268,7 @@ function ReturnsQueue({ onError, clearError }: { onError: (e: unknown) => void; 
                 <button
                   type="button"
                   disabled={reject.isPending}
-                  onClick={() => {
-                    const note = window.prompt("Reason for declining (optional):") ?? "";
-                    clearError();
-                    reject.mutate({ id: r.id, note });
-                  }}
+                  onClick={() => { clearError(); setPendingDecline(r); }}
                   className="rounded-md border border-line-strong px-3 py-1.5 text-[12px] font-medium text-text-muted hover:border-ink"
                 >
                   Decline
@@ -286,6 +278,41 @@ function ReturnsQueue({ onError, clearError }: { onError: (e: unknown) => void; 
           ))}
         </div>
       )}
+
+      <ConfirmDialog
+        open={pendingApprove !== null}
+        title={`Approve return ${pendingApprove?.reference ?? ""}?`}
+        description={
+          pendingApprove
+            ? pendingApprove.received_at
+              ? `This refunds ${usd(pendingApprove.total_cents)} to the buyer.`
+              : `The parcel isn't marked received yet. This will still refund ${usd(pendingApprove.total_cents)} to the buyer.`
+            : undefined
+        }
+        confirmLabel="Approve + refund"
+        tone={pendingApprove?.received_at ? "primary" : "amber"}
+        confirming={approve.isPending}
+        onCancel={() => setPendingApprove(null)}
+        onConfirm={() => {
+          if (!pendingApprove) return;
+          approve.mutate(pendingApprove.id, { onSettled: () => setPendingApprove(null) });
+        }}
+      />
+      <PromptDialog
+        open={pendingDecline !== null}
+        title={`Decline return ${pendingDecline?.reference ?? ""}`}
+        description="Add a reason for the buyer (optional)."
+        placeholder="e.g. Outside the return window"
+        confirmLabel="Decline return"
+        tone="danger"
+        multiline
+        confirming={reject.isPending}
+        onCancel={() => setPendingDecline(null)}
+        onConfirm={(note) => {
+          if (!pendingDecline) return;
+          reject.mutate({ id: pendingDecline.id, note }, { onSettled: () => setPendingDecline(null) });
+        }}
+      />
     </section>
   );
 }
@@ -354,6 +381,8 @@ function StorefrontOrders() {
       api.post(`/admin/storefront/orders/${encodeURIComponent(reference)}/payout/release`, {}),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-storefront-orders"] }),
   });
+  const [pendingRelease, setPendingRelease] = useState<AdminStorefrontOrder | null>(null);
+  const [pendingRefund, setPendingRefund] = useState<AdminStorefrontOrder | null>(null);
   const REFUNDABLE = new Set(["PAID", "FULFILLING", "SHIPPED", "DELIVERED"]);
   return (
     <section className="rounded-lg border border-line bg-white p-6">
@@ -409,11 +438,7 @@ function StorefrontOrders() {
                         <button
                           type="button"
                           disabled={release.isPending}
-                          onClick={() => {
-                            if (window.confirm(`Release the held vendor payout for ${o.reference} now?`)) {
-                              release.mutate(o.reference);
-                            }
-                          }}
+                          onClick={() => setPendingRelease(o)}
                           className="text-[12px] font-medium text-amber hover:underline disabled:opacity-50"
                         >
                           Release payout
@@ -423,11 +448,7 @@ function StorefrontOrders() {
                         <button
                           type="button"
                           disabled={refund.isPending}
-                          onClick={() => {
-                            if (window.confirm(`Refund order ${o.reference} in full (${usd(o.total_cents)})?`)) {
-                              refund.mutate(o.reference);
-                            }
-                          }}
+                          onClick={() => setPendingRefund(o)}
                           className="text-[12px] font-medium text-error hover:underline disabled:opacity-50"
                         >
                           Refund
@@ -441,6 +462,33 @@ function StorefrontOrders() {
           </table>
         </div>
       )}
+
+      <ConfirmDialog
+        open={pendingRelease !== null}
+        title={`Release held payout for ${pendingRelease?.reference ?? ""}?`}
+        description="This pays the vendor their share now, before the return window closes."
+        confirmLabel="Release payout"
+        tone="amber"
+        confirming={release.isPending}
+        onCancel={() => setPendingRelease(null)}
+        onConfirm={() => {
+          if (!pendingRelease) return;
+          release.mutate(pendingRelease.reference, { onSettled: () => setPendingRelease(null) });
+        }}
+      />
+      <ConfirmDialog
+        open={pendingRefund !== null}
+        title={`Refund order ${pendingRefund?.reference ?? ""}?`}
+        description={pendingRefund ? `This refunds ${usd(pendingRefund.total_cents)} in full to the buyer.` : undefined}
+        confirmLabel="Refund order"
+        tone="danger"
+        confirming={refund.isPending}
+        onCancel={() => setPendingRefund(null)}
+        onConfirm={() => {
+          if (!pendingRefund) return;
+          refund.mutate(pendingRefund.reference, { onSettled: () => setPendingRefund(null) });
+        }}
+      />
     </section>
   );
 }

@@ -253,7 +253,28 @@ export const marketplaceApi = {
     reason: string;
     trackingNumber: string;
   }) => mkPost<ReturnRequestResult>("/returns", payload),
+  // Address autocomplete (Google Places proxy).
+  addressAutocomplete: (q: string, country: string, session: string) =>
+    mkReq<{ predictions: AddressPrediction[] }>(
+      `/address/autocomplete?q=${encodeURIComponent(q)}&country=${encodeURIComponent(country)}&session=${encodeURIComponent(session)}`,
+    ),
+  addressDetails: (placeId: string, session: string) =>
+    mkReq<{ address: StructuredAddress | null }>(
+      `/address/details?placeId=${encodeURIComponent(placeId)}&session=${encodeURIComponent(session)}`,
+    ),
 };
+
+export interface AddressPrediction {
+  description: string;
+  placeId: string;
+}
+export interface StructuredAddress {
+  line1: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  country: string;
+}
 
 export interface ReturnLookupSubOrder {
   reference: string;

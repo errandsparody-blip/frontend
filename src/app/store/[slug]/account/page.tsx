@@ -15,6 +15,7 @@ import {
   type BuyerOrder,
   type BuyerProfile,
 } from "@/lib/buyer-account-api";
+import { PromptDialog } from "@/components/ui/prompt-dialog";
 import { formatUsd } from "@/lib/storefront-api";
 
 import { useStore } from "../store-shell";
@@ -31,6 +32,7 @@ function AccountInner() {
   const [error, setError] = useState<string | null>(null);
   const [returnBusy, setReturnBusy] = useState<string | null>(null);
   const [returnMsg, setReturnMsg] = useState<Record<string, string>>({});
+  const [returnFor, setReturnFor] = useState<string | null>(null);
 
   // Exchange a magic-link token (if present) or resume an existing session.
   useEffect(() => {
@@ -72,9 +74,9 @@ function AccountInner() {
     }
   }
 
-  async function requestReturn(reference: string) {
-    const reason = window.prompt("What's the reason for your return?");
-    if (!reason || !reason.trim()) return;
+  async function requestReturn(reference: string, reason: string) {
+    if (!reason.trim()) return;
+    setReturnFor(null);
     setReturnBusy(reference);
     try {
       await buyerAccountApi.requestReturn(reference, reason.trim());
@@ -167,7 +169,7 @@ function AccountInner() {
                   <button
                     type="button"
                     disabled={returnBusy === o.reference}
-                    onClick={() => requestReturn(o.reference)}
+                    onClick={() => setReturnFor(o.reference)}
                     className="text-[12px] text-text-muted underline-offset-2 hover:text-ink hover:underline disabled:opacity-50"
                   >
                     {returnMsg[o.reference] ?? (returnBusy === o.reference ? "Sending…" : "Request return")}
@@ -179,6 +181,21 @@ function AccountInner() {
           ))}
         </div>
       )}
+
+      <PromptDialog
+        open={returnFor !== null}
+        title="Request a return"
+        description="Tell us why you're returning this order."
+        placeholder="e.g. Wrong size, changed my mind, arrived damaged"
+        confirmLabel="Request return"
+        required
+        multiline
+        confirming={returnBusy !== null}
+        onCancel={() => setReturnFor(null)}
+        onConfirm={(reason) => {
+          if (returnFor) void requestReturn(returnFor, reason);
+        }}
+      />
     </div>
   );
 }

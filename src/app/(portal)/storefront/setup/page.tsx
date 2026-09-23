@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
 import { BackLink } from "@/components/ui/back-link";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { TermsGateModal } from "@/components/legal/terms-gate-modal";
 import { VendorPolicyContent, VENDOR_POLICY_VERSION } from "@/components/legal/vendor-policy-content";
 import { api } from "@/lib/api-client";
@@ -710,6 +711,7 @@ function DiscountsCard({ onError, clearError }: { onError: (e: unknown) => void;
   // datetime-local values ("2026-09-19T14:30"), interpreted in the viewer's tz.
   const [startsAt, setStartsAt] = useState("");
   const [endsAt, setEndsAt] = useState("");
+  const [pendingDelete, setPendingDelete] = useState<DiscountCode | null>(null);
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["vendor-discounts"] });
 
@@ -809,12 +811,7 @@ function DiscountsCard({ onError, clearError }: { onError: (e: unknown) => void;
                   {c.active ? "Deactivate" : "Activate"}
                 </button>
                 <button type="button" disabled={busy}
-                  onClick={() => {
-                    if (window.confirm(`Delete discount code ${c.code}? This can't be undone.`)) {
-                      clearError();
-                      remove.mutate(c.id);
-                    }
-                  }}
+                  onClick={() => setPendingDelete(c)}
                   className="text-[12px] text-error hover:underline disabled:opacity-50">
                   Delete
                 </button>
@@ -823,6 +820,21 @@ function DiscountsCard({ onError, clearError }: { onError: (e: unknown) => void;
           );
         })}
       </div>
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title={`Delete discount code ${pendingDelete?.code ?? ""}?`}
+        description="This can't be undone."
+        confirmLabel="Delete"
+        tone="danger"
+        confirming={remove.isPending}
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={() => {
+          if (!pendingDelete) return;
+          clearError();
+          remove.mutate(pendingDelete.id, { onSettled: () => setPendingDelete(null) });
+        }}
+      />
     </Card>
   );
 }
