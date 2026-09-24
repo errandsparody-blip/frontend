@@ -53,9 +53,14 @@ const TONE: Record<OrderStatus, "neutral" | "info" | "success" | "warning" | "er
 // can still bail out while the order is waiting on the warehouse.
 // The backend v2 cancel path (createV2 refund) refunds the fulfillment
 // fee, releases the reservation, and moves the order to CANCELLED.
-// PACKING_COMPLETED onwards is a WAREHOUSE-side hold — cancels there
-// must go through support (the box is already assembled).
-const CANCELLABLE: OrderStatus[] = ["DRAFT", "SUBMITTED", "ALLOCATED", "PENDING_PACKING"];
+//
+// This MUST match the server's cancellable set (OrderService.cancel:
+// DRAFT / SUBMITTED / ALLOCATED). Once an order reaches PENDING_PACKING it's
+// in the warehouse pack queue and the server refuses a self-cancel — offering
+// the Cancel form there is a dead end (409 "order_not_cancellable"). Paid
+// storefront orders land straight in PENDING_PACKING, so for those a change of
+// mind goes through a refund/return, not a vendor cancel.
+const CANCELLABLE: OrderStatus[] = ["DRAFT", "SUBMITTED", "ALLOCATED"];
 // Server-side rule (ReturnService.create) — an RMA can only be opened
 // once the order has reached a post-shipment state, and the exact set
 // depends on fulfillment mode:
