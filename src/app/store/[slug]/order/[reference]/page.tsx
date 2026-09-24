@@ -9,6 +9,8 @@ import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { Suspense, useEffect } from "react";
 
+import { marketplaceApi } from "@/lib/storefront-api";
+
 import { useMarketplaceCart } from "../../../../marketplace/cart-context";
 import { useStore } from "../../store-shell";
 
@@ -16,12 +18,32 @@ function Confirmation() {
   const store = useStore();
   const params = useParams<{ reference: string }>();
   const search = useSearchParams();
-  const paid = search.get("paid") === "1";
-  const { clear } = useMarketplaceCart();
+  const paid = search.get("paid") === "1" || search.get("status") === "successful";
+  const txRef = search.get("tx_ref");
+  const transactionId = search.get("transaction_id");
+  const { clear, hydrated } = useMarketplaceCart();
 
+  // Confirm the payment server-side from the redirect (verify the transaction
+  // and mark the order paid) so the receipt + payout don't depend on the webhook
+  // arriving. Idempotent: a no-op if the webhook already marked it paid.
   useEffect(() => {
-    if (paid) clear();
-  }, [paid, clear]);
+    if (!paid) return;
+    if (!txRef && !transactionId) return;
+    marketplaceApi
+      .confirmPayment({
+        txRef: txRef ?? undefined,
+        transactionId: transactionId ?? undefined,
+        processor: "FLUTTERWAVE",
+      })
+      .catch(() => undefined);
+  }, [paid, txRef, transactionId]);
+
+  // Clear only once the cart has hydrated from the cookie — otherwise the
+  // provider's hydration effect (which runs after this child's effect on mount)
+  // reloads the cookie and restores the item we just cleared.
+  useEffect(() => {
+    if (paid && hydrated) clear();
+  }, [paid, hydrated, clear]);
 
   return (
     <div className="ue-rise-in mx-auto max-w-lg py-16 text-center">

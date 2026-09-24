@@ -41,6 +41,10 @@ interface MpCartState {
   clear: () => void;
   count: number;
   subtotalCents: number;
+  /** True once the cart has loaded from the cookie. Consumers that clear the
+   *  cart on mount (e.g. the order-confirmation page) must wait for this, or the
+   *  hydration effect races them and restores the just-cleared item. */
+  hydrated: boolean;
 }
 
 // The cart is stored in a COOKIE scoped to the registrable domain
@@ -161,7 +165,13 @@ export function MarketplaceCartProvider({ children }: { children: React.ReactNod
     (productId: string) => setItems((prev) => prev.filter((i) => i.productId !== productId)),
     [],
   );
-  const clear = useCallback(() => setItems([]), []);
+  const clear = useCallback(() => {
+    setItems([]);
+    // Persist the empty cart immediately (don't wait for the effect) so a
+    // subsequent read of the cookie — including this provider's own hydration —
+    // can't restore the just-cleared items.
+    writeCartCookie([]);
+  }, []);
 
   const value = useMemo<MpCartState>(() => {
     const byVendor = new Map<string, MpCartGroup>();
@@ -185,8 +195,9 @@ export function MarketplaceCartProvider({ children }: { children: React.ReactNod
       clear,
       count: items.reduce((s, i) => s + i.quantity, 0),
       subtotalCents: items.reduce((s, i) => s + i.unitRetailCents * i.quantity, 0),
+      hydrated,
     };
-  }, [items, add, setQty, remove, clear]);
+  }, [items, add, setQty, remove, clear, hydrated]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

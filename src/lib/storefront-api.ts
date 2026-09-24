@@ -253,6 +253,13 @@ export const marketplaceApi = {
     reason: string;
     trackingNumber: string;
   }) => mkPost<ReturnRequestResult>("/returns", payload),
+  // Confirm payment from the return/redirect (verify with the processor and mark
+  // the order paid) — resilient to a delayed/undelivered webhook.
+  confirmPayment: (payload: {
+    txRef?: string;
+    transactionId?: string;
+    processor?: "STRIPE" | "FLUTTERWAVE";
+  }) => mkPost<{ paid: boolean; reference: string | null }>("/confirm", payload),
   // Address autocomplete (Google Places proxy).
   addressAutocomplete: (q: string, country: string, session: string) =>
     mkReq<{ predictions: AddressPrediction[] }>(

@@ -170,6 +170,19 @@ export default function MarketplaceCheckoutPage() {
       const q = new URLSearchParams(window.location.search);
       const ok = q.get("status") === "successful" || q.get("paid") === "1";
       if (!ok) return;
+      // Confirm server-side (verify the transaction + mark paid) so the receipt
+      // and payout don't depend on the webhook. Idempotent; fire-and-forget.
+      const txRefQ = q.get("tx_ref");
+      const transactionIdQ = q.get("transaction_id");
+      if (txRefQ || transactionIdQ) {
+        marketplaceApi
+          .confirmPayment({
+            txRef: txRefQ ?? undefined,
+            transactionId: transactionIdQ ?? undefined,
+            processor: "FLUTTERWAVE",
+          })
+          .catch(() => undefined);
+      }
       let references: string[] = [];
       let receipt: ReceiptData | undefined;
       try {
