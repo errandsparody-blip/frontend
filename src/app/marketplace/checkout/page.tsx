@@ -254,6 +254,14 @@ export default function MarketplaceCheckoutPage() {
   const isCA = (addr.country ?? "US") === "CA";
   const emailValid = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim());
   const phoneRaw = (addr.phone ?? "").trim();
+  // Postal code must match what the carrier expects, or the shipping quote is
+  // rejected server-side (Shippo: `address_to.zip does not match …`). Validate
+  // the format on the client so a partial ZIP (e.g. "197") never fires a quote
+  // and the buyer gets a clear message under the field instead of a failure.
+  const postalTrimmed = addr.postalCode.trim();
+  const postalValid = isCA
+    ? /^[A-Za-z]\d[A-Za-z]\s?\d[A-Za-z]\d$/.test(postalTrimmed)
+    : /^\d{5}(-\d{4})?$/.test(postalTrimmed);
   // Per-field validation messages. Empty string = no error. Shown under a field
   // once it's been touched (or the buyer has attempted to place the order), so
   // the buyer sees exactly what's wrong right where it's wrong — not only in the
@@ -264,19 +272,21 @@ export default function MarketplaceCheckoutPage() {
     line1: !addr.line1.trim() ? "Street address is required." : "",
     city: !addr.city.trim() ? "City is required." : "",
     state: !addr.state ? `${isCA ? "Province" : "State"} is required.` : "",
-    postalCode: !addr.postalCode.trim()
+    postalCode: !postalTrimmed
       ? isCA
         ? "Postal code is required."
         : "ZIP code is required."
-      : addr.postalCode.trim().length < 3
-        ? "Enter a valid code."
+      : !postalValid
+        ? isCA
+          ? "Enter a valid postal code (e.g. K1A 0B1)."
+          : "Enter a valid 5-digit ZIP code."
         : "",
     phone: phoneRaw && phoneRaw.length < 7 ? "Enter a valid phone number." : "",
   };
   const errFor = (field: string) => (touched[field] ? fieldErrors[field] : "");
 
   const addressComplete =
-    addr.recipientName && addr.line1 && addr.city && /^[A-Za-z]{2}$/.test(addr.state) && addr.postalCode;
+    addr.recipientName && addr.line1 && addr.city && /^[A-Za-z]{2}$/.test(addr.state) && postalValid;
   const allRailsReady = groups.length > 0 && groups.every((g) => pay[g.vendorSlug]?.processor);
   const allReady = quoted && !!speed && allRailsReady;
 
@@ -328,8 +338,13 @@ export default function MarketplaceCheckoutPage() {
       }
       setPay(nextPay);
       setQuoted(true);
-    } catch (e) {
-      setError(e instanceof StorefrontApiError ? e.message : "Couldn't calculate shipping for this address.");
+    } catch {
+      // Quote failures are almost always an address the carrier can't rate
+      // (bad ZIP/state combo, undeliverable). Show a clear, address-focused
+      // message rather than the raw server error.
+      setError(
+        "We couldn't calculate delivery for this address. Please double-check your street, city, state, and ZIP.",
+      );
     } finally {
       setQuoting(false);
     }
