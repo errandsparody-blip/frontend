@@ -11,9 +11,10 @@
  * delivery, tax, total. Internal mechanics (fulfillment, per-vendor payout,
  * payment rails) are never surfaced here.
  */
+import { Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
   formatUsd,
@@ -122,6 +123,11 @@ export default function MarketplaceCheckoutPage() {
   const [discounts, setDiscounts] = useState<Record<string, { code: string; cents: number } | null>>({});
   const [codeMsg, setCodeMsg] = useState<Record<string, string>>({});
   const [checking, setChecking] = useState<Record<string, boolean>>({});
+  // Which fields the buyer has interacted with (or a submit attempt) — used to
+  // decide when to surface the inline validation message under each field, so we
+  // don't shout "required" at an untouched form.
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const markTouched = (field: string) => setTouched((p) => ({ ...p, [field]: true }));
 
   // Persist the buyer's address + email so a trip out to pay and back doesn't
   // wipe what they typed. sessionStorage (same-tab; clears when the tab closes).
@@ -246,6 +252,29 @@ export default function MarketplaceCheckoutPage() {
   }
 
   const isCA = (addr.country ?? "US") === "CA";
+  const emailValid = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim());
+  const phoneRaw = (addr.phone ?? "").trim();
+  // Per-field validation messages. Empty string = no error. Shown under a field
+  // once it's been touched (or the buyer has attempted to place the order), so
+  // the buyer sees exactly what's wrong right where it's wrong — not only in the
+  // network response.
+  const fieldErrors: Record<string, string> = {
+    email: !email.trim() ? "Email is required." : !emailValid ? "Enter a valid email address." : "",
+    recipientName: !addr.recipientName.trim() ? "Full name is required." : "",
+    line1: !addr.line1.trim() ? "Street address is required." : "",
+    city: !addr.city.trim() ? "City is required." : "",
+    state: !addr.state ? `${isCA ? "Province" : "State"} is required.` : "",
+    postalCode: !addr.postalCode.trim()
+      ? isCA
+        ? "Postal code is required."
+        : "ZIP code is required."
+      : addr.postalCode.trim().length < 3
+        ? "Enter a valid code."
+        : "",
+    phone: phoneRaw && phoneRaw.length < 7 ? "Enter a valid phone number." : "",
+  };
+  const errFor = (field: string) => (touched[field] ? fieldErrors[field] : "");
+
   const addressComplete =
     addr.recipientName && addr.line1 && addr.city && /^[A-Za-z]{2}$/.test(addr.state) && addr.postalCode;
   const allRailsReady = groups.length > 0 && groups.every((g) => pay[g.vendorSlug]?.processor);
@@ -268,6 +297,57 @@ export default function MarketplaceCheckoutPage() {
     0,
     subtotalCents - discountTotalCents + shippingCents + taxCents,
   );
+
+  // Quote the whole cart's shipping + load each store's payment rails. Runs
+  // automatically (debounced) as soon as the address is complete — there's no
+  // "Calculate shipping" button to press.
+  const calcAll = useCallback(async () => {
+    setError(null);
+    setQuoting(true);
+    try {
+      const quotePromise = marketplaceApi.quote(
+        groups.map((g) => ({
+          slug: g.vendorSlug,
+          items: g.items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+        })),
+        addr,
+      );
+      const storesPromise = Promise.all(
+        groups.map(async (g) => [g.vendorSlug, await storefrontApi.getStore(g.vendorSlug)] as const),
+      );
+      const [quote, stores] = await Promise.all([quotePromise, storesPromise]);
+
+      setOptions(quote.shippingOptions);
+      setSpeed(quote.shippingOptions[0]?.speed ?? null);
+      setTaxCents(quote.taxCents);
+
+      const nextPay: Record<string, StorePay> = {};
+      for (const [slug, store] of stores) {
+        const processors = store.availableProcessors?.length ? store.availableProcessors : (["STRIPE"] as const);
+        nextPay[slug] = { processors: [...processors], processor: processors[0] ?? null };
+      }
+      setPay(nextPay);
+      setQuoted(true);
+    } catch (e) {
+      setError(e instanceof StorefrontApiError ? e.message : "Couldn't calculate shipping for this address.");
+    } finally {
+      setQuoting(false);
+    }
+  }, [groups, addr]);
+
+  // Auto-calculate shipping once the address is complete; debounce so it doesn't
+  // fire on every keystroke. If the address becomes incomplete again, hide the
+  // stale quote/total until it's valid once more.
+  useEffect(() => {
+    if (!addressComplete) {
+      setQuoted(false);
+      return;
+    }
+    const t = setTimeout(() => {
+      void calcAll();
+    }, 500);
+    return () => clearTimeout(t);
+  }, [addressComplete, calcAll]);
 
   // Validate a vendor discount code against that store's subtotal. A vendor code
   // only ever discounts that vendor's goods (enforced server-side).
@@ -363,44 +443,19 @@ export default function MarketplaceCheckoutPage() {
     );
   }
 
-  async function calcAll() {
-    setError(null);
-    setQuoting(true);
-    try {
-      // One shipping quote for the whole cart, plus each store's payment rails.
-      const quotePromise = marketplaceApi.quote(
-        groups.map((g) => ({
-          slug: g.vendorSlug,
-          items: g.items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
-        })),
-        addr,
-      );
-      const storesPromise = Promise.all(
-        groups.map(async (g) => [g.vendorSlug, await storefrontApi.getStore(g.vendorSlug)] as const),
-      );
-      const [quote, stores] = await Promise.all([quotePromise, storesPromise]);
-
-      setOptions(quote.shippingOptions);
-      setSpeed(quote.shippingOptions[0]?.speed ?? null);
-      setTaxCents(quote.taxCents);
-
-      const nextPay: Record<string, StorePay> = {};
-      for (const [slug, store] of stores) {
-        const processors = store.availableProcessors?.length ? store.availableProcessors : (["STRIPE"] as const);
-        nextPay[slug] = { processors: [...processors], processor: processors[0] ?? null };
-      }
-      setPay(nextPay);
-      setQuoted(true);
-    } catch (e) {
-      setError(e instanceof StorefrontApiError ? e.message : "Couldn't calculate shipping for this address.");
-    } finally {
-      setQuoting(false);
-    }
-  }
-
   // Gate "Place order" behind the buyer Terms of Service (shown as a modal that
   // must be scrolled + accepted). Acceptance is remembered per browser + version.
   function attemptPlace() {
+    // Reveal every field's validation state so nothing fails silently.
+    setTouched({
+      email: true,
+      recipientName: true,
+      line1: true,
+      city: true,
+      state: true,
+      postalCode: true,
+      phone: true,
+    });
     if (!speed) return;
     let accepted = false;
     try {
@@ -562,7 +617,16 @@ export default function MarketplaceCheckoutPage() {
         <Section title="Contact">
           <label className="block">
             <span className="mb-1 block text-[12px] font-medium text-text-2">Email (for order updates) *</span>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" className={inputCls} />
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              onBlur={() => markTouched("email")}
+              placeholder="you@example.com"
+              aria-invalid={errFor("email") ? true : undefined}
+              className={`${inputCls} ${errFor("email") ? "border-error focus:border-error" : ""}`}
+            />
+            {errFor("email") ? <span className="mt-1 block text-[11px] text-error">{errFor("email")}</span> : null}
           </label>
         </Section>
 
@@ -601,19 +665,50 @@ export default function MarketplaceCheckoutPage() {
                 </select>
               </label>
             </div>
-            <Text label="Full name" value={addr.recipientName} onChange={(v) => setAddr({ ...addr, recipientName: v })} />
-            <Text label="Phone (optional)" value={addr.phone ?? ""} onChange={(v) => setAddr({ ...addr, phone: v })} />
-            <div className="sm:col-span-2"><Text label="Address" value={addr.line1} onChange={(v) => setAddr({ ...addr, line1: v })} /></div>
+            <Text
+              label="Full name"
+              value={addr.recipientName}
+              onChange={(v) => setAddr({ ...addr, recipientName: v })}
+              onBlur={() => markTouched("recipientName")}
+              error={errFor("recipientName")}
+            />
+            <Text
+              label="Phone (optional)"
+              value={addr.phone ?? ""}
+              onChange={(v) => setAddr({ ...addr, phone: v })}
+              onBlur={() => markTouched("phone")}
+              error={errFor("phone")}
+            />
+            <div className="sm:col-span-2">
+              <Text
+                label="Address"
+                value={addr.line1}
+                onChange={(v) => setAddr({ ...addr, line1: v })}
+                onBlur={() => markTouched("line1")}
+                error={errFor("line1")}
+              />
+            </div>
             <div className="sm:col-span-2"><Text label="Apt, suite (optional)" value={addr.line2 ?? ""} onChange={(v) => setAddr({ ...addr, line2: v })} /></div>
-            <Text label="City" value={addr.city} onChange={(v) => setAddr({ ...addr, city: v })} />
+            <Text
+              label="City"
+              value={addr.city}
+              onChange={(v) => setAddr({ ...addr, city: v })}
+              onBlur={() => markTouched("city")}
+              error={errFor("city")}
+            />
             <label className="block">
               <span className="mb-1 block text-[12px] font-medium text-text-2">
                 {isCA ? "Province" : "State"}
               </span>
               <select
                 value={addr.state}
-                onChange={(e) => setAddr({ ...addr, state: e.target.value })}
-                className={inputCls}
+                onChange={(e) => {
+                  markTouched("state");
+                  setAddr({ ...addr, state: e.target.value });
+                }}
+                onBlur={() => markTouched("state")}
+                aria-invalid={errFor("state") ? true : undefined}
+                className={`${inputCls} ${errFor("state") ? "border-error focus:border-error" : ""}`}
               >
                 <option value="">{isCA ? "Select province" : "Select state"}</option>
                 {(isCA ? CA_PROVINCES : US_STATES).map(([code, name]) => (
@@ -622,11 +717,14 @@ export default function MarketplaceCheckoutPage() {
                   </option>
                 ))}
               </select>
+              {errFor("state") ? <span className="mt-1 block text-[11px] text-error">{errFor("state")}</span> : null}
             </label>
             <Text
               label={isCA ? "Postal code" : "ZIP"}
               value={addr.postalCode}
               onChange={(v) => setAddr({ ...addr, postalCode: isCA ? v.toUpperCase() : v })}
+              onBlur={() => markTouched("postalCode")}
+              error={errFor("postalCode")}
             />
           </div>
           {isCA ? (
@@ -634,14 +732,16 @@ export default function MarketplaceCheckoutPage() {
               Use the 2-letter province (e.g. ON, BC, QC). Duties and taxes may apply on delivery.
             </p>
           ) : null}
-          <button
-            type="button"
-            disabled={!addressComplete || quoting}
-            onClick={calcAll}
-            className="mt-4 rounded-full border border-line-strong bg-white px-5 py-2.5 text-[13px] font-semibold text-ink transition-colors hover:border-ink disabled:opacity-50"
-          >
-            {quoting ? "Calculating…" : "Calculate shipping"}
-          </button>
+          {quoting ? (
+            <p className="mt-4 flex items-center gap-2 text-[12px] text-text-muted">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+              Calculating delivery for this address…
+            </p>
+          ) : !addressComplete ? (
+            <p className="mt-4 text-[12px] text-text-subtle">
+              Complete your address and delivery options will appear automatically.
+            </p>
+          ) : null}
         </Section>
 
         {quoted && options.length > 0 ? (
@@ -731,7 +831,7 @@ export default function MarketplaceCheckoutPage() {
             </p>
           </>
         ) : (
-          <p className="mt-2 text-[12px] text-text-subtle">Enter your address and calculate shipping to see the total.</p>
+          <p className="mt-2 text-[12px] text-text-subtle">Enter your delivery address to see delivery options and your total.</p>
         )}
         {error ? <div className="mt-4 rounded-lg border-l-4 border-error bg-error/10 px-3 py-2 text-[12px] text-error">{error}</div> : null}
         <button
@@ -784,11 +884,30 @@ function Row({ label, value, muted, bold }: { label: string; value: string; mute
   );
 }
 
-function Text({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+function Text({
+  label,
+  value,
+  onChange,
+  onBlur,
+  error,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  onBlur?: () => void;
+  error?: string;
+}) {
   return (
     <label className="block">
       <span className="mb-1 block text-[12px] font-medium text-text-2">{label}</span>
-      <input value={value} onChange={(e) => onChange(e.target.value)} className={inputCls} />
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={onBlur}
+        aria-invalid={error ? true : undefined}
+        className={`${inputCls} ${error ? "border-error focus:border-error" : ""}`}
+      />
+      {error ? <span className="mt-1 block text-[11px] text-error">{error}</span> : null}
     </label>
   );
 }
