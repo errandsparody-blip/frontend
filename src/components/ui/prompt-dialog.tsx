@@ -8,6 +8,7 @@
  * is disabled until the field is non-empty when `required` is set.
  */
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -47,6 +48,10 @@ export function PromptDialog({
 }: PromptDialogProps): JSX.Element | null {
   const [value, setValue] = useState(defaultValue);
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
+  // Portal to <body> so the fixed overlay isn't trapped by a transformed
+  // ancestor (e.g. the `.ue-rise-in` page wrapper).
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     if (!open) return;
@@ -67,13 +72,13 @@ export function PromptDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, onCancel, confirming]);
 
-  if (!open) return null;
+  if (!open || !mounted) return null;
 
   const canConfirm = !required || value.trim().length > 0;
   const inputCls =
     "mt-3 w-full rounded-md border border-line-strong bg-white px-3 py-2 text-body-sm text-ink outline-none focus:border-ink";
 
-  return (
+  return createPortal(
     <div
       role="dialog"
       aria-modal="true"
@@ -131,6 +136,7 @@ export function PromptDialog({
           </Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

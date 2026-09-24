@@ -33,7 +33,8 @@
  *     so the caller can pass a mutation's pending flag in directly.
  */
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -71,6 +72,11 @@ export function ConfirmDialog({
   confirming = false,
 }: ConfirmDialogProps): JSX.Element | null {
   const confirmBtnRef = useRef<HTMLButtonElement>(null);
+  // Portal to <body> so the fixed overlay isn't trapped by a transformed
+  // ancestor (e.g. the `.ue-rise-in` page wrapper), which would anchor
+  // `position: fixed` to that element instead of the viewport.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   // Body-scroll lock + ESC-to-cancel. Cleanup unbinds on close so the
   // listeners don't leak across re-renders.
@@ -92,9 +98,9 @@ export function ConfirmDialog({
     };
   }, [open, onCancel, confirming]);
 
-  if (!open) return null;
+  if (!open || !mounted) return null;
 
-  return (
+  return createPortal(
     <div
       role="dialog"
       aria-modal="true"
@@ -156,6 +162,7 @@ export function ConfirmDialog({
           </Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

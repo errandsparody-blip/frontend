@@ -10,6 +10,7 @@
  * live). Pure Tailwind, no dependencies.
  */
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 export function TermsGateModal({
   open,
@@ -33,6 +34,14 @@ export function TermsGateModal({
   const scrollRef = useRef<HTMLDivElement>(null);
   const [reachedEnd, setReachedEnd] = useState(false);
   const [agreed, setAgreed] = useState(false);
+  // Portal to <body> so the fixed overlay escapes any transformed ancestor.
+  // The checkout page wraps its content in `.ue-rise-in`, whose `animation:
+  // … both` leaves a lingering `transform`, and a transformed ancestor makes
+  // `position: fixed` anchor to THAT element instead of the viewport — which
+  // centered this modal in the middle of the tall page (off-screen), so the
+  // buyer couldn't reach the accept button without zooming the whole page.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   // Reset the gate each time the modal opens.
   useEffect(() => {
@@ -57,7 +66,7 @@ export function TermsGateModal({
     };
   }, [open, onClose]);
 
-  if (!open) return null;
+  if (!open || !mounted) return null;
 
   const onScroll = () => {
     const el = scrollRef.current;
@@ -65,7 +74,7 @@ export function TermsGateModal({
     if (el.scrollTop + el.clientHeight >= el.scrollHeight - 24) setReachedEnd(true);
   };
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-6">
       <button
         type="button"
@@ -123,6 +132,7 @@ export function TermsGateModal({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
