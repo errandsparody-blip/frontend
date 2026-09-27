@@ -34,6 +34,12 @@ interface AdminStorefrontOrder {
   business_name: string;
   buyer_email: string;
   status: string;
+  // Exact breakdown of what the customer paid.
+  product_subtotal_cents: number;
+  discount_code: string | null;
+  discount_cents: number;
+  shipping_cents: number;
+  tax_cents: number;
   total_cents: number;
   shipping_speed: string;
   tracking_number: string | null;
@@ -409,8 +415,20 @@ function StorefrontOrders() {
                   <td className="px-3 py-2 font-mono font-medium text-ink">{o.reference}</td>
                   <td className="px-3 py-2 text-text-muted">{o.business_name}</td>
                   <td className="px-3 py-2 text-text-muted">{o.buyer_email}</td>
-                  <td className="px-3 py-2 font-medium text-ink">{usd(o.total_cents)}</td>
-                  <td className="px-3 py-2 text-text-muted">{o.shipping_speed}</td>
+                  <td className="px-3 py-2 align-top">
+                    <div className="font-medium text-ink">{usd(o.total_cents)}</div>
+                    <div className="mt-1 space-y-0.5 text-[11px] leading-tight text-text-muted">
+                      <div>Items: {usd(o.product_subtotal_cents)}</div>
+                      {o.discount_cents > 0 ? (
+                        <div className="text-ink">
+                          Discount{o.discount_code ? ` (${o.discount_code})` : ""}: −{usd(o.discount_cents)}
+                        </div>
+                      ) : null}
+                      <div>Shipping: {usd(o.shipping_cents)}</div>
+                      {o.tax_cents > 0 ? <div>Tax: {usd(o.tax_cents)}</div> : null}
+                    </div>
+                  </td>
+                  <td className="px-3 py-2 align-top text-text-muted">{o.shipping_speed}</td>
                   <td className="px-3 py-2">
                     <StatusPill tone={o.status === "SHIPPED" || o.status === "DELIVERED" ? "success" : "info"}>
                       {o.status.replace(/_/g, " ")}
