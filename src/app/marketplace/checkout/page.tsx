@@ -545,7 +545,25 @@ export default function MarketplaceCheckoutPage() {
         taxCents,
         totalCents,
       };
-      setPlaced({ ...res, storeName: { ...storeName }, receipt });
+      const placedData = { ...res, storeName: { ...storeName }, receipt };
+
+      // Go STRAIGHT to the payment interface. The whole cart is one charge, so
+      // there's a single hosted checkout URL — send the buyer there instead of
+      // showing an interim "Almost there" step. Persist the snapshot first so the
+      // post-payment confirmation + receipt still render when they return.
+      if (res.results.length === 1 && res.errors.length === 0) {
+        try {
+          sessionStorage.setItem(PLACED_KEY, JSON.stringify(placedData));
+        } catch {
+          /* storage unavailable — non-fatal */
+        }
+        window.location.href = res.results[0]!.checkoutUrl;
+        return;
+      }
+
+      // Fallback (a leg failed, or somehow more than one link): show the guided
+      // pay step so nothing is silently dropped.
+      setPlaced(placedData);
       setView("pay");
       // Add a history entry so the browser Back button returns here to the form
       // (handled by the popstate listener) rather than leaving the site.
