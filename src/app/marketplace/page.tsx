@@ -16,16 +16,13 @@
  * All product cards add to the global cross-vendor cart.
  */
 import {
-  Check,
   Gift,
   Heart,
   Home,
-  Repeat,
   Shirt,
   ShoppingBag,
   Sparkles,
   Tag,
-  Truck,
   Watch,
   type LucideIcon,
 } from "lucide-react";
@@ -48,7 +45,7 @@ const CATEGORY_ICONS: LucideIcon[] = [Shirt, Sparkles, Home, Watch, ShoppingBag,
 
 export default function MarketplacePage() {
   return (
-    <Suspense fallback={<div className="py-20 text-center font-mono text-mono-label text-text-subtle">Loading…</div>}>
+    <Suspense fallback={<div className="py-20 text-center font-mono text-mono-label text-ink">Loading…</div>}>
       <MarketplaceInner />
     </Suspense>
   );
@@ -115,7 +112,7 @@ function MarketplaceInner() {
       <section className="-mx-5 mb-16 border-b border-line bg-cream-soft px-5 py-12 md:-mx-8 md:px-8 md:py-16">
         <div className="grid items-center gap-10 lg:grid-cols-2">
           <div>
-            <div className="font-mono text-[11px] uppercase tracking-[2.4px] text-text-subtle">
+            <div className="font-mono text-[11px] uppercase tracking-[2.4px] text-ink">
               The USA Errands Marketplace
             </div>
             <h1 className="mt-4 text-4xl font-semibold leading-[1.02] tracking-tight text-ink md:text-6xl">
@@ -123,7 +120,7 @@ function MarketplaceInner() {
               <br />
               meeting you halfway.
             </h1>
-            <p className="mt-5 max-w-md text-body text-text-muted">
+            <p className="mt-5 max-w-md text-body text-ink">
               International brands you love — now just a doorstep away. Every store, one checkout,
               shipped locally from the US.
             </p>
@@ -164,11 +161,11 @@ function MarketplaceInner() {
                       ) : null}
                     </div>
                     <div className="p-3">
-                      <div className="truncate font-mono text-[10px] uppercase tracking-[1.4px] text-text-subtle">
+                      <div className="truncate font-mono text-[10px] uppercase tracking-[1.4px] text-ink">
                         {p.storeName}
                       </div>
                       <div className="truncate text-[12px] font-semibold text-ink">{p.name}</div>
-                      <div className="mt-0.5 text-[12px] text-text-muted">
+                      <div className="mt-0.5 text-[12px] text-ink">
                         {formatUsd(p.retailPriceCents)}
                       </div>
                     </div>
@@ -199,9 +196,9 @@ function MarketplaceInner() {
                   </span>
                   <span className="mt-4 flex items-center gap-1 text-[15px] font-semibold text-ink">
                     {c}
-                    <span aria-hidden className="text-text-subtle transition-transform group-hover:translate-x-0.5">→</span>
+                    <span aria-hidden className="text-ink transition-transform group-hover:translate-x-0.5">→</span>
                   </span>
-                  <span className="mt-1 text-[13px] text-text-muted">Shop {c.toLowerCase()}</span>
+                  <span className="mt-1 text-[13px] text-ink">Shop {c.toLowerCase()}</span>
                 </button>
               );
             })}
@@ -224,22 +221,22 @@ function MarketplaceInner() {
               )}
             </div>
             <div className="p-8">
-              <div className="font-mono text-[11px] uppercase tracking-[2.4px] text-text-subtle">Featured vendor</div>
+              <div className="font-mono text-[11px] uppercase tracking-[2.4px] text-ink">Featured vendor</div>
               <h2 className="mt-3 text-2xl font-semibold tracking-tight text-ink md:text-3xl">
                 {featured.displayName}
               </h2>
-              <p className="mt-3 max-w-md text-body-sm text-text-muted">
+              <p className="mt-3 max-w-md text-body-sm text-ink">
                 {featured.displayName} stores its full collection with USA Errands, so every order
                 ships locally from the US — no matter where it&apos;s headed.
               </p>
               <div className="mt-5 flex gap-8">
                 <div>
                   <div className="text-xl font-semibold text-ink">{countByVendor.get(featured.slug) ?? 0}</div>
-                  <div className="text-[11px] uppercase tracking-[1.2px] text-text-subtle">products</div>
+                  <div className="text-[11px] uppercase tracking-[1.2px] text-ink">products</div>
                 </div>
                 <div>
                   <div className="text-xl font-semibold text-ink">Local</div>
-                  <div className="text-[11px] uppercase tracking-[1.2px] text-text-subtle">US shipping</div>
+                  <div className="text-[11px] uppercase tracking-[1.2px] text-ink">US shipping</div>
                 </div>
               </div>
               <Link
@@ -272,7 +269,7 @@ function MarketplaceInner() {
                   {s.displayName.charAt(0).toUpperCase()}
                 </span>
                 <span className="mt-4 truncate text-[15px] font-semibold text-ink">{s.displayName}</span>
-                <span className="mt-1 text-[13px] text-text-muted">
+                <span className="mt-1 text-[13px] text-ink">
                   {countByVendor.get(s.slug) ?? 0} {(countByVendor.get(s.slug) ?? 0) === 1 ? "product" : "products"}
                 </span>
                 <span className="mt-3 inline-flex items-center gap-1 text-[13px] font-semibold text-ink">
@@ -295,7 +292,7 @@ function MarketplaceInner() {
               action={<Link href="/marketplace" className="text-[13px] font-semibold text-ink hover:underline">Clear search →</Link>}
             />
             {searchResults.length === 0 ? (
-              <div className="rounded-2xl border border-line bg-white px-6 py-16 text-center text-body-sm text-text-muted">
+              <div className="rounded-2xl border border-line bg-white px-6 py-16 text-center text-body-sm text-ink">
                 Nothing matched “{searchQuery}”. Try a different word, or{" "}
                 <Link href="/marketplace" className="font-medium text-ink underline">browse everything</Link>.
               </div>
@@ -325,9 +322,9 @@ function MarketplaceInner() {
             ) : null}
 
             {loading ? (
-              <div className="py-20 text-center font-mono text-mono-label text-text-subtle">Loading…</div>
+              <div className="py-20 text-center font-mono text-mono-label text-ink">Loading…</div>
             ) : products.length === 0 ? (
-              <div className="rounded-2xl border border-line bg-white px-6 py-16 text-center text-body-sm text-text-muted">
+              <div className="rounded-2xl border border-line bg-white px-6 py-16 text-center text-body-sm text-ink">
                 No products in the marketplace yet.
               </div>
             ) : (
@@ -341,33 +338,6 @@ function MarketplaceInner() {
         )}
       </section>
 
-      {/* ---------------------------------------------------------- Returns */}
-      <section className="mb-16">
-        <SectionHead
-          eyebrow="Know before you buy"
-          title="Returns"
-          subtitle="Return policies are set by each vendor. Here's what's consistent across the marketplace."
-          action={<Link href="/marketplace/returns" className="text-[13px] font-semibold text-ink hover:underline">Start a return →</Link>}
-        />
-        <div className="grid gap-4 md:grid-cols-3">
-          <InfoCard
-            Icon={Check}
-            title="Set by each vendor"
-            body="Whether a product can be returned, and the return window, is shown on its product page before you buy."
-          />
-          <InfoCard
-            Icon={Repeat}
-            title="Returns, not exchanges"
-            body="Where a vendor accepts returns you'll get a refund for the item. Exchanges aren't offered, and shipping fees are non-refundable."
-          />
-          <InfoCard
-            Icon={Truck}
-            title="Who pays what"
-            body="Return shipping is the customer's responsibility unless the vendor states otherwise."
-          />
-        </div>
-      </section>
-
       {/* -------------------------------------------------------------- FAQ */}
       <section className="mb-8">
         <SectionHead eyebrow="Good to know" title="Marketplace FAQ" subtitle="The questions shoppers ask most." />
@@ -376,9 +346,9 @@ function MarketplaceInner() {
             <details key={f.q} className={`group ${i > 0 ? "border-t border-line" : ""}`}>
               <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 text-[15px] font-semibold text-ink">
                 {f.q}
-                <span aria-hidden className="text-text-subtle transition-transform group-open:rotate-45">+</span>
+                <span aria-hidden className="text-ink transition-transform group-open:rotate-45">+</span>
               </summary>
-              <p className="px-5 pb-5 text-[13px] leading-relaxed text-text-muted">{f.a}</p>
+              <p className="px-5 pb-5 text-[13px] leading-relaxed text-ink">{f.a}</p>
             </details>
           ))}
         </div>
@@ -424,23 +394,11 @@ function SectionHead({
   return (
     <div className="mb-6 flex items-end justify-between gap-4">
       <div>
-        <div className="font-mono text-[11px] uppercase tracking-[2.4px] text-text-subtle">{eyebrow}</div>
+        <div className="font-mono text-[11px] uppercase tracking-[2.4px] text-ink">{eyebrow}</div>
         <h2 className="mt-2 text-2xl font-semibold tracking-tight text-ink md:text-3xl">{title}</h2>
-        {subtitle ? <p className="mt-2 max-w-lg text-body-sm text-text-muted">{subtitle}</p> : null}
+        {subtitle ? <p className="mt-2 max-w-lg text-body-sm text-ink">{subtitle}</p> : null}
       </div>
       {action ? <div className="shrink-0 whitespace-nowrap">{action}</div> : null}
-    </div>
-  );
-}
-
-function InfoCard({ Icon, title, body }: { Icon: LucideIcon; title: string; body: string }) {
-  return (
-    <div className="rounded-2xl border border-line bg-white p-6">
-      <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-cream-soft text-ink">
-        <Icon className="h-5 w-5" aria-hidden />
-      </span>
-      <h3 className="mt-4 text-[15px] font-semibold text-ink">{title}</h3>
-      <p className="mt-1.5 text-[13px] leading-relaxed text-text-muted">{body}</p>
     </div>
   );
 }
@@ -461,7 +419,7 @@ function FeedCard({ product: p, index }: { product: MarketplaceProduct; index: n
             className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center text-text-subtle">
+          <div className="flex h-full w-full items-center justify-center text-ink">
             <span className="font-mono text-[11px] uppercase tracking-[1.4px]">No image</span>
           </div>
         )}
@@ -496,11 +454,11 @@ function FeedCard({ product: p, index }: { product: MarketplaceProduct; index: n
         )}
       </Link>
       <div className="mt-3">
-        <div className="font-mono text-[11px] uppercase tracking-[1.4px] text-text-subtle">{p.storeName}</div>
+        <div className="font-mono text-[11px] uppercase tracking-[1.4px] text-ink">{p.storeName}</div>
         <Link href={href} className="mt-1 block text-[14px] font-semibold text-ink hover:underline">
           {p.name}
         </Link>
-        <div className="mt-1 text-[14px] text-text-muted">
+        <div className="mt-1 text-[14px] text-ink">
           {p.priceVaries ? `from ${formatUsd(p.retailPriceCents)}` : formatUsd(p.retailPriceCents)}
         </div>
       </div>
@@ -524,7 +482,7 @@ function Tab({
       className={
         active
           ? "border-b-2 border-ink pb-2 text-[13px] font-semibold uppercase tracking-[1.2px] text-ink"
-          : "border-b-2 border-transparent pb-2 text-[13px] font-medium uppercase tracking-[1.2px] text-text-muted transition-colors hover:text-ink"
+          : "border-b-2 border-transparent pb-2 text-[13px] font-medium uppercase tracking-[1.2px] text-ink transition-colors hover:text-ink"
       }
     >
       {children}

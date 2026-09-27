@@ -26,7 +26,7 @@ const FOOTER_LINKS: ReadonlyArray<{ href: string; label: string }> = [
   { href: "/legal/privacy", label: "Privacy" },
   { href: "/security", label: "Security" },
   { href: "/about", label: "About Us" },
-  { href: "/marketplace/returns", label: "Return Policy" },
+  { href: "/marketplace#return-policy", label: "Return Policy" },
   { href: "/signup", label: "Sell With Us" },
   { href: "/marketplace/returns", label: "Start a Return" },
   { href: "/contact", label: "Contact" },
@@ -61,7 +61,7 @@ function MarketplaceFooter() {
             <h2 className="text-2xl font-semibold tracking-tight text-cream-soft md:text-3xl">
               Never miss a new drop
             </h2>
-            <p className="mt-3 max-w-md text-[14px] leading-relaxed text-cream-soft/70">
+            <p className="mt-3 max-w-md text-[14px] leading-relaxed text-cream-soft">
               Be the first to know when a new store joins, fresh arrivals land, or a deal&apos;s too
               good to sit on. No spam — just the good stuff, straight to your inbox.
             </p>
@@ -91,6 +91,50 @@ function MarketplaceFooter() {
         </div>
       </div>
 
+      {/* Return Policy — full policy block, from the design. */}
+      <div id="return-policy" className="scroll-mt-24 border-b border-white/10">
+        <div className="mx-auto w-full max-w-6xl px-5 py-14 md:px-8">
+          <div className="font-mono text-[11px] uppercase tracking-[2.4px] text-cream-soft">Policies</div>
+          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-cream-soft md:text-3xl">
+            Return Policy
+          </h2>
+          <div className="mt-5 max-w-3xl space-y-4 text-[14px] leading-relaxed text-cream-soft">
+            <p>
+              Eligible items may be returned within the window set by that store&apos;s own return
+              policy, for a refund to your original payment method — less the original shipping,
+              handling fees and the platform processing fee. We offer returns only, not exchanges, and
+              shipping fees on an order that has already shipped are not refundable. Final sale items,
+              gift cards, and damaged or altered items aren&apos;t eligible for return.
+            </p>
+            <p>
+              Items must be returned in their original condition — unworn, unwashed, and unaltered,
+              with all tags attached. Shoes must be returned in their original box; please don&apos;t
+              attach the return label directly to the shoe box — use a separate outer package instead.
+            </p>
+            <p>
+              We don&apos;t provide prepaid return labels. You&apos;re responsible for arranging your
+              own return shipping, and for its tracking and accuracy — we recommend asking your carrier
+              about insurance and keeping your shipping records, as neither USA Errands nor the store is
+              responsible for independently mailed packages and cannot reimburse shipping costs.
+            </p>
+            <p>
+              If your order has items from multiple stores, each is returned separately under that
+              store&apos;s own policy. Hit the <strong>Start a Return</strong> button to get started.
+            </p>
+          </div>
+          <Link
+            href="/marketplace/returns"
+            className="mt-6 inline-block rounded-full bg-cream-soft px-6 py-2.5 text-[13px] font-semibold text-ink transition-transform hover:-translate-y-0.5"
+          >
+            Start a Return
+          </Link>
+          <p className="mt-6 text-[12px] text-cream-soft">
+            Last updated: September 2026 · Questions?{" "}
+            <a href="mailto:hello@myusaerrands.com" className="underline">hello@myusaerrands.com</a>
+          </p>
+        </div>
+      </div>
+
       {/* Links + copyright. */}
       <div className="mx-auto w-full max-w-6xl px-5 py-10 md:px-8">
         <div className="flex flex-wrap items-center justify-between gap-6">
@@ -102,14 +146,14 @@ function MarketplaceFooter() {
               <Link
                 key={l.label}
                 href={l.href}
-                className="text-[13px] text-cream-soft/70 transition-colors hover:text-cream-soft"
+                className="text-[13px] text-cream-soft transition-colors hover:underline"
               >
                 {l.label}
               </Link>
             ))}
           </nav>
         </div>
-        <div className="mt-8 text-[12px] text-cream-soft/50">© 2026 USA Errands</div>
+        <div className="mt-8 text-[12px] text-cream-soft">© 2026 USA Errands</div>
       </div>
     </footer>
   );
@@ -156,7 +200,7 @@ function MarketplaceHeader() {
         {/* Wordmark. */}
         <Link href="/marketplace" className="flex shrink-0 items-baseline gap-1.5 leading-none">
           <span className="text-[17px] font-semibold tracking-tight text-ink">USA Errands</span>
-          <span className="hidden font-mono text-[12px] uppercase tracking-[1.5px] text-text-muted sm:inline">
+          <span className="hidden font-mono text-[12px] uppercase tracking-[1.5px] text-ink sm:inline">
             Marketplace
           </span>
         </Link>
@@ -164,7 +208,7 @@ function MarketplaceHeader() {
         {/* Search — products or vendors. */}
         <form onSubmit={submit} className="relative min-w-0 flex-1" role="search">
           <Search
-            className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-text-subtle"
+            className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink"
             aria-hidden
           />
           <input
