@@ -140,32 +140,32 @@ function MarketplaceInner() {
             </div>
           </div>
 
-          {/* Product collage — real listings, staggered. Hidden on small screens. */}
+          {/* Product collage — real listings in a staggered two-column layout,
+              matching the concept: portrait cards, right column dropped down, a
+              subtle tilt, and the label always visible under the image. Hidden on
+              small screens. */}
           {collage.length >= 2 ? (
-            <div className="relative hidden h-[420px] lg:block" aria-hidden>
+            <div className="hidden lg:grid lg:grid-cols-2 lg:gap-x-4 lg:gap-y-6" aria-hidden>
               {collage.map((p, i) => {
-                const pos = [
-                  "left-0 top-6 rotate-[-5deg]",
-                  "right-4 top-0 rotate-[4deg]",
-                  "left-10 bottom-0 rotate-[3deg]",
-                  "right-0 bottom-6 rotate-[-3deg]",
-                ][i];
+                // Right column drops down to stagger; alternate a gentle tilt.
+                const offset = i % 2 === 1 ? "mt-12" : "";
+                const tilt = ["-rotate-2", "rotate-2", "rotate-2", "-rotate-2"][i];
                 return (
                   <div
                     key={`${p.vendorSlug}-${p.id}`}
-                    className={`absolute w-52 overflow-hidden rounded-2xl border border-line bg-white shadow-2 ${pos}`}
+                    className={`overflow-hidden rounded-2xl border border-line bg-white shadow-2 ${offset} ${tilt}`}
                   >
-                    <div className="relative aspect-square bg-cream-deep">
+                    <div className="relative aspect-[3/4] bg-cream-deep">
                       {p.imageUrl ? (
-                        <Image src={p.imageUrl} alt="" fill sizes="208px" className="object-cover" />
+                        <Image src={p.imageUrl} alt="" fill sizes="240px" className="object-cover" />
                       ) : null}
                     </div>
-                    <div className="p-3">
-                      <div className="truncate text-[10px] uppercase tracking-[1.4px] text-ink">
+                    <div className="p-4">
+                      <div className="truncate text-[10px] uppercase tracking-[1.6px] text-ink">
                         {p.storeName}
                       </div>
-                      <div className="truncate text-[12px] font-semibold text-ink">{p.name}</div>
-                      <div className="mt-0.5 text-[12px] text-ink">
+                      <div className="mt-1 truncate text-[14px] font-semibold text-ink">{p.name}</div>
+                      <div className="mt-0.5 text-[13px] text-ink">
                         {formatUsd(p.retailPriceCents)}
                       </div>
                     </div>
