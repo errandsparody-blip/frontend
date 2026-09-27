@@ -15,9 +15,103 @@ export default function MarketplaceLayout({ children }: { children: React.ReactN
         <Suspense fallback={<div className="h-[72px] border-b border-line bg-cream-soft" />}>
           <MarketplaceHeader />
         </Suspense>
-        <main className="mx-auto w-full max-w-6xl px-5 pb-24 md:px-8">{children}</main>
+        <main className="mx-auto w-full max-w-6xl px-5 pb-12 md:px-8">{children}</main>
+        <MarketplaceFooter />
       </div>
     </MarketplaceCartProvider>
+  );
+}
+
+const FOOTER_LINKS: ReadonlyArray<{ href: string; label: string }> = [
+  { href: "/legal/privacy", label: "Privacy" },
+  { href: "/security", label: "Security" },
+  { href: "/about", label: "About Us" },
+  { href: "/marketplace/returns", label: "Return Policy" },
+  { href: "/signup", label: "Sell With Us" },
+  { href: "/marketplace/returns", label: "Start a Return" },
+  { href: "/contact", label: "Contact" },
+  { href: "/track", label: "Track Your Order" },
+];
+
+/**
+ * Marketplace footer (from the approved concept): a "new drop" newsletter band
+ * + the site footer links. Black-and-white to match the marketplace palette.
+ *
+ * NOTE: the newsletter sign-up is currently client-side only — it acknowledges
+ * the address but does not yet persist it. Wire it to an email-capture endpoint
+ * (Resend audience or a DB table) to actually collect subscribers.
+ */
+function MarketplaceFooter() {
+  const [email, setEmail] = useState("");
+  const [signedUp, setSignedUp] = useState(false);
+  const emailValid = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim());
+
+  const onSignup = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!emailValid) return;
+    setSignedUp(true);
+  };
+
+  return (
+    <footer className="mt-8 bg-ink text-cream-soft">
+      {/* Newsletter band. */}
+      <div className="border-b border-white/10">
+        <div className="mx-auto grid w-full max-w-6xl gap-6 px-5 py-14 md:grid-cols-2 md:items-center md:px-8">
+          <div>
+            <h2 className="text-2xl font-semibold tracking-tight text-cream-soft md:text-3xl">
+              Never miss a new drop
+            </h2>
+            <p className="mt-3 max-w-md text-[14px] leading-relaxed text-cream-soft/70">
+              Be the first to know when a new store joins, fresh arrivals land, or a deal&apos;s too
+              good to sit on. No spam — just the good stuff, straight to your inbox.
+            </p>
+          </div>
+          {signedUp ? (
+            <p className="text-[14px] font-medium text-cream-soft md:justify-self-end">
+              You&apos;re on the list — thanks!
+            </p>
+          ) : (
+            <form onSubmit={onSignup} className="flex w-full max-w-md gap-2 md:justify-self-end">
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                aria-label="Email address"
+                className="h-11 min-w-0 flex-1 rounded-full border border-white/20 bg-transparent px-4 text-[14px] text-cream-soft outline-none transition-colors placeholder:text-cream-soft/40 focus:border-cream-soft"
+              />
+              <button
+                type="submit"
+                className="shrink-0 rounded-full bg-cream-soft px-6 py-2.5 text-[13px] font-semibold text-ink transition-transform hover:-translate-y-0.5"
+              >
+                Sign up
+              </button>
+            </form>
+          )}
+        </div>
+      </div>
+
+      {/* Links + copyright. */}
+      <div className="mx-auto w-full max-w-6xl px-5 py-10 md:px-8">
+        <div className="flex flex-wrap items-center justify-between gap-6">
+          <Link href="/marketplace" className="text-[17px] font-semibold tracking-tight text-cream-soft">
+            USA Errands
+          </Link>
+          <nav className="flex flex-wrap gap-x-6 gap-y-2">
+            {FOOTER_LINKS.map((l) => (
+              <Link
+                key={l.label}
+                href={l.href}
+                className="text-[13px] text-cream-soft/70 transition-colors hover:text-cream-soft"
+              >
+                {l.label}
+              </Link>
+            ))}
+          </nav>
+        </div>
+        <div className="mt-8 text-[12px] text-cream-soft/50">© 2026 USA Errands</div>
+      </div>
+    </footer>
   );
 }
 
