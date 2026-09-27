@@ -274,7 +274,7 @@ export default function ProductDetailPage() {
               ) : (
                 <>
                   <X className="h-4 w-4 text-text-subtle" aria-hidden />
-                  Final sale — no returns
+                  The vendor does not allow returns
                 </>
               )}
             </li>
@@ -333,11 +333,7 @@ export default function ProductDetailPage() {
                   order delivery. Items should be unused and in their original condition. 
                 </p>
               ) : (
-                <p>
-                  {store.displayName} sells this item as final sale — it can&apos;t be returned or
-                  exchanged. If it arrives damaged or not as described, contact support and we&apos;ll
-                  help make it right.
-                </p>
+                <p>{store.displayName} does not allow returns on this item.</p>
               )}
             </div>
           </details>

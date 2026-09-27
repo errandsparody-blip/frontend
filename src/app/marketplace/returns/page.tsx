@@ -101,7 +101,7 @@ export default function MarketplaceReturnsPage() {
             </p>
           ) : null}
           {result.skipped.length > 0 ? (
-            <div className="mt-4 rounded-lg border border-amber/40 bg-amber/10 px-4 py-3 text-left text-[13px] text-text-muted">
+            <div className="mt-4 rounded-lg border border-line bg-cream-soft px-4 py-3 text-left text-[13px] text-text-muted">
               Some items couldn&apos;t be returned:
               <ul className="mt-1 list-disc pl-5">
                 {result.skipped.map((s) => (

@@ -62,7 +62,7 @@ function MarketplaceHeader() {
         {/* Wordmark. */}
         <Link href="/marketplace" className="flex shrink-0 items-baseline gap-1.5 leading-none">
           <span className="text-[17px] font-semibold tracking-tight text-ink">USA Errands</span>
-          <span className="hidden font-mono text-[10px] uppercase tracking-[2px] text-amber sm:inline">
+          <span className="hidden font-mono text-[12px] uppercase tracking-[1.5px] text-text-muted sm:inline">
             Marketplace
           </span>
         </Link>
@@ -86,7 +86,7 @@ function MarketplaceHeader() {
         {/* Nav — hidden on small screens (search stays; links live in the page). */}
         <nav className="hidden items-center gap-6 lg:flex">
           {NAV_LINKS.map((l) => (
-            <Link key={l.href} href={l.href} className="text-[13px] font-medium text-ink hover:text-amber">
+            <Link key={l.href} href={l.href} className="text-[13px] font-medium text-ink hover:underline">
               {l.label}
             </Link>
           ))}
@@ -108,7 +108,7 @@ function MarketplaceHeader() {
           >
             <ShoppingBag className="h-5 w-5" aria-hidden />
             {count > 0 ? (
-              <span className="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber px-1 text-[10px] font-semibold text-ink">
+              <span className="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-ink px-1 text-[10px] font-semibold text-cream-soft">
                 {count}
               </span>
             ) : null}

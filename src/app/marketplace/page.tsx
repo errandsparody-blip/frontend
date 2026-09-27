@@ -115,16 +115,17 @@ function MarketplaceInner() {
       <section className="-mx-5 mb-16 border-b border-line bg-cream-soft px-5 py-12 md:-mx-8 md:px-8 md:py-16">
         <div className="grid items-center gap-10 lg:grid-cols-2">
           <div>
-            <div className="font-mono text-[11px] uppercase tracking-[2.4px] text-amber">
+            <div className="font-mono text-[11px] uppercase tracking-[2.4px] text-text-subtle">
               The USA Errands Marketplace
             </div>
             <h1 className="mt-4 text-4xl font-semibold leading-[1.02] tracking-tight text-ink md:text-6xl">
-              Every store,
+              Your favorite stores,
               <br />
-              one checkout.
+              meeting you halfway.
             </h1>
             <p className="mt-5 max-w-md text-body text-text-muted">
-              Independent vendors, shipped locally from the US — one delivery to your door.
+              International brands you love — now just a doorstep away. Every store, one checkout,
+              shipped locally from the US.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-3">
               <a
@@ -163,7 +164,7 @@ function MarketplaceInner() {
                       ) : null}
                     </div>
                     <div className="p-3">
-                      <div className="truncate font-mono text-[9px] uppercase tracking-[1.4px] text-text-subtle">
+                      <div className="truncate font-mono text-[10px] uppercase tracking-[1.4px] text-text-subtle">
                         {p.storeName}
                       </div>
                       <div className="truncate text-[12px] font-semibold text-ink">{p.name}</div>
@@ -182,11 +183,7 @@ function MarketplaceInner() {
       {/* ---------------------------------------------------------- Categories */}
       {categories.length > 0 ? (
         <section id="categories" className="mb-16 scroll-mt-6">
-          <SectionHead
-            eyebrow="Shop by category"
-            title="Find your aisle"
-            subtitle="Browse the marketplace by what you're after."
-          />
+          <SectionHead eyebrow="Browse" title="Shop by category" />
           <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
             {categories.slice(0, 8).map((c, i) => {
               const Icon = CATEGORY_ICONS[i % CATEGORY_ICONS.length]!;
@@ -204,7 +201,7 @@ function MarketplaceInner() {
                     {c}
                     <span aria-hidden className="text-text-subtle transition-transform group-hover:translate-x-0.5">→</span>
                   </span>
-                  <span className="mt-1 text-[12px] text-text-muted">Shop {c.toLowerCase()}</span>
+                  <span className="mt-1 text-[13px] text-text-muted">Shop {c.toLowerCase()}</span>
                 </button>
               );
             })}
@@ -216,21 +213,18 @@ function MarketplaceInner() {
       {featured ? (
         <section className="mb-16 overflow-hidden rounded-2xl border border-line bg-white">
           <div className="grid gap-0 md:grid-cols-2">
-            <div
-              className="flex min-h-[240px] items-center justify-center"
-              style={{ background: featured.accentColor || "var(--cream-deep, #EDE7DD)" }}
-            >
+            <div className="flex min-h-[240px] items-center justify-center bg-cream-deep">
               {featured.logoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={featured.logoUrl} alt={featured.displayName} className="max-h-32 max-w-[70%] object-contain" />
               ) : (
-                <span className="text-5xl font-semibold text-white/90">
+                <span className="text-5xl font-semibold text-ink/80">
                   {featured.displayName.charAt(0).toUpperCase()}
                 </span>
               )}
             </div>
             <div className="p-8">
-              <div className="font-mono text-[11px] uppercase tracking-[2.4px] text-amber">Featured vendor</div>
+              <div className="font-mono text-[11px] uppercase tracking-[2.4px] text-text-subtle">Featured vendor</div>
               <h2 className="mt-3 text-2xl font-semibold tracking-tight text-ink md:text-3xl">
                 {featured.displayName}
               </h2>
@@ -264,9 +258,8 @@ function MarketplaceInner() {
         <section id="vendors" className="mb-16">
           <SectionHead
             eyebrow="Meet the sellers"
-            title="Featured vendors"
-            subtitle="Every vendor stores their inventory with USA Errands, so orders ship locally — not from overseas."
-            action={<Link href="#products" className="text-[13px] font-semibold text-amber hover:underline">Shop everything →</Link>}
+            title="Stores on the marketplace"
+            action={<Link href="#products" className="text-[13px] font-semibold text-ink hover:underline">See all stores →</Link>}
           />
           <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
             {stores.map((s) => (
@@ -275,17 +268,14 @@ function MarketplaceInner() {
                 href={`/store/${s.slug}`}
                 className="group flex flex-col rounded-2xl border border-line bg-white p-5 transition-transform hover:-translate-y-0.5 hover:shadow-1"
               >
-                <span
-                  className="flex h-12 w-12 items-center justify-center rounded-full text-lg font-semibold text-white"
-                  style={{ background: s.accentColor || "#0A0A0A" }}
-                >
+                <span className="flex h-12 w-12 items-center justify-center rounded-full bg-ink text-lg font-semibold text-cream-soft">
                   {s.displayName.charAt(0).toUpperCase()}
                 </span>
                 <span className="mt-4 truncate text-[15px] font-semibold text-ink">{s.displayName}</span>
-                <span className="mt-1 text-[12px] text-text-muted">
+                <span className="mt-1 text-[13px] text-text-muted">
                   {countByVendor.get(s.slug) ?? 0} {(countByVendor.get(s.slug) ?? 0) === 1 ? "product" : "products"}
                 </span>
-                <span className="mt-3 inline-flex items-center gap-1 text-[12px] font-semibold text-amber">
+                <span className="mt-3 inline-flex items-center gap-1 text-[13px] font-semibold text-ink">
                   Visit store <span aria-hidden className="transition-transform group-hover:translate-x-0.5">→</span>
                 </span>
               </Link>
@@ -302,7 +292,7 @@ function MarketplaceInner() {
               eyebrow="Search"
               title={`Results for “${searchQuery}”`}
               subtitle={`${searchResults.length} ${searchResults.length === 1 ? "match" : "matches"} across the marketplace.`}
-              action={<Link href="/marketplace" className="text-[13px] font-semibold text-amber hover:underline">Clear search →</Link>}
+              action={<Link href="/marketplace" className="text-[13px] font-semibold text-ink hover:underline">Clear search →</Link>}
             />
             {searchResults.length === 0 ? (
               <div className="rounded-2xl border border-line bg-white px-6 py-16 text-center text-body-sm text-text-muted">
@@ -319,7 +309,11 @@ function MarketplaceInner() {
           </>
         ) : (
           <>
-            <SectionHead eyebrow="Picked for you" title="Shop everything" />
+            <SectionHead
+              eyebrow="Shop the marketplace"
+              title="New and popular right now"
+              subtitle="A mix of new arrivals and favorites from across every store on the marketplace."
+            />
 
             {categories.length > 0 ? (
               <nav className="mb-8 flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-line pb-3">
@@ -353,7 +347,7 @@ function MarketplaceInner() {
           eyebrow="Know before you buy"
           title="Returns"
           subtitle="Return policies are set by each vendor. Here's what's consistent across the marketplace."
-          action={<Link href="/marketplace/returns" className="text-[13px] font-semibold text-amber hover:underline">Start a return →</Link>}
+          action={<Link href="/marketplace/returns" className="text-[13px] font-semibold text-ink hover:underline">Start a return →</Link>}
         />
         <div className="grid gap-4 md:grid-cols-3">
           <InfoCard
@@ -395,20 +389,24 @@ function MarketplaceInner() {
 
 const FAQS: ReadonlyArray<{ q: string; a: string }> = [
   {
-    q: "Will I owe duties or taxes on delivery?",
-    a: "Yes — but only if your order is shipping to Canada. U.S. orders don't attract duties or taxes. Canadian orders may, depending on order value — assessed on delivery and separate from what you pay at checkout.",
+    q: "Do items from different stores really ship together?",
+    a: "Yes. Everything in your cart ships as one delivery from the US — one checkout, one package to your door, no matter how many stores it spans.",
   },
   {
-    q: "What's the return policy?",
-    a: "Returns are set by each vendor — some accept them within a set window, others don't. See the Returns section above for what's consistent across every vendor.",
+    q: "Will I owe duties or taxes on delivery?",
+    a: "Only if your order is shipping to Canada. U.S. orders don't attract duties or taxes. Canadian orders may, depending on order value — assessed on delivery and separate from what you pay at checkout.",
   },
   {
     q: "How fast is delivery once my order ships?",
-    a: "Because every order ships locally from the US rather than internationally, delivery is typically just a few working days — no waiting on overseas transit.",
+    a: "Because every order ships locally from the US rather than internationally, delivery is typically just a few working days.",
+  },
+  {
+    q: "What's your return policy?",
+    a: "Return eligibility and the return window are set by each store, and refunds go to your original payment method, less shipping, handling, and processing fees.",
   },
   {
     q: "Is my payment secure?",
-    a: "Yes. Checkout is encrypted end-to-end, and USA Errands never stores your full card details.",
+    a: "Yes. Checkout is encrypted end-to-end.",
   },
 ];
 
@@ -426,7 +424,7 @@ function SectionHead({
   return (
     <div className="mb-6 flex items-end justify-between gap-4">
       <div>
-        <div className="font-mono text-[11px] uppercase tracking-[2.4px] text-amber">{eyebrow}</div>
+        <div className="font-mono text-[11px] uppercase tracking-[2.4px] text-text-subtle">{eyebrow}</div>
         <h2 className="mt-2 text-2xl font-semibold tracking-tight text-ink md:text-3xl">{title}</h2>
         {subtitle ? <p className="mt-2 max-w-lg text-body-sm text-text-muted">{subtitle}</p> : null}
       </div>
@@ -498,11 +496,11 @@ function FeedCard({ product: p, index }: { product: MarketplaceProduct; index: n
         )}
       </Link>
       <div className="mt-3">
-        <div className="font-mono text-[10px] uppercase tracking-[1.4px] text-text-subtle">{p.storeName}</div>
-        <Link href={href} className="mt-1 block text-[13px] font-semibold text-ink hover:underline">
+        <div className="font-mono text-[11px] uppercase tracking-[1.4px] text-text-subtle">{p.storeName}</div>
+        <Link href={href} className="mt-1 block text-[14px] font-semibold text-ink hover:underline">
           {p.name}
         </Link>
-        <div className="mt-1 text-[13px] text-text-muted">
+        <div className="mt-1 text-[14px] text-text-muted">
           {p.priceVaries ? `from ${formatUsd(p.retailPriceCents)}` : formatUsd(p.retailPriceCents)}
         </div>
       </div>
@@ -525,8 +523,8 @@ function Tab({
       onClick={onClick}
       className={
         active
-          ? "border-b-2 border-ink pb-2 text-[12px] font-semibold uppercase tracking-[1.2px] text-ink"
-          : "border-b-2 border-transparent pb-2 text-[12px] font-medium uppercase tracking-[1.2px] text-text-muted transition-colors hover:text-ink"
+          ? "border-b-2 border-ink pb-2 text-[13px] font-semibold uppercase tracking-[1.2px] text-ink"
+          : "border-b-2 border-transparent pb-2 text-[13px] font-medium uppercase tracking-[1.2px] text-text-muted transition-colors hover:text-ink"
       }
     >
       {children}
