@@ -1,9 +1,10 @@
 "use client";
 
-import { Search, ShoppingBag, User } from "lucide-react";
+import { Search, ShoppingBag, User, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { MarketplaceCartProvider, useMarketplaceCart } from "./cart-context";
 
@@ -22,11 +23,12 @@ export default function MarketplaceLayout({ children }: { children: React.ReactN
   );
 }
 
-const FOOTER_LINKS: ReadonlyArray<{ href: string; label: string }> = [
+// href null → not a link; rendered as a button (e.g. Return Policy opens a modal).
+const FOOTER_LINKS: ReadonlyArray<{ href: string | null; label: string }> = [
   { href: "/legal/privacy", label: "Privacy" },
   { href: "/security", label: "Security" },
   { href: "/about", label: "About Us" },
-  { href: "/marketplace#return-policy", label: "Return Policy" },
+  { href: null, label: "Return Policy" },
   { href: "/signup", label: "Sell With Us" },
   { href: "/marketplace/returns", label: "Start a Return" },
   { href: "/contact", label: "Contact" },
@@ -44,6 +46,7 @@ const FOOTER_LINKS: ReadonlyArray<{ href: string; label: string }> = [
 function MarketplaceFooter() {
   const [email, setEmail] = useState("");
   const [signedUp, setSignedUp] = useState(false);
+  const [showPolicy, setShowPolicy] = useState(false);
   const emailValid = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim());
 
   const onSignup = (e: React.FormEvent) => {
@@ -91,14 +94,91 @@ function MarketplaceFooter() {
         </div>
       </div>
 
-      {/* Return Policy — full policy block, from the design. */}
-      <div id="return-policy" className="scroll-mt-24 border-b border-white/10">
-        <div className="mx-auto w-full max-w-6xl px-5 py-14 md:px-8">
-          <div className="font-mono text-[11px] uppercase tracking-[2.4px] text-cream-soft">Policies</div>
-          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-cream-soft md:text-3xl">
-            Return Policy
-          </h2>
-          <div className="mt-5 max-w-3xl space-y-4 text-[14px] leading-relaxed text-cream-soft">
+      {/* Links + copyright. */}
+      <div className="mx-auto w-full max-w-6xl px-5 py-10 md:px-8">
+        <div className="flex flex-wrap items-center justify-between gap-6">
+          <Link href="/marketplace" className="text-[17px] font-semibold tracking-tight text-cream-soft">
+            USA Errands
+          </Link>
+          <nav className="flex flex-wrap gap-x-6 gap-y-2">
+            {FOOTER_LINKS.map((l) =>
+              l.href ? (
+                <Link
+                  key={l.label}
+                  href={l.href}
+                  className="text-[13px] text-cream-soft transition-colors hover:underline"
+                >
+                  {l.label}
+                </Link>
+              ) : (
+                <button
+                  key={l.label}
+                  type="button"
+                  onClick={() => setShowPolicy(true)}
+                  className="text-[13px] text-cream-soft transition-colors hover:underline"
+                >
+                  {l.label}
+                </button>
+              ),
+            )}
+          </nav>
+        </div>
+        <div className="mt-8 text-[12px] text-cream-soft">© 2026 USA Errands</div>
+      </div>
+
+      <ReturnPolicyModal open={showPolicy} onClose={() => setShowPolicy(false)} />
+    </footer>
+  );
+}
+
+/** Return Policy pop-up — opened from the footer "Return Policy" link. */
+function ReturnPolicyModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  // Lock body scroll + Escape to close while open.
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open, onClose]);
+
+  if (!open || !mounted) return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[60] flex items-end justify-center p-0 text-ink sm:items-center sm:p-6">
+      <button
+        type="button"
+        aria-label="Close"
+        onClick={onClose}
+        className="absolute inset-0 bg-ink/45 backdrop-blur-sm"
+      />
+      <div className="relative flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl bg-white shadow-2 sm:rounded-2xl">
+        <div className="flex items-start justify-between gap-4 border-b border-line px-6 py-4">
+          <div>
+            <div className="font-mono text-[11px] uppercase tracking-[2.4px] text-ink">Policies</div>
+            <h2 className="mt-1 text-xl font-semibold tracking-tight text-ink">Return Policy</h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-ink hover:bg-ink/5"
+          >
+            <X className="h-5 w-5" aria-hidden />
+          </button>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+          <div className="space-y-4 text-[14px] leading-relaxed text-ink">
             <p>
               Eligible items may be returned within the window set by that store&apos;s own return
               policy, for a refund to your original payment method — less the original shipping,
@@ -122,40 +202,24 @@ function MarketplaceFooter() {
               store&apos;s own policy. Hit the <strong>Start a Return</strong> button to get started.
             </p>
           </div>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line bg-cream-soft px-6 py-4">
+          <span className="text-[12px] text-ink">
+            Last updated: September 2026 · Questions?{" "}
+            <a href="mailto:hello@myusaerrands.com" className="underline">hello@myusaerrands.com</a>
+          </span>
           <Link
             href="/marketplace/returns"
-            className="mt-6 inline-block rounded-full bg-cream-soft px-6 py-2.5 text-[13px] font-semibold text-ink transition-transform hover:-translate-y-0.5"
+            onClick={onClose}
+            className="rounded-full bg-ink px-5 py-2.5 text-[13px] font-semibold text-cream-soft transition-transform hover:-translate-y-0.5"
           >
             Start a Return
           </Link>
-          <p className="mt-6 text-[12px] text-cream-soft">
-            Last updated: September 2026 · Questions?{" "}
-            <a href="mailto:hello@myusaerrands.com" className="underline">hello@myusaerrands.com</a>
-          </p>
         </div>
       </div>
-
-      {/* Links + copyright. */}
-      <div className="mx-auto w-full max-w-6xl px-5 py-10 md:px-8">
-        <div className="flex flex-wrap items-center justify-between gap-6">
-          <Link href="/marketplace" className="text-[17px] font-semibold tracking-tight text-cream-soft">
-            USA Errands
-          </Link>
-          <nav className="flex flex-wrap gap-x-6 gap-y-2">
-            {FOOTER_LINKS.map((l) => (
-              <Link
-                key={l.label}
-                href={l.href}
-                className="text-[13px] text-cream-soft transition-colors hover:underline"
-              >
-                {l.label}
-              </Link>
-            ))}
-          </nav>
-        </div>
-        <div className="mt-8 text-[12px] text-cream-soft">© 2026 USA Errands</div>
-      </div>
-    </footer>
+    </div>,
+    document.body,
   );
 }
 
