@@ -45,7 +45,7 @@ const CATEGORY_ICONS: LucideIcon[] = [Shirt, Sparkles, Home, Watch, ShoppingBag,
 
 export default function MarketplacePage() {
   return (
-    <Suspense fallback={<div className="py-20 text-center font-mono text-mono-label text-ink">Loading…</div>}>
+    <Suspense fallback={<div className="py-20 text-center text-mono-label text-ink">Loading…</div>}>
       <MarketplaceInner />
     </Suspense>
   );
@@ -112,7 +112,7 @@ function MarketplaceInner() {
       <section className="-mx-5 mb-16 border-b border-line bg-cream-soft px-5 py-12 md:-mx-8 md:px-8 md:py-16">
         <div className="grid items-center gap-10 lg:grid-cols-2">
           <div>
-            <div className="font-mono text-[11px] uppercase tracking-[2.4px] text-ink">
+            <div className="text-[11px] uppercase tracking-[2.4px] text-ink">
               The USA Errands Marketplace
             </div>
             <h1 className="mt-4 text-4xl font-semibold leading-[1.02] tracking-tight text-ink md:text-6xl">
@@ -161,7 +161,7 @@ function MarketplaceInner() {
                       ) : null}
                     </div>
                     <div className="p-3">
-                      <div className="truncate font-mono text-[10px] uppercase tracking-[1.4px] text-ink">
+                      <div className="truncate text-[10px] uppercase tracking-[1.4px] text-ink">
                         {p.storeName}
                       </div>
                       <div className="truncate text-[12px] font-semibold text-ink">{p.name}</div>
@@ -221,7 +221,7 @@ function MarketplaceInner() {
               )}
             </div>
             <div className="p-8">
-              <div className="font-mono text-[11px] uppercase tracking-[2.4px] text-ink">Featured vendor</div>
+              <div className="text-[11px] uppercase tracking-[2.4px] text-ink">Featured vendor</div>
               <h2 className="mt-3 text-2xl font-semibold tracking-tight text-ink md:text-3xl">
                 {featured.displayName}
               </h2>
@@ -322,7 +322,7 @@ function MarketplaceInner() {
             ) : null}
 
             {loading ? (
-              <div className="py-20 text-center font-mono text-mono-label text-ink">Loading…</div>
+              <div className="py-20 text-center text-mono-label text-ink">Loading…</div>
             ) : products.length === 0 ? (
               <div className="rounded-2xl border border-line bg-white px-6 py-16 text-center text-body-sm text-ink">
                 No products in the marketplace yet.
@@ -394,7 +394,7 @@ function SectionHead({
   return (
     <div className="mb-6 flex items-end justify-between gap-4">
       <div>
-        <div className="font-mono text-[11px] uppercase tracking-[2.4px] text-ink">{eyebrow}</div>
+        <div className="text-[11px] uppercase tracking-[2.4px] text-ink">{eyebrow}</div>
         <h2 className="mt-2 text-2xl font-semibold tracking-tight text-ink md:text-3xl">{title}</h2>
         {subtitle ? <p className="mt-2 max-w-lg text-body-sm text-ink">{subtitle}</p> : null}
       </div>
@@ -420,7 +420,7 @@ function FeedCard({ product: p, index }: { product: MarketplaceProduct; index: n
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-ink">
-            <span className="font-mono text-[11px] uppercase tracking-[1.4px]">No image</span>
+            <span className="text-[11px] uppercase tracking-[1.4px]">No image</span>
           </div>
         )}
         {p.variantGroupId ? (
@@ -454,7 +454,7 @@ function FeedCard({ product: p, index }: { product: MarketplaceProduct; index: n
         )}
       </Link>
       <div className="mt-3">
-        <div className="font-mono text-[11px] uppercase tracking-[1.4px] text-ink">{p.storeName}</div>
+        <div className="text-[11px] uppercase tracking-[1.4px] text-ink">{p.storeName}</div>
         <Link href={href} className="mt-1 block text-[14px] font-semibold text-ink hover:underline">
           {p.name}
         </Link>

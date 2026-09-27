@@ -164,7 +164,7 @@ function ReturnPolicyModal({ open, onClose }: { open: boolean; onClose: () => vo
       <div className="relative flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl bg-white shadow-2 sm:rounded-2xl">
         <div className="flex items-start justify-between gap-4 border-b border-line px-6 py-4">
           <div>
-            <div className="font-mono text-[11px] uppercase tracking-[2.4px] text-ink">Policies</div>
+            <div className="text-[11px] uppercase tracking-[2.4px] text-ink">Policies</div>
             <h2 className="mt-1 text-xl font-semibold tracking-tight text-ink">Return Policy</h2>
           </div>
           <button
@@ -227,7 +227,7 @@ function ReturnPolicyModal({ open, onClose }: { open: boolean; onClose: () => vo
 function AnnouncementBar() {
   return (
     <div className="bg-ink px-4 py-2.5 text-center">
-      <span className="font-mono text-[10px] uppercase tracking-[1.6px] text-cream-soft md:text-[11px]">
+      <span className="text-[10px] uppercase tracking-[1.6px] text-cream-soft md:text-[11px]">
         Orders shipping to Canada may attract duties and taxes upon delivery.
       </span>
     </div>
@@ -264,7 +264,7 @@ function MarketplaceHeader() {
         {/* Wordmark. */}
         <Link href="/marketplace" className="flex shrink-0 items-baseline gap-1.5 leading-none">
           <span className="text-[17px] font-semibold tracking-tight text-ink">USA Errands</span>
-          <span className="hidden font-mono text-[12px] uppercase tracking-[1.5px] text-ink sm:inline">
+          <span className="hidden text-[12px] uppercase tracking-[1.5px] text-ink sm:inline">
             Marketplace
           </span>
         </Link>
