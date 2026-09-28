@@ -48,6 +48,8 @@ interface AdminSkuRow {
    * SKU detail page. `null` when the vendor never uploaded one.
    */
   productImageUrl: string | null;
+  /** False when the product has no L×W×H — marketplace shipping is estimated. */
+  dimensionsSet: boolean;
   quantityAvailable: number;
   quantityReserved: number;
   storageTier: Tier;
@@ -255,6 +257,15 @@ export default function AdminInventoryPage(): JSX.Element {
                   <div className="font-mono text-[11px] text-text-muted">
                     {s.productCode} · {s.variant}
                   </div>
+                  {!s.dimensionsSet ? (
+                    <Link
+                      href={`/admin/products/${encodeURIComponent(s.productId)}`}
+                      className="mt-1 inline-flex items-center gap-1 rounded-sm border border-amber/50 bg-amber/10 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[1px] text-amber hover:bg-amber/20"
+                      title="This product has no L×W×H, so marketplace shipping is only estimated. Click to add dimensions."
+                    >
+                      ⚠ No dimensions — add →
+                    </Link>
+                  ) : null}
                 </Td>
                 <Td mono>{s.storageTier.replace("_", "-")}</Td>
                 <Td num>{s.quantityAvailable}</Td>
