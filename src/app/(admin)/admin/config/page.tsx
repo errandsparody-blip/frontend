@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
+import { useState } from "react";
 
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
@@ -71,6 +72,139 @@ const VIRTUAL_EDITORS: Array<{ href: string; title: string; description: string 
   },
 ];
 
+interface EmailTestResult {
+  ok: boolean;
+  to: string;
+  providerId: string | null;
+  error: string | null;
+  sentAt: string;
+}
+
+/**
+ * Diagnostics card — sends a one-off test email through the real
+ * transactional pipeline (POST /admin/email-test) so an admin can
+ * confirm deliverability after a DNS / domain change without placing a
+ * real order. On failure the exact provider code is shown (e.g.
+ * `resend_403` = sending domain not verified).
+ */
+function EmailTestCard(): JSX.Element {
+  const [to, setTo] = useState("");
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState<EmailTestResult | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to.trim());
+
+  async function send() {
+    if (!emailValid || sending) return;
+    setSending(true);
+    setResult(null);
+    setErr(null);
+    try {
+      const res = await api.post<EmailTestResult>("/admin/email-test", {
+        to: to.trim(),
+      });
+      setResult(res);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Request failed");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <section className="rounded-md border border-line bg-cream-soft p-4">
+      <div className="mb-2 font-mono text-mono-label uppercase tracking-[1.4px] text-amber">
+        Diagnostics
+      </div>
+      <div className="rounded-md border border-line bg-white p-4">
+        <div className="font-semibold text-ink">Send a test email</div>
+        <p className="mt-1 text-body-sm text-text-muted">
+          Sends one message through the real email pipeline — same path every
+          receipt and notification uses. Use it to confirm delivery is working
+          (or to read the exact failure code if it isn&apos;t).
+        </p>
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+          <input
+            type="email"
+            inputMode="email"
+            autoComplete="off"
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") send();
+            }}
+            placeholder="recipient@example.com"
+            className="h-11 w-full rounded-sm border border-line-strong bg-white px-3 text-body-sm text-text sm:max-w-xs"
+          />
+          <button
+            type="button"
+            onClick={send}
+            disabled={!emailValid || sending}
+            className="h-11 shrink-0 rounded-sm bg-ink px-4 font-mono text-[11px] uppercase tracking-[1.2px] text-white hover:bg-ink/90 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {sending ? "Sending…" : "Send test email"}
+          </button>
+        </div>
+
+        {result ? (
+          result.ok ? (
+            <div
+              role="status"
+              className="mt-3 rounded-md border-l-4 border-success bg-success/10 px-4 py-3"
+            >
+              <div className="font-mono text-mono-label uppercase text-success">
+                Sent
+              </div>
+              <p className="mt-1 text-body-sm text-text">
+                Delivered to <strong>{result.to}</strong>. Check the inbox (and
+                spam). Provider id:{" "}
+                <span className="font-mono text-[12px]">
+                  {result.providerId ?? "—"}
+                </span>
+              </p>
+            </div>
+          ) : (
+            <div
+              role="alert"
+              className="mt-3 rounded-md border-l-4 border-error bg-error/10 px-4 py-3"
+            >
+              <div className="font-mono text-mono-label uppercase text-error">
+                Not sent
+              </div>
+              <p className="mt-1 text-body-sm text-text">
+                The provider rejected it. Code:{" "}
+                <span className="font-mono text-[12px]">{result.error}</span>
+                {result.error === "resend_403" ? (
+                  <>
+                    {" "}
+                    — the sending domain is not verified. Check the domain in
+                    Resend and its DNS records.
+                  </>
+                ) : result.error === "resend_api_key_missing" ? (
+                  <> — RESEND_API_KEY is not set on the server.</>
+                ) : null}
+              </p>
+            </div>
+          )
+        ) : null}
+
+        {err ? (
+          <div
+            role="alert"
+            className="mt-3 rounded-md border-l-4 border-error bg-error/10 px-4 py-3"
+          >
+            <div className="font-mono text-mono-label uppercase text-error">
+              Couldn&apos;t reach the server
+            </div>
+            <p className="mt-1 text-body-sm text-text">{err}</p>
+          </div>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
 export default function AdminConfigPage() {
   const { data, isLoading } = useQuery({
     queryKey: ["admin", "config"],
@@ -84,6 +218,8 @@ export default function AdminConfigPage() {
         title="Platform configuration"
         description="Fee schedule, tier dimensions, repackaging fees. Every change is captured in the audit log with the full before/after JSON."
       />
+
+      <EmailTestCard />
 
       {/* Migration 0043 — links to editors that don't correspond to
           rows in the configuration table (e.g. packaging_options is
