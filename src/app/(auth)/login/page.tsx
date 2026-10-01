@@ -70,7 +70,16 @@ export default function LoginPage() {
   // anything else falls through and renders without a button.
   function onAction(handler: NonNullable<NonNullable<typeof bannerError>["entry"]["action"]>["handler"]) {
     if (handler === "verifyEmail") {
-      router.push("/signup/verify-email");
+      // Carry the email the user just typed so the verify page can
+      // prefill it and the "Resend code" button has an address to act
+      // on. Without it the verify page lands with no email and resend
+      // silently no-ops.
+      const typedEmail = form.getValues("email")?.trim();
+      router.push(
+        typedEmail
+          ? `/signup/verify-email?email=${encodeURIComponent(typedEmail)}`
+          : "/signup/verify-email",
+      );
     } else if (handler === "support") {
       window.location.href = "mailto:hello@myusaerrands.com";
     } else if (handler === "retry") {
