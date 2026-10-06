@@ -30,7 +30,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -44,6 +44,51 @@ import { PageHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
 import { DataTable, TBody, THead, Th, TR, Td } from "@/components/ui/table";
 import { api } from "@/lib/api-client";
+
+/**
+ * Collapsible card section — same look as the plain `<section>` cards on
+ * this page, but the title toggles the body open/closed so the vendor
+ * detail page opens compact instead of as one long scroll. The optional
+ * `aside` (a status summary or a "Full …" link) sits beside the toggle,
+ * OUTSIDE the button, so interactive asides (links) stay valid.
+ */
+function CollapsibleCard({
+  title,
+  aside,
+  defaultOpen = false,
+  children,
+}: {
+  title: string;
+  aside?: ReactNode;
+  defaultOpen?: boolean;
+  children: ReactNode;
+}): JSX.Element {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <section className="rounded-md border border-line bg-white">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4">
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          className="flex items-center gap-3 text-left"
+        >
+          <span
+            aria-hidden
+            className={`font-mono text-text-muted transition-transform ${
+              open ? "rotate-90" : ""
+            }`}
+          >
+            ▸
+          </span>
+          <span className="text-h3 font-semibold text-ink">{title}</span>
+        </button>
+        {aside ? <div>{aside}</div> : null}
+      </div>
+      {open ? <div className="px-6 pb-6">{children}</div> : null}
+    </section>
+  );
+}
 import { normalizeError, useApiErrorHandler } from "@/lib/errors";
 
 // ---------------------------------------------------------------------------
@@ -658,15 +703,14 @@ export default function AdminVendorDetailPage() {
 
 
               {/* Spend breakdown by ledger type */}
-              <section className="rounded-md border border-line bg-white p-6">
-                <header className="flex flex-wrap items-baseline justify-between gap-3">
-                  <h2 className="text-h3 font-semibold text-ink">
-                    Lifetime spend by category
-                  </h2>
+              <CollapsibleCard
+                title="Lifetime spend by category"
+                aside={
                   <span className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
                     From ledger entries
                   </span>
-                </header>
+                }
+              >
                 <p className="mt-1 text-body-sm text-text-muted">
                   Every debit and credit on this vendor&apos;s wallet, bucketed
                   by ledger type. Deposits and refunds are positive; everything
@@ -716,16 +760,17 @@ export default function AdminVendorDetailPage() {
                     </TBody>
                   </DataTable>
                 )}
-              </section>
+              </CollapsibleCard>
 
               {/* Recent PSNs */}
-              <section className="rounded-md border border-line bg-white p-6">
-                <header className="flex flex-wrap items-baseline justify-between gap-3">
-                  <h2 className="text-h3 font-semibold text-ink">Recent PSNs</h2>
+              <CollapsibleCard
+                title="Recent PSNs"
+                aside={
                   <span className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
                     {formatStatusMap(o.psns.byStatus)}
                   </span>
-                </header>
+                }
+              >
                 {o.psns.recent.length === 0 ? (
                   <EmptyState
                     title="No PSNs filed yet"
@@ -777,16 +822,17 @@ export default function AdminVendorDetailPage() {
                     </TBody>
                   </DataTable>
                 )}
-              </section>
+              </CollapsibleCard>
 
               {/* Recent orders */}
-              <section className="rounded-md border border-line bg-white p-6">
-                <header className="flex flex-wrap items-baseline justify-between gap-3">
-                  <h2 className="text-h3 font-semibold text-ink">Recent orders</h2>
+              <CollapsibleCard
+                title="Recent orders"
+                aside={
                   <span className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
                     {formatStatusMap(o.orders.byStatus)}
                   </span>
-                </header>
+                }
+              >
                 {o.orders.recent.length === 0 ? (
                   <EmptyState
                     title="No orders yet"
@@ -842,16 +888,17 @@ export default function AdminVendorDetailPage() {
                     </TBody>
                   </DataTable>
                 )}
-              </section>
+              </CollapsibleCard>
 
               {/* Recent returns */}
-              <section className="rounded-md border border-line bg-white p-6">
-                <header className="flex flex-wrap items-baseline justify-between gap-3">
-                  <h2 className="text-h3 font-semibold text-ink">Recent returns</h2>
+              <CollapsibleCard
+                title="Recent returns"
+                aside={
                   <span className="font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted">
                     {formatStatusMap(o.returns.byStatus)}
                   </span>
-                </header>
+                }
+              >
                 {o.returns.recent.length === 0 ? (
                   <EmptyState
                     title="No returns filed"
@@ -894,19 +941,20 @@ export default function AdminVendorDetailPage() {
                     </TBody>
                   </DataTable>
                 )}
-              </section>
+              </CollapsibleCard>
 
               {/* Ledger preview */}
-              <section className="rounded-md border border-line bg-white p-6">
-                <header className="flex flex-wrap items-baseline justify-between gap-3">
-                  <h2 className="text-h3 font-semibold text-ink">Latest ledger entries</h2>
+              <CollapsibleCard
+                title="Latest ledger entries"
+                aside={
                   <Link
                     href={`/admin/finance/transactions?vendorId=${v.id}`}
                     className="font-mono text-[11px] uppercase tracking-[1.2px] text-amber hover:text-amber-hi"
                   >
                     Full ledger →
                   </Link>
-                </header>
+                }
+              >
                 {o.ledger.recent.length === 0 ? (
                   <p className="mt-4 font-mono text-mono-label uppercase text-text-muted">
                     No ledger activity yet.
@@ -952,19 +1000,20 @@ export default function AdminVendorDetailPage() {
                     </TBody>
                   </DataTable>
                 )}
-              </section>
+              </CollapsibleCard>
 
               {/* Inventory by tier */}
-              <section className="rounded-md border border-line bg-white p-6">
-                <header className="flex flex-wrap items-baseline justify-between gap-3">
-                  <h2 className="text-h3 font-semibold text-ink">Inventory by tier</h2>
+              <CollapsibleCard
+                title="Inventory by tier"
+                aside={
                   <Link
                     href={`/admin/inventory?vendorId=${v.id}`}
                     className="font-mono text-[11px] uppercase tracking-[1.2px] text-amber hover:text-amber-hi"
                   >
                     Full inventory →
                   </Link>
-                </header>
+                }
+              >
                 {o.inventory.perTier.length === 0 ? (
                   <p className="mt-4 font-mono text-mono-label uppercase text-text-muted">
                     No active inventory.
@@ -991,7 +1040,7 @@ export default function AdminVendorDetailPage() {
                     ))}
                   </div>
                 )}
-              </section>
+              </CollapsibleCard>
             </>
           )}
         </div>
