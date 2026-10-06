@@ -197,10 +197,12 @@ export default function AdminDashboardPage(): JSX.Element {
               </div>
             </div>
             <p className="mb-4 max-w-prose text-body-sm text-text-muted">
-              Live total value of every item physically in our care —
-              declared value × units on hand, across all vendors. Use this
-              to size your insurance coverage. Updates automatically as new
-              stock is received.
+              Live total value of available (unsold) stock across all
+              vendors — declared value × units on hand. Reserved units
+              (already sold, awaiting fulfillment) are excluded since they
+              are no longer ours to insure. Use this to size your insurance
+              coverage; it updates automatically as stock is received and
+              sold.
             </p>
 
             {value.error ? (
