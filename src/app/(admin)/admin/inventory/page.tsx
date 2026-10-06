@@ -84,6 +84,17 @@ export default function AdminInventoryPage(): JSX.Element {
   // Full-size image preview (lightbox). Null when closed.
   const [preview, setPreview] = useState<{ url: string; name: string } | null>(null);
 
+  // Which vendor groups are expanded. Collapsed by default so the page
+  // opens as a short list of vendors rather than one long SKU table.
+  const [openVendors, setOpenVendors] = useState<Set<string>>(new Set());
+  const toggleVendor = (id: string) =>
+    setOpenVendors((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
   // Close the lightbox on Escape.
   useEffect(() => {
     if (!preview) return;
@@ -124,6 +135,42 @@ export default function AdminInventoryPage(): JSX.Element {
     queryKey: ["admin", "skus", { search, tier, status, zeroOnly, vendorId }],
     queryFn: () => api.get<ListResponse>(`/admin/skus?${params.toString()}`),
   });
+
+  // Group the flat SKU list by vendor so the page renders as collapsible
+  // vendor sections instead of one long table. Each group carries roll-up
+  // counts (SKUs, available units, reserved units) shown on the header.
+  const groups = useMemo(() => {
+    const rows = listQ.data?.items ?? [];
+    const byVendor = new Map<
+      string,
+      {
+        vendorId: string;
+        vendorName: string;
+        items: AdminSkuRow[];
+        available: number;
+        reserved: number;
+      }
+    >();
+    for (const s of rows) {
+      let g = byVendor.get(s.vendorId);
+      if (!g) {
+        g = {
+          vendorId: s.vendorId,
+          vendorName: s.vendorBusinessName,
+          items: [],
+          available: 0,
+          reserved: 0,
+        };
+        byVendor.set(s.vendorId, g);
+      }
+      g.items.push(s);
+      g.available += s.quantityAvailable;
+      g.reserved += s.quantityReserved;
+    }
+    return [...byVendor.values()].sort((a, b) =>
+      a.vendorName.localeCompare(b.vendorName, "en", { sensitivity: "base" }),
+    );
+  }, [listQ.data]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -216,26 +263,81 @@ export default function AdminInventoryPage(): JSX.Element {
           }
         />
       ) : (
-        <DataTable>
-          <THead>
-            <Th>SKU</Th>
-            <Th>Vendor</Th>
-            <Th>Image</Th>
-            <Th>Product</Th>
-            <Th>Tier</Th>
-            <Th align="right">Available</Th>
-            <Th align="right">Reserved</Th>
-            <Th>Status</Th>
-            <Th align="right">Action</Th>
-          </THead>
-          <TBody>
-            {listQ.data.items.map((s) => (
-              <TR key={s.id}>
-                <Td mono strong>
-                  {s.id}
-                </Td>
-                <Td>{s.vendorBusinessName}</Td>
-                <Td>
+        <div className="flex flex-col gap-3">
+          {/* Expand / collapse all — convenience for a quick sweep. */}
+          <div className="flex items-center justify-between">
+            <div className="font-mono text-mono-label uppercase tracking-[1.4px] text-text-muted">
+              {groups.length} vendor{groups.length === 1 ? "" : "s"} ·{" "}
+              {listQ.data.items.length} SKU
+              {listQ.data.items.length === 1 ? "" : "s"}
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setOpenVendors(new Set(groups.map((g) => g.vendorId)))}
+                className="font-mono text-[11px] uppercase tracking-[1.2px] text-text-muted hover:text-ink"
+              >
+                Expand all
+              </button>
+              <button
+                type="button"
+                onClick={() => setOpenVendors(new Set())}
+                className="font-mono text-[11px] uppercase tracking-[1.2px] text-text-muted hover:text-ink"
+              >
+                Collapse all
+              </button>
+            </div>
+          </div>
+
+          {groups.map((g) => {
+            const open = openVendors.has(g.vendorId);
+            return (
+              <div
+                key={g.vendorId}
+                className="overflow-hidden rounded-md border border-line bg-white"
+              >
+                <button
+                  type="button"
+                  onClick={() => toggleVendor(g.vendorId)}
+                  aria-expanded={open}
+                  className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left hover:bg-cream-soft"
+                >
+                  <span className="flex items-center gap-3">
+                    <span
+                      aria-hidden
+                      className={`inline-block font-mono text-text-muted transition-transform ${
+                        open ? "rotate-90" : ""
+                      }`}
+                    >
+                      ▸
+                    </span>
+                    <span className="font-semibold text-ink">{g.vendorName}</span>
+                  </span>
+                  <span className="font-mono text-[11px] uppercase tracking-[1.2px] text-text-muted">
+                    {g.items.length} SKU{g.items.length === 1 ? "" : "s"} ·{" "}
+                    {g.available} avail · {g.reserved} reserved
+                  </span>
+                </button>
+
+                {open ? (
+                  <DataTable>
+                    <THead>
+                      <Th>SKU</Th>
+                      <Th>Image</Th>
+                      <Th>Product</Th>
+                      <Th>Tier</Th>
+                      <Th align="right">Available</Th>
+                      <Th align="right">Reserved</Th>
+                      <Th>Status</Th>
+                      <Th align="right">Action</Th>
+                    </THead>
+                    <TBody>
+                      {g.items.map((s) => (
+                        <TR key={s.id}>
+                          <Td mono strong>
+                            {s.id}
+                          </Td>
+                          <Td>
                   {/* 40×40 thumbnail anchored to the row — gives staff
                       an at-a-glance visual ID without a click. When the
                       vendor never uploaded a photo we still render a
@@ -320,9 +422,14 @@ export default function AdminInventoryPage(): JSX.Element {
                   </div>
                 </Td>
               </TR>
-            ))}
-          </TBody>
-        </DataTable>
+                      ))}
+                    </TBody>
+                  </DataTable>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
       )}
 
       {/* Full-size product image lightbox. Click the backdrop, the ✕, or
