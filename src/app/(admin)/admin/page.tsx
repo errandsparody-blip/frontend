@@ -18,6 +18,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
+import { useState } from "react";
 
 import { PageHeader } from "@/components/ui/page-header";
 import { api } from "@/lib/api-client";
@@ -98,13 +99,22 @@ export default function AdminDashboardPage(): JSX.Element {
     queryFn: () => api.get<AdminOverview>("/admin/dashboard"),
   });
 
+  // Scope toggle for the insurable value card: "all" = every physical
+  // unit in our care; "insurable" = only products an admin has marked as
+  // needing insurance (needs_insurance). Drives the ?insurableOnly param.
+  const [insScope, setInsScope] = useState<"all" | "insurable">("all");
+
   // Insurable inventory value — polled so the headline climbs on its own
   // as new stock is received (the operator sizes insurance off this). We
   // refetch every 30s and on window focus/reconnect; react-query keeps
   // the last value on screen during refetch so the number never blanks.
+  // The query key includes the scope so switching refetches immediately.
   const value = useQuery({
-    queryKey: ["admin", "inventory-value"],
-    queryFn: () => api.get<InventoryValue>("/admin/dashboard/inventory-value"),
+    queryKey: ["admin", "inventory-value", insScope],
+    queryFn: () =>
+      api.get<InventoryValue>(
+        `/admin/dashboard/inventory-value${insScope === "insurable" ? "?insurableOnly=true" : ""}`,
+      ),
     refetchInterval: 30_000,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
@@ -163,17 +173,28 @@ export default function AdminDashboardPage(): JSX.Element {
               <div className="font-mono text-mono-label uppercase text-text-muted">
                 Insurable inventory value
               </div>
-              {value.data ? (
-                <div className="font-mono text-[11px] uppercase tracking-[1.2px] text-text-muted">
-                  as of{" "}
-                  {new Date(value.data.asOf).toLocaleTimeString("en-US", {
-                    hour: "numeric",
-                    minute: "2-digit",
-                    second: "2-digit",
-                  })}
-                  {value.isFetching ? " · refreshing…" : ""}
-                </div>
-              ) : null}
+              <div className="flex items-center gap-3">
+                <select
+                  aria-label="Inventory scope"
+                  value={insScope}
+                  onChange={(e) => setInsScope(e.target.value as "all" | "insurable")}
+                  className="h-8 rounded-sm border border-line-strong bg-white px-2 font-mono text-[11px] uppercase tracking-[1.2px] text-text outline-none focus:border-ink"
+                >
+                  <option value="all">All physical stock</option>
+                  <option value="insurable">Insurable only</option>
+                </select>
+                {value.data ? (
+                  <div className="font-mono text-[11px] uppercase tracking-[1.2px] text-text-muted">
+                    as of{" "}
+                    {new Date(value.data.asOf).toLocaleTimeString("en-US", {
+                      hour: "numeric",
+                      minute: "2-digit",
+                      second: "2-digit",
+                    })}
+                    {value.isFetching ? " · refreshing…" : ""}
+                  </div>
+                ) : null}
+              </div>
             </div>
             <p className="mb-4 max-w-prose text-body-sm text-text-muted">
               Live total value of every item physically in our care —

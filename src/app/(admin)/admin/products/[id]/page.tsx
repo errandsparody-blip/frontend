@@ -55,6 +55,7 @@ interface AdminProduct {
   widthIn: number | null;
   heightIn: number | null;
   storageTier: StorageTier;
+  needsInsurance: boolean;
   imageUrl: string | null;
   status: "ACTIVE" | "ARCHIVED";
   vendorId: string;
@@ -83,6 +84,7 @@ const formSchema = z.object({
     .length(2, "Use the 2-letter ISO country code (e.g. US, CN, NG)")
     .regex(/^[A-Z]{2}$/, "Use uppercase letters only"),
   storageTier: z.enum(["SMALL", "MEDIUM", "LARGE", "X_LARGE", "PALLET"]),
+  needsInsurance: z.boolean(),
   reason: z
     .string()
     .trim()
@@ -116,6 +118,7 @@ export default function AdminProductEditPage(): JSX.Element {
       declaredValueCents: 0,
       countryOfOrigin: "US",
       storageTier: "SMALL",
+      needsInsurance: true,
       reason: "",
     },
   });
@@ -133,6 +136,7 @@ export default function AdminProductEditPage(): JSX.Element {
       hsCode: p.hsCode ?? "",
       countryOfOrigin: p.countryOfOrigin,
       storageTier: p.storageTier,
+      needsInsurance: p.needsInsurance,
       reason: "",
     });
   }
@@ -156,6 +160,8 @@ export default function AdminProductEditPage(): JSX.Element {
       if (values.countryOfOrigin !== p.countryOfOrigin)
         patch.countryOfOrigin = values.countryOfOrigin;
       if (values.storageTier !== p.storageTier) patch.storageTier = values.storageTier;
+      if (values.needsInsurance !== p.needsInsurance)
+        patch.needsInsurance = values.needsInsurance;
       return api.patch<AdminProduct>(`/admin/products/${params.id}`, patch);
     },
     onMutate: clear,
@@ -294,6 +300,22 @@ export default function AdminProductEditPage(): JSX.Element {
               <Input id="heightIn" type="number" step="0.1" min="0" {...form.register("heightIn")} />
               <Hint>Was {p.heightIn != null ? <strong>{p.heightIn} in</strong> : "—"}</Hint>
               <FieldError msg={form.formState.errors.heightIn?.message} />
+            </Field>
+            <Field label="Insurance">
+              <label className="flex h-11 items-center gap-2 rounded-sm border border-line-strong bg-white px-3 text-body text-text">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4"
+                  {...form.register("needsInsurance")}
+                />
+                Needs insurance
+              </label>
+              <Hint>
+                When on, this product counts toward the dashboard&apos;s
+                Insurable Inventory Value. Turn off for goods that don&apos;t
+                need coverage.
+              </Hint>
+              <FieldError msg={form.formState.errors.needsInsurance?.message} />
             </Field>
           </div>
         </section>
