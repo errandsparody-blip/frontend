@@ -15,7 +15,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { FilterBar, FilterField, FilterSelect } from "@/components/admin/filters";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -81,6 +81,18 @@ export default function AdminInventoryPage(): JSX.Element {
   const [status, setStatus] = useState<Status | "">("");
   const [zeroOnly, setZeroOnly] = useState(false);
   const [vendorId, setVendorId] = useState<string>("");
+  // Full-size image preview (lightbox). Null when closed.
+  const [preview, setPreview] = useState<{ url: string; name: string } | null>(null);
+
+  // Close the lightbox on Escape.
+  useEffect(() => {
+    if (!preview) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setPreview(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [preview]);
 
   // Pull the vendor list once for the dropdown. 100 is plenty for v1 — when
   // the vendor count grows past that we'll swap to a searchable combobox.
@@ -229,20 +241,29 @@ export default function AdminInventoryPage(): JSX.Element {
                       vendor never uploaded a photo we still render a
                       neutral placeholder so the column stays aligned. */}
                   {s.productImageUrl ? (
-                    /* eslint-disable-next-line @next/next/no-img-element */
-                    <img
-                      src={s.productImageUrl}
-                      alt={`${s.productName} thumbnail`}
-                      className="h-10 w-10 shrink-0 rounded-sm border border-line object-cover"
-                      loading="lazy"
-                      decoding="async"
-                      onError={(e) => {
-                        // Hide the <img> if R2 returns 404 (vendor cleared
-                        // out-of-band, R2 transient outage, etc.) so we
-                        // don't render the browser's broken-image glyph.
-                        (e.target as HTMLImageElement).style.display = "none";
-                      }}
-                    />
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPreview({ url: s.productImageUrl!, name: s.productName })
+                      }
+                      className="block h-10 w-10 shrink-0 cursor-zoom-in overflow-hidden rounded-sm border border-line focus:outline-none focus:ring-2 focus:ring-amber"
+                      title="Click to view full image"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={s.productImageUrl}
+                        alt={`${s.productName} thumbnail`}
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                        decoding="async"
+                        onError={(e) => {
+                          // Hide the <img> if R2 returns 404 (vendor cleared
+                          // out-of-band, R2 transient outage, etc.) so we
+                          // don't render the browser's broken-image glyph.
+                          (e.target as HTMLImageElement).style.display = "none";
+                        }}
+                      />
+                    </button>
                   ) : (
                     <div
                       aria-hidden
@@ -303,6 +324,44 @@ export default function AdminInventoryPage(): JSX.Element {
           </TBody>
         </DataTable>
       )}
+
+      {/* Full-size product image lightbox. Click the backdrop, the ✕, or
+          press Escape to close. */}
+      {preview ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${preview.name} image`}
+          className="fixed inset-0 z-50 flex items-center justify-center p-6"
+        >
+          {/* Backdrop as a real button so click-to-close is accessible. */}
+          <button
+            type="button"
+            aria-label="Close image preview"
+            onClick={() => setPreview(null)}
+            className="absolute inset-0 cursor-zoom-out bg-black/70"
+          />
+          <div className="relative flex max-h-[90vh] max-w-[90vw] flex-col overflow-hidden rounded-md border border-line bg-white shadow-xl">
+            <div className="flex items-center justify-between gap-4 border-b border-line px-4 py-2">
+              <span className="truncate font-medium text-ink">{preview.name}</span>
+              <button
+                type="button"
+                onClick={() => setPreview(null)}
+                className="shrink-0 rounded-sm px-2 py-1 font-mono text-[11px] uppercase tracking-[1.2px] text-text-muted hover:bg-cream-soft hover:text-ink"
+                aria-label="Close image preview"
+              >
+                ✕ Close
+              </button>
+            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={preview.url}
+              alt={preview.name}
+              className="min-h-0 w-auto max-w-full flex-1 object-contain"
+            />
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
