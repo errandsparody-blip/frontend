@@ -453,7 +453,17 @@ export default function OrderDetailPage() {
           ) : null}
           {o.deliveredAt ? <Event when={o.deliveredAt} label="Delivered" /> : null}
           {o.cancelledAt ? (
-            <Event when={o.cancelledAt} label={`Cancelled: ${o.cancelReason ?? ""}${o.cancelNote ? ` (${o.cancelNote})` : ""}`} tone="error" />
+            <Event
+              when={o.cancelledAt}
+              label={`Cancelled: ${o.cancelReason ?? ""}${
+                o.cancelNote
+                  ? // Strip the legacy "ADMIN_FORCE_CANCEL:" prefix from older
+                    // records so the vendor only sees the human note.
+                    ` (${o.cancelNote.replace(/^ADMIN_FORCE_CANCEL:\s*/, "")})`
+                  : ""
+              }`}
+              tone="error"
+            />
           ) : null}
         </ul>
       </section>
