@@ -29,6 +29,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { ErrorBanner } from "@/components/errors/error-banner";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -173,6 +174,22 @@ export default function AdminPackQueuePage(): JSX.Element {
     onError: (err) => handle(err),
   });
 
+  // Admin cancel straight from the pack queue (useful for cancelling test
+  // transactions). Force-cancel releases stock + refunds the vendor's full
+  // spend + sets the order to CANCELLED.
+  const [cancelTarget, setCancelTarget] = useState<QueueRow | null>(null);
+  const cancelMut = useMutation({
+    mutationFn: (id: string) =>
+      api.post(`/admin/orders/${id}/force-cancel`, { reason: "Admin cancellation" }),
+    onMutate: () => clear(),
+    onSuccess: async () => {
+      setCancelTarget(null);
+      await qc.invalidateQueries({ queryKey: ["admin", "pack", "queue"] });
+      await qc.invalidateQueries({ queryKey: ["admin", "orders"] });
+    },
+    onError: (err) => handle(err),
+  });
+
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
@@ -225,20 +242,42 @@ export default function AdminPackQueuePage(): JSX.Element {
                     : "—"}
                 </Td>
                 <Td align="right">
-                  <Button
-                    type="button"
-                    variant="amber"
-                    size="sm"
-                    onClick={() => setSelected(row)}
-                  >
-                    Pack
-                  </Button>
+                  <div className="flex items-center justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCancelTarget(row)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="amber"
+                      size="sm"
+                      onClick={() => setSelected(row)}
+                    >
+                      Pack
+                    </Button>
+                  </div>
                 </Td>
               </TR>
             ))}
           </TBody>
         </DataTable>
       )}
+
+      <ConfirmDialog
+        open={cancelTarget !== null}
+        onCancel={() => setCancelTarget(null)}
+        onConfirm={() => cancelTarget && cancelMut.mutate(cancelTarget.id)}
+        title={cancelTarget ? `Cancel order #${cancelTarget.orderNumber}?` : "Cancel order?"}
+        description="This cancels the order, refunds the vendor's full spend (fulfillment fee + label) to their wallet, and restocks the inventory. If a Shippo label was bought, void it in Shippo separately."
+        confirmLabel="Cancel order"
+        cancelLabel="Keep order"
+        tone="danger"
+        confirming={cancelMut.isPending}
+      />
 
       {selected ? (
         <PackDialog

@@ -7,6 +7,7 @@ import { useState } from "react";
 import { ErrorBanner } from "@/components/errors/error-banner";
 import { BackButton } from "@/components/portal/back-button";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
 import { DataTable, TBody, THead, Th, TR, Td } from "@/components/ui/table";
@@ -116,6 +117,23 @@ const TONE: Record<string, "neutral" | "info" | "success" | "warning" | "error">
   EXCEPTION: "error",
   CANCELLED: "error",
 };
+
+// Pre-ship statuses an admin can force-cancel. Mirrors FORCE_CANCELLABLE in
+// admin-order.service.ts; kept as a plain string[] because the web client
+// doesn't carry the full v2 OrderStatus enum.
+const ADMIN_CANCELLABLE: string[] = [
+  "DRAFT",
+  "SUBMITTED",
+  "ALLOCATED",
+  "LABEL_PURCHASED",
+  "PICKING",
+  "PACKED",
+  "PENDING_PACKING",
+  "PACKING_COMPLETED",
+  "AWAITING_SHIPPING_SELECTION",
+  "AWAITING_WALLET_FUNDING",
+  "SHIPPING_PAID",
+];
 
 /**
  * Migration 0037 + Phase T2 — pick the next operator action based on:
@@ -258,6 +276,26 @@ export default function AdminOrderDetailPage() {
     onMutate: clear,
     onSuccess: async () => {
       setDecisionNote("");
+      await qc.invalidateQueries({ queryKey: ["admin", "orders"] });
+    },
+    onError: (err) => handle(err),
+  });
+
+  // Standalone admin cancel — independent of a vendor request. Mirrors the
+  // backend FORCE_CANCELLABLE set (admin-order.service.ts): any pre-ship
+  // status. Cancels, refunds the vendor's full net spend (fulfillment +
+  // label) to their wallet, and restocks inventory. Shippo label void stays
+  // manual.
+  const [cancelOpen, setCancelOpen] = useState(false);
+
+  const generalCancel = useMutation({
+    mutationFn: () =>
+      api.post<AdminOrderDetail>(`/admin/orders/${params.id}/force-cancel`, {
+        reason: "Admin cancellation",
+      }),
+    onMutate: clear,
+    onSuccess: async () => {
+      setCancelOpen(false);
       await qc.invalidateQueries({ queryKey: ["admin", "orders"] });
     },
     onError: (err) => handle(err),
@@ -625,6 +663,39 @@ export default function AdminOrderDetailPage() {
       ) : null}
 
       {!next ? <ErrorBanner error={bannerError} onAction={onAction} /> : null}
+
+      {/* Standalone admin cancel — available on any pre-ship order (mirrors the
+          backend FORCE_CANCELLABLE set), independent of a vendor request.
+          Hidden while a vendor request is pending above (that panel owns the
+          decision) to avoid two cancel paths at once. */}
+      {ADMIN_CANCELLABLE.includes(o.status) &&
+      !(o.cancelRequestedAt && !o.cancelRequestResolvedAt) ? (
+        <section className="rounded-md border border-error/40 bg-error/[0.04] p-5">
+          <h2 className="font-mono text-mono-label uppercase text-error">Cancel order</h2>
+          <p className="mt-1 text-body-sm text-text-muted">
+            Cancels this order, refunds the vendor&apos;s full net spend
+            (fulfillment fee + label) to their wallet, and restocks the
+            inventory. If a Shippo label was bought, void it in Shippo
+            separately. This cannot be undone.
+          </p>
+          <div className="mt-3 flex justify-end">
+            <Button variant="outline" onClick={() => setCancelOpen(true)}>
+              Cancel order
+            </Button>
+          </div>
+          <ConfirmDialog
+            open={cancelOpen}
+            tone="danger"
+            title={`Cancel order #${o.orderNumber}?`}
+            description="Refunds the vendor's full spend (fulfillment + label) to their wallet and restocks inventory. If a Shippo label was bought, void it in Shippo separately. This cannot be undone."
+            confirmLabel="Cancel order"
+            cancelLabel="Keep order"
+            confirming={generalCancel.isPending}
+            onCancel={() => setCancelOpen(false)}
+            onConfirm={() => generalCancel.mutate()}
+          />
+        </section>
+      ) : null}
 
       <section className="rounded-md border border-line bg-white p-6">
         <h2 className="font-mono text-mono-label uppercase text-text-muted">Lines</h2>

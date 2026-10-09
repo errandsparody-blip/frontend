@@ -137,7 +137,10 @@ const HOLD_REASON_LABEL: Record<string, string> = {
 };
 
 export default function AdminOrdersQueuePage() {
-  const [tab, setTab] = useState<TabValue>("queue");
+  // Default to "all" so the newest orders (any status, newest-first) show
+  // immediately — admins shouldn't have to switch off the active-queue
+  // filter just to see the latest order. "Queue (active)" stays available.
+  const [tab, setTab] = useState<TabValue>("all");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
 
