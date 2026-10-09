@@ -58,6 +58,9 @@ interface AdminOrderRow {
   // set only while status = ON_HOLD.
   source: "MANUAL" | "API";
   holdReason: string | null;
+  // Migration 0074 — pending vendor cancellation request flag.
+  cancelRequestedAt: string | null;
+  cancelRequestResolvedAt: string | null;
   createdAt: string;
 }
 
@@ -246,6 +249,11 @@ export default function AdminOrdersQueuePage() {
                 </Td>
                 <Td>
                   <StatusPill tone={TONE[o.status]}>{o.status.replace(/_/g, " ")}</StatusPill>
+                  {o.cancelRequestedAt && !o.cancelRequestResolvedAt ? (
+                    <span className="ml-2 inline-block rounded-sm border border-amber/60 bg-amber/15 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[1px] text-amber">
+                      Cancel requested
+                    </span>
+                  ) : null}
                   {o.source === "API" && o.status !== "ON_HOLD" ? (
                     <div className="mt-1 font-mono text-[10px] uppercase tracking-[1.1px] text-text-muted">
                       Storefront
