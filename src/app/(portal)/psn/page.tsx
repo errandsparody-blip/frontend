@@ -7,7 +7,7 @@ import { StorageTierGuide } from "@/components/portal/storage-tier-guide";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
-import { Pagination, useCursorPagination } from "@/components/ui/pagination";
+import { PageSizeSelect, Pagination, useCursorPagination } from "@/components/ui/pagination";
 import { StatusPill } from "@/components/ui/status-pill";
 import { DataTable, TBody, THead, Th, TR, Td } from "@/components/ui/table";
 import { api } from "@/lib/api-client";
@@ -29,10 +29,10 @@ const TONE: Record<PsnStatus, "neutral" | "info" | "success" | "warning" | "erro
 export default function PsnListPage() {
   const page = useCursorPagination();
   const { data, isLoading, isFetching, error } = useQuery({
-    queryKey: ["psns", { cursor: page.cursor }],
+    queryKey: ["psns", { cursor: page.cursor, pageSize: page.pageSize }],
     queryFn: () =>
       api.get<{ items: PublicPsn[]; nextCursor: string | null }>(
-        `/psns?limit=50${page.cursor ? `&cursor=${page.cursor}` : ""}`,
+        `/psns?limit=${page.pageSize}${page.cursor ? `&cursor=${page.cursor}` : ""}`,
       ),
     placeholderData: keepPreviousData,
   });
@@ -74,6 +74,7 @@ export default function PsnListPage() {
         <StorageTierGuide triggerLabel="Open storage tier guide" />
       </section>
 
+      <div className="mb-3 flex justify-end"><PageSizeSelect value={page.pageSize} onChange={page.setPageSize} /></div>
       {isLoading ? (
         <div className="font-mono text-mono-label uppercase text-text-muted">Loading…</div>
       ) : error ? (

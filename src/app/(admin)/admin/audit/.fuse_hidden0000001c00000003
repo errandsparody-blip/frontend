@@ -109,10 +109,6 @@ export default function AdminAuditPage() {
         <FilterDateRange from={from} to={to} onFrom={setFrom} onTo={setTo} />
       </FilterBar>
 
-      <div className="flex justify-end">
-        <PageSizeSelect value={page.pageSize} onChange={page.setPageSize} />
-      </div>
-
       {isLoading ? (
         <div className="font-mono text-mono-label uppercase text-text-muted">Loading…</div>
       ) : error ? (

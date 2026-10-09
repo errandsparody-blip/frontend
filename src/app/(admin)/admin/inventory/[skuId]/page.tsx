@@ -30,7 +30,7 @@ import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
-import { Pagination, useCursorPagination } from "@/components/ui/pagination";
+import { PageSizeSelect, Pagination, useCursorPagination } from "@/components/ui/pagination";
 import { StatusPill } from "@/components/ui/status-pill";
 import { DataTable, TBody, THead, Th, TR, Td } from "@/components/ui/table";
 import { api } from "@/lib/api-client";
@@ -107,10 +107,10 @@ export default function AdminInventoryDetailPage(): JSX.Element {
   }, [skuId, resetPage]);
 
   const movementsQ = useQuery({
-    queryKey: ["admin", "sku", skuId, "movements", { cursor: page.cursor }],
+    queryKey: ["admin", "sku", skuId, "movements", { cursor: page.cursor, pageSize: page.pageSize }],
     queryFn: () =>
       api.get<{ items: Movement[]; nextCursor: string | null }>(
-        `/admin/skus/${encodeURIComponent(skuId)}/movements?limit=50${page.cursor ? `&cursor=${page.cursor}` : ""}`,
+        `/admin/skus/${encodeURIComponent(skuId)}/movements?limit=${page.pageSize}${page.cursor ? `&cursor=${page.cursor}` : ""}`,
       ),
     enabled: !!skuId,
     placeholderData: keepPreviousData,
@@ -234,7 +234,8 @@ export default function AdminInventoryDetailPage(): JSX.Element {
         </p>
 
         <div className="mt-6">
-          {movementsQ.isLoading ? (
+          <div className="mb-3 flex justify-end"><PageSizeSelect value={page.pageSize} onChange={page.setPageSize} /></div>
+      {movementsQ.isLoading ? (
             <p className="font-mono text-mono-label uppercase text-text-muted">Loading…</p>
           ) : !movementsQ.data || movementsQ.data.items.length === 0 ? (
             <p className="font-mono text-mono-label uppercase text-text-subtle">

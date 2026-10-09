@@ -56,15 +56,24 @@ export interface CursorPagination {
   prev: () => void;
   /** Jump back to page 1. Call this whenever filters/search change. */
   reset: () => void;
+  /** Current rows-per-page. Feed into the list query's `limit`. */
+  pageSize: number;
+  /** Change rows-per-page; also jumps back to page 1 (the cursor stack is
+   *  only valid for the size it was built with). */
+  setPageSize: (n: number) => void;
 }
+
+/** Rows-per-page choices offered by the PageSizeSelect dropdown. */
+export const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
 
 /**
  * Cursor stack. Each entry is the cursor used to open the page one deeper, so
  * an empty stack means page 1 (no cursor sent). The top of the stack is the
  * cursor for the current page.
  */
-export function useCursorPagination(): CursorPagination {
+export function useCursorPagination(initialPageSize = 20): CursorPagination {
   const [stack, setStack] = useState<string[]>([]);
+  const [pageSize, setPageSizeState] = useState<number>(initialPageSize);
 
   const next = useCallback((nextCursor: string | null) => {
     if (!nextCursor) return;
@@ -79,6 +88,11 @@ export function useCursorPagination(): CursorPagination {
     setStack([]);
   }, []);
 
+  const setPageSize = useCallback((n: number) => {
+    setPageSizeState(n);
+    setStack([]); // a cursor from a 50-row page is meaningless at 10 rows.
+  }, []);
+
   return {
     cursor: stack[stack.length - 1],
     page: stack.length + 1,
@@ -86,7 +100,48 @@ export function useCursorPagination(): CursorPagination {
     next,
     prev,
     reset,
+    pageSize,
+    setPageSize,
   };
+}
+
+/**
+ * Rows-per-page dropdown. Place it at the top of a list (near the filters).
+ * Pair with `useCursorPagination`: `value={page.pageSize}` /
+ * `onChange={page.setPageSize}`.
+ */
+export function PageSizeSelect({
+  value,
+  onChange,
+  options = PAGE_SIZE_OPTIONS as unknown as number[],
+  className,
+}: {
+  value: number;
+  onChange: (n: number) => void;
+  options?: number[];
+  className?: string;
+}): JSX.Element {
+  return (
+    <label
+      className={cn(
+        "flex items-center gap-2 font-mono text-mono-label uppercase tracking-[1.2px] text-text-muted",
+        className,
+      )}
+    >
+      Rows
+      <select
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="h-9 rounded-sm border border-line-strong bg-white px-2 font-mono text-body-sm text-text outline-none focus:border-ink"
+      >
+        {options.map((n) => (
+          <option key={n} value={n}>
+            {n}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
 }
 
 interface PaginationProps {

@@ -6,7 +6,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
-import { Pagination, useCursorPagination } from "@/components/ui/pagination";
+import { PageSizeSelect, Pagination, useCursorPagination } from "@/components/ui/pagination";
 import { StatusPill } from "@/components/ui/status-pill";
 import { DataTable, TBody, THead, Th, TR, Td } from "@/components/ui/table";
 import { api } from "@/lib/api-client";
@@ -37,10 +37,10 @@ export default function WalletPage() {
   });
   const page = useCursorPagination();
   const ledgerQ = useQuery({
-    queryKey: ["wallet", "ledger", { cursor: page.cursor }],
+    queryKey: ["wallet", "ledger", { cursor: page.cursor, pageSize: page.pageSize }],
     queryFn: () =>
       api.get<{ items: PublicLedgerEntry[]; nextCursor: string | null }>(
-        `/wallet/ledger?limit=50${page.cursor ? `&cursor=${page.cursor}` : ""}`,
+        `/wallet/ledger?limit=${page.pageSize}${page.cursor ? `&cursor=${page.cursor}` : ""}`,
       ),
     placeholderData: keepPreviousData,
   });
@@ -133,6 +133,7 @@ export default function WalletPage() {
       </section>
 
       {/* Ledger */}
+      <div className="mb-3 flex justify-end"><PageSizeSelect value={page.pageSize} onChange={page.setPageSize} /></div>
       {ledgerQ.isLoading ? (
         <div className="font-mono text-mono-label uppercase text-text-muted">Loading ledger…</div>
       ) : !ledgerQ.data || ledgerQ.data.items.length === 0 ? (

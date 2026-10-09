@@ -38,7 +38,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
-import { Pagination, useCursorPagination } from "@/components/ui/pagination";
+import { PageSizeSelect, Pagination, useCursorPagination } from "@/components/ui/pagination";
 import { StatusPill } from "@/components/ui/status-pill";
 import { DataTable, TBody, THead, Th, TR, Td } from "@/components/ui/table";
 import { api } from "@/lib/api-client";
@@ -131,12 +131,12 @@ function UserList({ currentUserId }: { currentUserId: string }): JSX.Element {
   }, [trimmedSearch, resetPage]);
 
   const params = new URLSearchParams();
-  params.set("limit", "50");
+  params.set("limit", String(page.pageSize));
   if (trimmedSearch) params.set("search", trimmedSearch);
   if (page.cursor) params.set("cursor", page.cursor);
 
   const usersQ = useQuery({
-    queryKey: ["admin", "users", { search: trimmedSearch, cursor: page.cursor }],
+    queryKey: ["admin", "users", { search: trimmedSearch, cursor: page.cursor, pageSize: page.pageSize }],
     queryFn: () => api.get<ListResponse>(`/admin/users?${params.toString()}`),
     placeholderData: keepPreviousData,
   });
@@ -152,6 +152,7 @@ function UserList({ currentUserId }: { currentUserId: string }): JSX.Element {
         />
       </div>
 
+      <div className="mb-3 flex justify-end"><PageSizeSelect value={page.pageSize} onChange={page.setPageSize} /></div>
       {usersQ.isLoading ? (
         <div className="font-mono text-mono-label uppercase text-text-muted">Loading…</div>
       ) : usersQ.isError ? (

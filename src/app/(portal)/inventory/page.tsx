@@ -5,7 +5,7 @@ import Link from "next/link";
 
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
-import { Pagination, useCursorPagination } from "@/components/ui/pagination";
+import { PageSizeSelect, Pagination, useCursorPagination } from "@/components/ui/pagination";
 import { StatusPill } from "@/components/ui/status-pill";
 import { DataTable, TBody, THead, Th, TR, Td } from "@/components/ui/table";
 import { api } from "@/lib/api-client";
@@ -34,10 +34,10 @@ const STATUS_TONE = {
 export default function InventoryPage() {
   const page = useCursorPagination();
   const { data, isLoading, isFetching, error } = useQuery({
-    queryKey: ["skus", { cursor: page.cursor }],
+    queryKey: ["skus", { cursor: page.cursor, pageSize: page.pageSize }],
     queryFn: () =>
       api.get<{ items: PublicSku[]; nextCursor: string | null }>(
-        `/skus?limit=50${page.cursor ? `&cursor=${page.cursor}` : ""}`,
+        `/skus?limit=${page.pageSize}${page.cursor ? `&cursor=${page.cursor}` : ""}`,
       ),
     placeholderData: keepPreviousData,
   });
@@ -61,6 +61,7 @@ export default function InventoryPage() {
         }
       />
 
+      <div className="mb-3 flex justify-end"><PageSizeSelect value={page.pageSize} onChange={page.setPageSize} /></div>
       {isLoading ? (
         <div className="font-mono text-mono-label uppercase text-text-muted">Loading…</div>
       ) : error ? (

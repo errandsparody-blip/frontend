@@ -154,10 +154,6 @@ export default function AdminPsnQueuePage(): JSX.Element {
         <FilterDateRange from={from} to={to} onFrom={setFrom} onTo={setTo} />
       </FilterBar>
 
-      <div className="flex justify-end">
-        <PageSizeSelect value={page.pageSize} onChange={page.setPageSize} />
-      </div>
-
       {isLoading && !data ? (
         <div className="font-mono text-mono-label uppercase text-text-muted">
           Loading…

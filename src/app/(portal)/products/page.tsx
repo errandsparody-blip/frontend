@@ -6,7 +6,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
-import { Pagination, useCursorPagination } from "@/components/ui/pagination";
+import { PageSizeSelect, Pagination, useCursorPagination } from "@/components/ui/pagination";
 import { StatusPill } from "@/components/ui/status-pill";
 import { DataTable, TBody, THead, Th, TR, Td } from "@/components/ui/table";
 import { api } from "@/lib/api-client";
@@ -15,10 +15,10 @@ import type { PublicProduct } from "@/lib/schemas/products";
 export default function ProductsPage() {
   const page = useCursorPagination();
   const { data, isLoading, isFetching, error } = useQuery({
-    queryKey: ["products", { cursor: page.cursor }],
+    queryKey: ["products", { cursor: page.cursor, pageSize: page.pageSize }],
     queryFn: () =>
       api.get<{ items: PublicProduct[]; nextCursor: string | null }>(
-        `/products?limit=50${page.cursor ? `&cursor=${page.cursor}` : ""}`,
+        `/products?limit=${page.pageSize}${page.cursor ? `&cursor=${page.cursor}` : ""}`,
       ),
     placeholderData: keepPreviousData,
   });
@@ -38,6 +38,7 @@ export default function ProductsPage() {
         }
       />
 
+      <div className="mb-3 flex justify-end"><PageSizeSelect value={page.pageSize} onChange={page.setPageSize} /></div>
       {isLoading ? (
         <div className="font-mono text-mono-label uppercase text-text-muted">Loading…</div>
       ) : error ? (

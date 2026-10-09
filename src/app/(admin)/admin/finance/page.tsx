@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
-import { Pagination, useCursorPagination } from "@/components/ui/pagination";
+import { PageSizeSelect, Pagination, useCursorPagination } from "@/components/ui/pagination";
 import { StatusPill } from "@/components/ui/status-pill";
 import { DataTable, TBody, THead, Th, TR, Td } from "@/components/ui/table";
 import { api } from "@/lib/api-client";
@@ -40,10 +40,10 @@ export default function FinanceLandingPage() {
   }, [search, resetPage]);
 
   const { data, isLoading, isFetching, error } = useQuery({
-    queryKey: ["admin", "vendors", { search, cursor: page.cursor }],
+    queryKey: ["admin", "vendors", { search, cursor: page.cursor, pageSize: page.pageSize }],
     queryFn: () =>
       api.get<{ items: AdminVendor[]; nextCursor: string | null }>(
-        `/admin/vendors?limit=50${search ? `&search=${encodeURIComponent(search)}` : ""}${page.cursor ? `&cursor=${page.cursor}` : ""}`,
+        `/admin/vendors?limit=${page.pageSize}${search ? `&search=${encodeURIComponent(search)}` : ""}${page.cursor ? `&cursor=${page.cursor}` : ""}`,
       ),
     placeholderData: keepPreviousData,
   });
@@ -81,6 +81,7 @@ export default function FinanceLandingPage() {
         />
       </div>
 
+      <div className="mb-3 flex justify-end"><PageSizeSelect value={page.pageSize} onChange={page.setPageSize} /></div>
       {isLoading ? (
         <div className="font-mono text-mono-label uppercase text-text-muted">Loading…</div>
       ) : error ? (
