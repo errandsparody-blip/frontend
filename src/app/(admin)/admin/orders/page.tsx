@@ -1,8 +1,13 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   FilterBar,
@@ -13,6 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
+import { Pagination, useCursorPagination } from "@/components/ui/pagination";
 import { StatusPill } from "@/components/ui/status-pill";
 import { DataTable, TBody, THead, Th, TR, Td } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
@@ -144,8 +150,18 @@ export default function AdminOrdersQueuePage() {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
 
+  const page = useCursorPagination();
+  // `reset` is a stable useCallback, so depending on it (rather than the whole
+  // `page` object, which is recreated each render) keeps the effect from
+  // looping. Any filter change invalidates the cursor stack — jump back to
+  // page 1 so we never send a cursor that belongs to a different result set.
+  const { reset: resetPage } = page;
+  useEffect(() => {
+    resetPage();
+  }, [tab, from, to, resetPage]);
+
   const params = new URLSearchParams();
-  params.set("limit", "100");
+  params.set("limit", "50");
   if (tab === "all") {
     params.set("view", "all");
   } else if (tab !== "queue") {
@@ -153,16 +169,20 @@ export default function AdminOrdersQueuePage() {
   }
   if (from) params.set("from", from);
   if (to) params.set("to", to);
+  if (page.cursor) params.set("cursor", page.cursor);
 
   const qc = useQueryClient();
   const toast = useToast();
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["admin", "orders", { tab, from, to }],
+  const { data, isLoading, isFetching, error } = useQuery({
+    queryKey: ["admin", "orders", { tab, from, to, cursor: page.cursor }],
     queryFn: () =>
       api.get<{ items: AdminOrderRow[]; nextCursor: string | null }>(
         `/admin/orders?${params.toString()}`,
       ),
+    // Keep the current page on screen while the next one loads, so the table
+    // doesn't flash empty between pages.
+    placeholderData: keepPreviousData,
   });
 
   // Migration 0038 — retry allocation on a held storefront order after the
@@ -318,6 +338,17 @@ export default function AdminOrdersQueuePage() {
           </TBody>
         </DataTable>
       )}
+
+      {!isLoading && !error && data && data.items.length > 0 ? (
+        <Pagination
+          page={page.page}
+          hasPrev={page.hasPrev}
+          hasNext={Boolean(data.nextCursor)}
+          loading={isFetching}
+          onPrev={page.prev}
+          onNext={() => page.next(data.nextCursor)}
+        />
+      ) : null}
     </div>
   );
 }
