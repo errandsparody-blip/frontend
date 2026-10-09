@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
+import { useState } from "react";
 
 import { ErrorBanner } from "@/components/errors/error-banner";
 import { BackButton } from "@/components/portal/back-button";
@@ -45,6 +46,12 @@ interface AdminOrderDetail {
   containsDryIce: boolean;
   dryIceWeightOz: number | null;
   containsLithium: boolean;
+  // Migration 0074 — vendor cancellation request state.
+  cancelRequestedAt: string | null;
+  cancelRequestReason: string | null;
+  cancelRequestNote: string | null;
+  cancelRequestResolvedAt: string | null;
+  cancelRequestOutcome: string | null;
   vendor: { id: string; businessName: string };
   /**
    * Migration 0037 — branches the entire fulfillment workflow:
@@ -222,6 +229,35 @@ export default function AdminOrderDetailPage() {
     mutationFn: (endpoint: string) => api.post<AdminOrderDetail>(`/admin/orders/${params.id}/${endpoint}`, {}),
     onMutate: clear,
     onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["admin", "orders"] });
+    },
+    onError: (err) => handle(err),
+  });
+
+  // Migration 0074 — admin decision on a vendor cancellation request.
+  const [decisionNote, setDecisionNote] = useState("");
+
+  const approveCancel = useMutation({
+    mutationFn: () =>
+      api.post<AdminOrderDetail>(`/admin/orders/${params.id}/force-cancel`, {
+        reason: decisionNote.trim() || "Vendor cancellation request approved",
+      }),
+    onMutate: clear,
+    onSuccess: async () => {
+      setDecisionNote("");
+      await qc.invalidateQueries({ queryKey: ["admin", "orders"] });
+    },
+    onError: (err) => handle(err),
+  });
+
+  const rejectCancel = useMutation({
+    mutationFn: () =>
+      api.post<AdminOrderDetail>(`/admin/orders/${params.id}/reject-cancel-request`, {
+        note: decisionNote.trim(),
+      }),
+    onMutate: clear,
+    onSuccess: async () => {
+      setDecisionNote("");
       await qc.invalidateQueries({ queryKey: ["admin", "orders"] });
     },
     onError: (err) => handle(err),
