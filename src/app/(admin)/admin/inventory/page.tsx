@@ -13,7 +13,7 @@
 
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
@@ -21,6 +21,7 @@ import { FilterBar, FilterField, FilterSelect } from "@/components/admin/filters
 import { EmptyState } from "@/components/ui/empty-state";
 import { Field } from "@/components/ui/field";
 import { PageHeader } from "@/components/ui/page-header";
+import { Pagination, useCursorPagination } from "@/components/ui/pagination";
 import { StatusPill } from "@/components/ui/status-pill";
 import { DataTable, TBody, THead, Th, TR, Td } from "@/components/ui/table";
 import { api } from "@/lib/api-client";
@@ -123,17 +124,26 @@ export default function AdminInventoryPage(): JSX.Element {
     );
   }, [vendorsQ.data]);
 
+  const page = useCursorPagination();
+  const { reset: resetPage } = page;
+  const trimmedSearch = search.trim();
+  useEffect(() => {
+    resetPage();
+  }, [trimmedSearch, tier, status, zeroOnly, vendorId, resetPage]);
+
   const params = new URLSearchParams();
-  params.set("limit", "100");
-  if (search.trim()) params.set("search", search.trim());
+  params.set("limit", "50");
+  if (trimmedSearch) params.set("search", trimmedSearch);
   if (tier) params.set("storageTier", tier);
   if (status) params.set("status", status);
   if (zeroOnly) params.set("zeroOnly", "true");
   if (vendorId) params.set("vendorId", vendorId);
+  if (page.cursor) params.set("cursor", page.cursor);
 
   const listQ = useQuery({
-    queryKey: ["admin", "skus", { search, tier, status, zeroOnly, vendorId }],
+    queryKey: ["admin", "skus", { search: trimmedSearch, tier, status, zeroOnly, vendorId, cursor: page.cursor }],
     queryFn: () => api.get<ListResponse>(`/admin/skus?${params.toString()}`),
+    placeholderData: keepPreviousData,
   });
 
   // Group the flat SKU list by vendor so the page renders as collapsible
@@ -429,6 +439,15 @@ export default function AdminInventoryPage(): JSX.Element {
               </div>
             );
           })}
+
+          <Pagination
+            page={page.page}
+            hasPrev={page.hasPrev}
+            hasNext={Boolean(listQ.data.nextCursor)}
+            loading={listQ.isFetching}
+            onPrev={page.prev}
+            onNext={() => page.next(listQ.data?.nextCursor ?? null)}
+          />
         </div>
       )}
 

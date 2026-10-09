@@ -24,13 +24,14 @@
  * receive form on AWAITING_RECEIPT only).
  */
 
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { FilterBar, FilterDateRange, FilterSelect } from "@/components/admin/filters";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
+import { Pagination, useCursorPagination } from "@/components/ui/pagination";
 import { StatusPill } from "@/components/ui/status-pill";
 import { DataTable, TBody, THead, Th, TR, Td } from "@/components/ui/table";
 import { api } from "@/lib/api-client";
@@ -91,21 +92,28 @@ export default function AdminPsnQueuePage(): JSX.Element {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["admin", "psns", { tab, from, to }],
+  const page = useCursorPagination();
+  const { reset: resetPage } = page;
+  useEffect(() => {
+    resetPage();
+  }, [tab, from, to, resetPage]);
+
+  const { data, isLoading, isFetching, error } = useQuery({
+    queryKey: ["admin", "psns", { tab, from, to, cursor: page.cursor }],
     queryFn: () => {
       const statusParam = TAB_STATUS[tab];
-      const params = new URLSearchParams({ limit: "100" });
+      const params = new URLSearchParams({ limit: "50" });
       if (statusParam) params.set("status", statusParam);
       if (from) params.set("from", from);
       if (to) params.set("to", to);
+      if (page.cursor) params.set("cursor", page.cursor);
       return api.get<{ items: AdminPsnRow[]; nextCursor: string | null }>(
         `/admin/psns?${params.toString()}`,
       );
     },
-    // Keep previous data while switching tabs so the table doesn't
+    // Keep previous data while switching tabs/pages so the table doesn't
     // collapse into the loading state between clicks.
-    placeholderData: (prev) => prev,
+    placeholderData: keepPreviousData,
   });
 
   const isHistory = tab === "history";
@@ -214,6 +222,17 @@ export default function AdminPsnQueuePage(): JSX.Element {
           </TBody>
         </DataTable>
       )}
+
+      {!isLoading && !error && data && data.items.length > 0 ? (
+        <Pagination
+          page={page.page}
+          hasPrev={page.hasPrev}
+          hasNext={Boolean(data.nextCursor)}
+          loading={isFetching}
+          onPrev={page.prev}
+          onNext={() => page.next(data.nextCursor)}
+        />
+      ) : null}
     </div>
   );
 }

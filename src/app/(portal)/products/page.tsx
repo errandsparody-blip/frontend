@@ -1,21 +1,26 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
+import { Pagination, useCursorPagination } from "@/components/ui/pagination";
 import { StatusPill } from "@/components/ui/status-pill";
 import { DataTable, TBody, THead, Th, TR, Td } from "@/components/ui/table";
 import { api } from "@/lib/api-client";
 import type { PublicProduct } from "@/lib/schemas/products";
 
 export default function ProductsPage() {
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["products"],
+  const page = useCursorPagination();
+  const { data, isLoading, isFetching, error } = useQuery({
+    queryKey: ["products", { cursor: page.cursor }],
     queryFn: () =>
-      api.get<{ items: PublicProduct[]; nextCursor: string | null }>("/products?limit=50"),
+      api.get<{ items: PublicProduct[]; nextCursor: string | null }>(
+        `/products?limit=50${page.cursor ? `&cursor=${page.cursor}` : ""}`,
+      ),
+    placeholderData: keepPreviousData,
   });
 
   return (
@@ -119,6 +124,17 @@ export default function ProductsPage() {
           </TBody>
         </DataTable>
       )}
+
+      {!isLoading && !error && data && data.items.length > 0 ? (
+        <Pagination
+          page={page.page}
+          hasPrev={page.hasPrev}
+          hasNext={Boolean(data.nextCursor)}
+          loading={isFetching}
+          onPrev={page.prev}
+          onNext={() => page.next(data.nextCursor)}
+        />
+      ) : null}
     </div>
   );
 }

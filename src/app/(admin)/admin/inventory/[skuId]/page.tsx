@@ -12,10 +12,15 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -25,6 +30,7 @@ import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
+import { Pagination, useCursorPagination } from "@/components/ui/pagination";
 import { StatusPill } from "@/components/ui/status-pill";
 import { DataTable, TBody, THead, Th, TR, Td } from "@/components/ui/table";
 import { api } from "@/lib/api-client";
@@ -94,13 +100,20 @@ export default function AdminInventoryDetailPage(): JSX.Element {
     enabled: !!skuId,
   });
 
+  const page = useCursorPagination();
+  const { reset: resetPage } = page;
+  useEffect(() => {
+    resetPage();
+  }, [skuId, resetPage]);
+
   const movementsQ = useQuery({
-    queryKey: ["admin", "sku", skuId, "movements"],
+    queryKey: ["admin", "sku", skuId, "movements", { cursor: page.cursor }],
     queryFn: () =>
       api.get<{ items: Movement[]; nextCursor: string | null }>(
-        `/admin/skus/${encodeURIComponent(skuId)}/movements?limit=100`,
+        `/admin/skus/${encodeURIComponent(skuId)}/movements?limit=50${page.cursor ? `&cursor=${page.cursor}` : ""}`,
       ),
     enabled: !!skuId,
+    placeholderData: keepPreviousData,
   });
 
   if (skuQ.isLoading) {
@@ -269,6 +282,19 @@ export default function AdminInventoryDetailPage(): JSX.Element {
               </TBody>
             </DataTable>
           )}
+
+          {movementsQ.data && movementsQ.data.items.length > 0 ? (
+            <div className="mt-3">
+              <Pagination
+                page={page.page}
+                hasPrev={page.hasPrev}
+                hasNext={Boolean(movementsQ.data.nextCursor)}
+                loading={movementsQ.isFetching}
+                onPrev={page.prev}
+                onNext={() => page.next(movementsQ.data?.nextCursor ?? null)}
+              />
+            </div>
+          ) : null}
         </div>
       </section>
     </div>

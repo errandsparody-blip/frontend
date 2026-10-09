@@ -8,9 +8,9 @@
  * tabs and "All" are available for forensics.
  */
 
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   FilterBar,
@@ -21,6 +21,7 @@ import {
 } from "@/components/admin/filters";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
+import { Pagination, useCursorPagination } from "@/components/ui/pagination";
 import { StatusPill } from "@/components/ui/status-pill";
 import { DataTable, TBody, THead, Th, TR, Td } from "@/components/ui/table";
 import { api } from "@/lib/api-client";
@@ -108,25 +109,34 @@ export default function AdminShopperQueuePage(): JSX.Element {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
 
+  // Trim before the trip — the API requires min(1) on `search` if present.
+  const trimmed = search.trim();
+
+  const page = useCursorPagination();
+  const { reset: resetPage } = page;
+  useEffect(() => {
+    resetPage();
+  }, [tab, trimmed, from, to, resetPage]);
+
   const params = new URLSearchParams();
-  params.set("limit", "100");
+  params.set("limit", "50");
   if (tab === "all") {
     params.set("view", "all");
   } else if (tab !== "queue") {
     params.set("status", tab);
   }
-  // Trim before the trip — the API requires min(1) on `search` if present.
-  const trimmed = search.trim();
   if (trimmed.length > 0) params.set("search", trimmed);
   if (from) params.set("from", from);
   if (to) params.set("to", to);
+  if (page.cursor) params.set("cursor", page.cursor);
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["admin", "shopper", { tab, search: trimmed, from, to }],
+  const { data, isLoading, isFetching, error } = useQuery({
+    queryKey: ["admin", "shopper", { tab, search: trimmed, from, to, cursor: page.cursor }],
     queryFn: () =>
       api.get<{ items: AdminShopperRow[]; nextCursor: string | null }>(
         `/admin/shopper?${params.toString()}`,
       ),
+    placeholderData: keepPreviousData,
   });
 
   // Sanity check — keep the schema-shared status array in sync with this UI.
@@ -253,6 +263,17 @@ export default function AdminShopperQueuePage(): JSX.Element {
           </TBody>
         </DataTable>
       )}
+
+      {!isLoading && !error && data && data.items.length > 0 ? (
+        <Pagination
+          page={page.page}
+          hasPrev={page.hasPrev}
+          hasNext={Boolean(data.nextCursor)}
+          loading={isFetching}
+          onPrev={page.prev}
+          onNext={() => page.next(data.nextCursor)}
+        />
+      ) : null}
     </div>
   );
 }

@@ -24,7 +24,12 @@
 
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -33,6 +38,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
+import { Pagination, useCursorPagination } from "@/components/ui/pagination";
 import { StatusPill } from "@/components/ui/status-pill";
 import { DataTable, TBody, THead, Th, TR, Td } from "@/components/ui/table";
 import { api } from "@/lib/api-client";
@@ -117,13 +123,22 @@ export default function AdminUsersPage(): JSX.Element | null {
 function UserList({ currentUserId }: { currentUserId: string }): JSX.Element {
   const [search, setSearch] = useState("");
 
+  const page = useCursorPagination();
+  const { reset: resetPage } = page;
+  const trimmedSearch = search.trim();
+  useEffect(() => {
+    resetPage();
+  }, [trimmedSearch, resetPage]);
+
   const params = new URLSearchParams();
-  params.set("limit", "100");
-  if (search.trim()) params.set("search", search.trim());
+  params.set("limit", "50");
+  if (trimmedSearch) params.set("search", trimmedSearch);
+  if (page.cursor) params.set("cursor", page.cursor);
 
   const usersQ = useQuery({
-    queryKey: ["admin", "users", { search: search.trim() }],
+    queryKey: ["admin", "users", { search: trimmedSearch, cursor: page.cursor }],
     queryFn: () => api.get<ListResponse>(`/admin/users?${params.toString()}`),
+    placeholderData: keepPreviousData,
   });
 
   return (
@@ -169,6 +184,17 @@ function UserList({ currentUserId }: { currentUserId: string }): JSX.Element {
           </TBody>
         </DataTable>
       )}
+
+      {!usersQ.isLoading && !usersQ.isError && usersQ.data && usersQ.data.items.length > 0 ? (
+        <Pagination
+          page={page.page}
+          hasPrev={page.hasPrev}
+          hasNext={Boolean(usersQ.data.nextCursor)}
+          loading={usersQ.isFetching}
+          onPrev={page.prev}
+          onNext={() => page.next(usersQ.data?.nextCursor ?? null)}
+        />
+      ) : null}
     </>
   );
 }

@@ -1,11 +1,12 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
+import { Pagination, useCursorPagination } from "@/components/ui/pagination";
 import { StatusPill } from "@/components/ui/status-pill";
 import { DataTable, TBody, THead, Th, TR, Td } from "@/components/ui/table";
 import { api } from "@/lib/api-client";
@@ -34,10 +35,14 @@ export default function WalletPage() {
     queryKey: ["wallet"],
     queryFn: () => api.get<WalletSnapshot>("/wallet"),
   });
+  const page = useCursorPagination();
   const ledgerQ = useQuery({
-    queryKey: ["wallet", "ledger"],
+    queryKey: ["wallet", "ledger", { cursor: page.cursor }],
     queryFn: () =>
-      api.get<{ items: PublicLedgerEntry[]; nextCursor: string | null }>("/wallet/ledger?limit=100"),
+      api.get<{ items: PublicLedgerEntry[]; nextCursor: string | null }>(
+        `/wallet/ledger?limit=50${page.cursor ? `&cursor=${page.cursor}` : ""}`,
+      ),
+    placeholderData: keepPreviousData,
   });
 
   const wallet = walletQ.data;
@@ -177,6 +182,17 @@ export default function WalletPage() {
           </TBody>
         </DataTable>
       )}
+
+      {!ledgerQ.isLoading && ledgerQ.data && ledgerQ.data.items.length > 0 ? (
+        <Pagination
+          page={page.page}
+          hasPrev={page.hasPrev}
+          hasNext={Boolean(ledgerQ.data.nextCursor)}
+          loading={ledgerQ.isFetching}
+          onPrev={page.prev}
+          onNext={() => page.next(ledgerQ.data?.nextCursor ?? null)}
+        />
+      ) : null}
     </div>
   );
 }

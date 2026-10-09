@@ -1,13 +1,14 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
+import { Pagination, useCursorPagination } from "@/components/ui/pagination";
 import { StatusPill } from "@/components/ui/status-pill";
 import { DataTable, TBody, THead, Th, TR, Td } from "@/components/ui/table";
 import { api } from "@/lib/api-client";
@@ -47,12 +48,20 @@ function formatCents(cents: number): string {
 
 export default function OrdersListPage() {
   const [search, setSearch] = useState("");
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["orders", { search }],
+
+  const page = useCursorPagination();
+  const { reset: resetPage } = page;
+  useEffect(() => {
+    resetPage();
+  }, [search, resetPage]);
+
+  const { data, isLoading, isFetching, error } = useQuery({
+    queryKey: ["orders", { search, cursor: page.cursor }],
     queryFn: () =>
       api.get<{ items: PublicOrder[]; nextCursor: string | null }>(
-        `/orders?limit=50${search ? `&search=${encodeURIComponent(search)}` : ""}`,
+        `/orders?limit=50${search ? `&search=${encodeURIComponent(search)}` : ""}${page.cursor ? `&cursor=${page.cursor}` : ""}`,
       ),
+    placeholderData: keepPreviousData,
   });
 
   return (
@@ -193,6 +202,17 @@ export default function OrdersListPage() {
           </TBody>
         </DataTable>
       )}
+
+      {!isLoading && !error && data && data.items.length > 0 ? (
+        <Pagination
+          page={page.page}
+          hasPrev={page.hasPrev}
+          hasNext={Boolean(data.nextCursor)}
+          loading={isFetching}
+          onPrev={page.prev}
+          onNext={() => page.next(data.nextCursor)}
+        />
+      ) : null}
     </div>
   );
 }

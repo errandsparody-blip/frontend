@@ -1,7 +1,7 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
-import { Fragment, useState } from "react";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { Fragment, useEffect, useState } from "react";
 
 import {
   FilterBar,
@@ -11,6 +11,7 @@ import {
 } from "@/components/admin/filters";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
+import { Pagination, useCursorPagination } from "@/components/ui/pagination";
 import { DataTable, TBody, THead, Th, TR, Td } from "@/components/ui/table";
 import { api } from "@/lib/api-client";
 
@@ -54,16 +55,24 @@ export default function AdminAuditPage() {
   const [to, setTo] = useState("");
   const [opened, setOpened] = useState<string | null>(null);
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["admin", "audit", { actionFilter, resourceType, from, to }],
+  const page = useCursorPagination();
+  const { reset: resetPage } = page;
+  useEffect(() => {
+    resetPage();
+  }, [actionFilter, resourceType, from, to, resetPage]);
+
+  const { data, isLoading, isFetching, error } = useQuery({
+    queryKey: ["admin", "audit", { actionFilter, resourceType, from, to, cursor: page.cursor }],
     queryFn: () => {
-      const params = new URLSearchParams({ limit: "100" });
+      const params = new URLSearchParams({ limit: "50" });
       if (actionFilter) params.set("action", actionFilter);
       if (resourceType) params.set("resourceType", resourceType);
       if (from) params.set("from", from);
       if (to) params.set("to", to);
+      if (page.cursor) params.set("cursor", page.cursor);
       return api.get<{ items: AuditRow[]; nextCursor: string | null }>(`/admin/audit?${params.toString()}`);
     },
+    placeholderData: keepPreviousData,
   });
 
   return (
@@ -185,6 +194,17 @@ export default function AdminAuditPage() {
           </TBody>
         </DataTable>
       )}
+
+      {!isLoading && !error && data && data.items.length > 0 ? (
+        <Pagination
+          page={page.page}
+          hasPrev={page.hasPrev}
+          hasNext={Boolean(data.nextCursor)}
+          loading={isFetching}
+          onPrev={page.prev}
+          onNext={() => page.next(data.nextCursor)}
+        />
+      ) : null}
     </div>
   );
 }

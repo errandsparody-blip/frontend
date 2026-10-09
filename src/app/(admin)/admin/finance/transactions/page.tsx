@@ -13,9 +13,9 @@
 
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   FilterBar,
@@ -24,6 +24,7 @@ import {
 } from "@/components/admin/filters";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
+import { Pagination, useCursorPagination } from "@/components/ui/pagination";
 import { StatusPill } from "@/components/ui/status-pill";
 import { DataTable, TBody, THead, Th, TR, Td } from "@/components/ui/table";
 import { api } from "@/lib/api-client";
@@ -167,15 +168,24 @@ export default function AdminTransactionsPage(): JSX.Element {
   const [to, setTo] = useState("");
 
   const typeParam = Array.from(selected).join(",");
+
+  const page = useCursorPagination();
+  const { reset: resetPage } = page;
+  useEffect(() => {
+    resetPage();
+  }, [typeParam, from, to, resetPage]);
+
   const query = useQuery({
-    queryKey: ["admin", "finance", "transactions", { typeParam, from, to }],
+    queryKey: ["admin", "finance", "transactions", { typeParam, from, to, cursor: page.cursor }],
     queryFn: () => {
-      const params = new URLSearchParams({ limit: "100" });
+      const params = new URLSearchParams({ limit: "50" });
       if (typeParam) params.set("type", typeParam);
       if (from) params.set("from", from);
       if (to) params.set("to", to);
+      if (page.cursor) params.set("cursor", page.cursor);
       return api.get<ListResponse>(`/admin/finance/transactions?${params.toString()}`);
     },
+    placeholderData: keepPreviousData,
   });
 
   function toggle(t: LedgerType): void {
@@ -306,6 +316,17 @@ export default function AdminTransactionsPage(): JSX.Element {
           </TBody>
         </DataTable>
       )}
+
+      {!query.isLoading && !query.error && query.data && query.data.items.length > 0 ? (
+        <Pagination
+          page={page.page}
+          hasPrev={page.hasPrev}
+          hasNext={Boolean(query.data.nextCursor)}
+          loading={query.isFetching}
+          onPrev={page.prev}
+          onNext={() => page.next(query.data?.nextCursor ?? null)}
+        />
+      ) : null}
     </div>
   );
 }

@@ -8,9 +8,9 @@
 
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   FilterBar,
@@ -20,6 +20,7 @@ import {
 } from "@/components/admin/filters";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
+import { Pagination, useCursorPagination } from "@/components/ui/pagination";
 import { StatusPill } from "@/components/ui/status-pill";
 import { DataTable, TBody, THead, Th, TR, Td } from "@/components/ui/table";
 import { api } from "@/lib/api-client";
@@ -66,19 +67,27 @@ export default function AdminVendorsPage() {
   const [to, setTo] = useState("");
   const filter = FILTER_OPTIONS.find((f) => f.id === filterId)!;
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["admin", "vendors", { filter: filter.id, search, from, to }],
+  const page = useCursorPagination();
+  const { reset: resetPage } = page;
+  useEffect(() => {
+    resetPage();
+  }, [filter.id, search, from, to, resetPage]);
+
+  const { data, isLoading, isFetching, error } = useQuery({
+    queryKey: ["admin", "vendors", { filter: filter.id, search, from, to, cursor: page.cursor }],
     queryFn: () => {
       const params = new URLSearchParams();
-      params.set("limit", "100");
+      params.set("limit", "50");
       if (filter.query) params.set("kycStatus", filter.query);
       if (search) params.set("search", search);
       if (from) params.set("from", from);
       if (to) params.set("to", to);
+      if (page.cursor) params.set("cursor", page.cursor);
       return api.get<{ items: AdminVendorRow[]; nextCursor: string | null }>(
         `/admin/vendors?${params.toString()}`,
       );
     },
+    placeholderData: keepPreviousData,
   });
 
   return (
@@ -191,6 +200,17 @@ export default function AdminVendorsPage() {
           </TBody>
         </DataTable>
       )}
+
+      {!isLoading && !error && data && data.items.length > 0 ? (
+        <Pagination
+          page={page.page}
+          hasPrev={page.hasPrev}
+          hasNext={Boolean(data.nextCursor)}
+          loading={isFetching}
+          onPrev={page.prev}
+          onNext={() => page.next(data.nextCursor)}
+        />
+      ) : null}
     </div>
   );
 }
