@@ -314,6 +314,54 @@ export default function AdminOrderDetailPage() {
         actions={<BackButton fallback="/admin/orders" label="← Queue" />}
       />
 
+      {/* Migration 0074 — vendor cancellation request awaiting a decision.
+          Approve cancels the order (full refund of fulfillment + label +
+          restock) via force-cancel; reject keeps it moving. */}
+      {o.cancelRequestedAt && !o.cancelRequestResolvedAt ? (
+        <section className="rounded-md border-l-4 border-amber bg-amber/10 p-5">
+          <h2 className="font-mono text-mono-label uppercase text-amber">
+            Cancellation requested by vendor
+          </h2>
+          <p className="mt-1 text-body-sm text-text">
+            Reason: <strong>{(o.cancelRequestReason ?? "—").replace(/_/g, " ")}</strong>
+            {o.cancelRequestNote ? ` — ${o.cancelRequestNote}` : ""}
+            {" · "}
+            {new Date(o.cancelRequestedAt).toLocaleString()}
+          </p>
+          <p className="mt-2 text-body-sm text-text-muted">
+            Approving cancels the order, refunds the vendor&apos;s full spend
+            (fulfillment fee + label) to their wallet, and restocks the
+            inventory. If a Shippo label was bought, void it in Shippo
+            separately. Rejecting keeps the order in fulfillment.
+          </p>
+          <textarea
+            rows={2}
+            placeholder="Note / reason (required to reject; attached to the refund if you approve)"
+            maxLength={500}
+            value={decisionNote}
+            onChange={(e) => setDecisionNote(e.target.value)}
+            className="mt-3 w-full rounded-sm border border-line-strong bg-white p-3 font-sans text-body text-text outline-none focus:border-ink"
+          />
+          <div className="mt-3 flex flex-wrap justify-end gap-3">
+            <Button
+              variant="outline"
+              loading={rejectCancel.isPending}
+              disabled={!decisionNote.trim()}
+              onClick={() => rejectCancel.mutate()}
+            >
+              {rejectCancel.isPending ? "Rejecting…" : "Reject request"}
+            </Button>
+            <Button
+              variant="amber"
+              loading={approveCancel.isPending}
+              onClick={() => approveCancel.mutate()}
+            >
+              {approveCancel.isPending ? "Cancelling…" : "Approve — cancel & refund"}
+            </Button>
+          </div>
+        </section>
+      ) : null}
+
       <section className="rounded-md border border-line bg-white p-6">
         <div className="flex flex-wrap items-baseline gap-4">
           <StatusPill tone={TONE[o.status] ?? "neutral"}>{o.status.replace(/_/g, " ")}</StatusPill>
