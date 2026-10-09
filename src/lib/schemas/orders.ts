@@ -57,6 +57,31 @@ export const ORDER_CANCEL_REASON = [
 ] as const;
 export type OrderCancelReason = (typeof ORDER_CANCEL_REASON)[number];
 
+// Migration 0074 — reasons a vendor can give when REQUESTING cancellation of
+// an order already past the instant self-cancel window. Must match the API's
+// requestCancellationSchema.
+export const ORDER_CANCEL_REQUEST_REASON = [
+  "VENDOR_REQUEST",
+  "OUT_OF_STOCK",
+  "ADDRESS_INVALID",
+  "CUSTOMER_CANCELLED",
+  "OTHER",
+] as const;
+export type OrderCancelRequestReason = (typeof ORDER_CANCEL_REQUEST_REASON)[number];
+
+// Statuses in which "Request cancellation" is offered (post self-cancel,
+// pre-ship). Mirrors OrderService.CANCEL_REQUESTABLE on the API.
+export const ORDER_CANCEL_REQUESTABLE: OrderStatus[] = [
+  "LABEL_PURCHASED",
+  "PICKING",
+  "PACKED",
+  "PENDING_PACKING",
+  "PACKING_COMPLETED",
+  "AWAITING_SHIPPING_SELECTION",
+  "AWAITING_WALLET_FUNDING",
+  "SHIPPING_PAID",
+];
+
 // ---------------------------------------------------------------------------
 // Recipient — shared by quote + create.
 // ---------------------------------------------------------------------------
@@ -300,6 +325,13 @@ export interface PublicOrder {
   reassessmentDeltaCents: number;
   cancelReason: OrderCancelReason | null;
   cancelNote: string | null;
+  // Migration 0074 — vendor cancellation request state.
+  cancelRequestedAt: string | null;
+  cancelRequestReason: string | null;
+  cancelRequestNote: string | null;
+  cancelRequestResolvedAt: string | null;
+  cancelRequestOutcome: string | null;
+  cancelRequestPending: boolean;
   submittedAt: string | null;
   allocatedAt: string | null;
   shippedAt: string | null;

@@ -17,7 +17,13 @@ import { DataTable, TBody, THead, Th, TR, Td } from "@/components/ui/table";
 import { api } from "@/lib/api-client";
 import { normalizeError, useApiErrorHandler } from "@/lib/errors";
 import { rememberText } from "@/lib/suggestions";
-import { ORDER_CANCEL_REASON, type OrderStatus, type PublicOrder } from "@/lib/schemas/orders";
+import {
+  ORDER_CANCEL_REASON,
+  ORDER_CANCEL_REQUEST_REASON,
+  ORDER_CANCEL_REQUESTABLE,
+  type OrderStatus,
+  type PublicOrder,
+} from "@/lib/schemas/orders";
 import {
   RETURN_REASON,
   RETURN_REASON_LABEL,
@@ -100,6 +106,12 @@ export default function OrderDetailPage() {
   const [cancelReason, setCancelReason] = useState<(typeof ORDER_CANCEL_REASON)[number]>("VENDOR_REQUEST");
   const [cancelNote, setCancelNote] = useState("");
 
+  // Migration 0074 — "Request cancellation" for orders past self-cancel.
+  const [showRequest, setShowRequest] = useState(false);
+  const [requestReason, setRequestReason] =
+    useState<(typeof ORDER_CANCEL_REQUEST_REASON)[number]>("VENDOR_REQUEST");
+  const [requestNote, setRequestNote] = useState("");
+
   // Request-return state. The form lets vendors pick which lines + how
   // many units to return. Defaults to 0 per line so they have to opt-in
   // to each one — easier than having to remove unwanted lines.
@@ -128,6 +140,23 @@ export default function OrderDetailPage() {
       setShowCancel(false);
       setCancelNote("");
       await qc.invalidateQueries({ queryKey: ["orders"] });
+    },
+    onError: (err) => handle(err),
+  });
+
+  // Migration 0074 — request cancellation (admin reviews + refunds).
+  const requestMut = useMutation({
+    mutationFn: () =>
+      api.post<PublicOrder>(`/orders/${params.id}/request-cancellation`, {
+        reason: requestReason,
+        note: requestNote.trim() || undefined,
+      }),
+    onMutate: clear,
+    onSuccess: async () => {
+      setShowRequest(false);
+      setRequestNote("");
+      await qc.invalidateQueries({ queryKey: ["orders"] });
+      await qc.invalidateQueries({ queryKey: ["order", params.id] });
     },
     onError: (err) => handle(err),
   });
@@ -684,6 +713,87 @@ export default function OrderDetailPage() {
                 </Button>
                 <Button variant="amber" loading={cancelMut.isPending} onClick={() => cancelMut.mutate()}>
                   {cancelMut.isPending ? "Cancelling…" : "Confirm cancel"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </section>
+      ) : null}
+
+      {/* Migration 0074 — request cancellation for orders past self-cancel.
+          A vendor can't pull a label-purchased / packing order themselves;
+          they ask ops, who approve (refund + restock + cancel) or reject. */}
+      {o.cancelRequestPending ? (
+        <section className="rounded-md border-l-4 border-amber bg-amber/10 p-5">
+          <h2 className="font-mono text-mono-label uppercase text-amber">
+            Cancellation requested
+          </h2>
+          <p className="mt-1 text-body-sm text-text">
+            Your request{o.cancelRequestReason ? ` (${o.cancelRequestReason.replace(/_/g, " ")})` : ""} is
+            under review by our team. If approved, the order is cancelled, your
+            wallet is refunded in full, and the stock is restocked.
+          </p>
+          {o.cancelRequestNote ? (
+            <p className="mt-1 text-body-sm text-text-muted">Note: {o.cancelRequestNote}</p>
+          ) : null}
+        </section>
+      ) : ORDER_CANCEL_REQUESTABLE.includes(o.status) ? (
+        <section className="rounded-md border border-line bg-white p-6">
+          {o.cancelRequestOutcome === "REJECTED" ? (
+            <p className="mb-3 rounded-sm border-l-4 border-error bg-error/10 px-4 py-2 text-body-sm text-text">
+              A previous cancellation request was declined
+              {o.cancelRequestNote ? `: ${o.cancelRequestNote}` : "."} You can request again if things have changed.
+            </p>
+          ) : null}
+          {!showRequest ? (
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="font-mono text-mono-label uppercase text-text-muted">
+                  Request cancellation
+                </h2>
+                <p className="mt-1 text-body-sm text-text-muted">
+                  This order is already being processed, so it can&apos;t be
+                  cancelled instantly. Send a request and our team will review
+                  it — if approved, you&apos;re refunded in full.
+                </p>
+              </div>
+              <Button variant="ghost" onClick={() => setShowRequest(true)}>
+                Request cancellation
+              </Button>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              <h2 className="text-h3 font-semibold text-ink">Request cancellation</h2>
+              <select
+                value={requestReason}
+                onChange={(e) => setRequestReason(e.target.value as typeof requestReason)}
+                className="h-11 rounded-sm border border-line-strong bg-white px-3 font-sans text-body text-text outline-none focus:border-ink"
+              >
+                {ORDER_CANCEL_REQUEST_REASON.map((r) => (
+                  <option key={r} value={r}>
+                    {r.replace(/_/g, " ")}
+                  </option>
+                ))}
+              </select>
+              <textarea
+                rows={3}
+                placeholder="Add any detail for our team (optional, max 500 chars)"
+                maxLength={500}
+                value={requestNote}
+                onChange={(e) => setRequestNote(e.target.value)}
+                className="rounded-sm border border-line-strong bg-white p-3 font-sans text-body text-text outline-none focus:border-ink"
+              />
+              <ErrorBanner error={bannerError} onAction={onAction} />
+              <div className="flex justify-end gap-3">
+                <Button variant="outline" onClick={() => setShowRequest(false)}>
+                  Keep order
+                </Button>
+                <Button
+                  variant="amber"
+                  loading={requestMut.isPending}
+                  onClick={() => requestMut.mutate()}
+                >
+                  {requestMut.isPending ? "Sending…" : "Send request"}
                 </Button>
               </div>
             </div>
