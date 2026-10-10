@@ -2,7 +2,7 @@
 
 /**
  * Vendor referral page — the vendor's shareable link, live stats, and a
- * plain explainer of how the $50/$50 program works.
+ * plain explainer of how the $10/$10 program works.
  */
 
 import { useQuery } from "@tanstack/react-query";
@@ -47,8 +47,8 @@ export default function ReferralsPage(): JSX.Element {
     <div className="flex flex-col gap-6">
       <PageHeader
         eyebrow="Referrals"
-        title="Refer a brand, you both earn $50"
-        description="Share your link with other brands. When they join and their first shipment reaches our warehouse, you each get $50."
+        title="Refer a brand, you both earn $10"
+        description="Share your link with other brands. When they join and their first shipment reaches our warehouse, you each get $10."
       />
 
       {isLoading ? (
@@ -101,8 +101,8 @@ export default function ReferralsPage(): JSX.Element {
                 Once the brand ships their first inventory to our U.S. warehouse and we receive it
                 (their first PSN), the referral qualifies.
               </Step>
-              <Step n={3} title="You both get $50">
-                We credit <strong>$50 to your wallet</strong> and <strong>$50 to theirs</strong> —
+              <Step n={3} title="You both get $10">
+                We credit <strong>$10 to your wallet</strong> and <strong>$10 to theirs</strong> —
                 automatically, once per referred brand. You&apos;ll both get an email when it lands.
               </Step>
             </ol>

@@ -95,7 +95,7 @@ export default function AdminReferralsPage(): JSX.Element {
       <PageHeader
         eyebrow="Growth"
         title="Referrals & events"
-        description="Create an event campaign for the booth, track who registered, and see every referral and its $50/$50 reward."
+        description="Create an event campaign for the booth, track who registered, and see every referral and its $10/$10 reward."
       />
 
       {err ? (
