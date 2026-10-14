@@ -101,10 +101,10 @@ export default function ReferralsPage(): JSX.Element {
                 Once the brand ships their first inventory to our U.S. warehouse and we receive it
                 (their first PSN), the referral qualifies.
               </Step>
-              <Step n={3} title="You both get $10">
+              {/* <Step n={3} title="You both get $10">
                 We credit <strong>$10 to your wallet</strong> and <strong>$10 to theirs</strong> —
                 automatically, once per referred brand. You&apos;ll both get an email when it lands.
-              </Step>
+              </Step> */}
             </ol>
           </section>
         </>
