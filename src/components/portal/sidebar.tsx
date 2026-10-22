@@ -9,6 +9,7 @@ import {
   CreditCard,
   Gift,
   LayoutDashboard,
+  Lock,
   Package,
   Plug,
   Repeat,
@@ -19,8 +20,9 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
+import { useToast } from "@/components/ui/toast";
 import { api } from "@/lib/api-client";
 import {
   useMarkCategoryRead,
@@ -37,6 +39,13 @@ interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
   /** Disabled until the relevant phase ships. */
   disabled?: boolean;
+  /**
+   * Locked until the vendor's KYC is APPROVED. The row renders muted with a
+   * lock icon; clicking it does NOT navigate — it shows a "verify first" toast.
+   * Applied to every operational page (Products downward); Overview,
+   * Verification, Notifications, and Settings stay reachable.
+   */
+  lockedUntilVerified?: boolean;
   /**
    * If set, renders a small amber dot when the test returns true. Used to
    * draw the vendor's eye to a navigation entry that's awaiting their
@@ -60,17 +69,17 @@ const NAV: NavItem[] = [
     needsAttention: ({ kycStatus }) => kycStatus !== "APPROVED",
     category: "verification",
   },
-  { href: "/products", label: "Products", icon: Package },
-  { href: "/inventory", label: "Inventory", icon: Boxes },
-  { href: "/psn", label: "Pre-Shipment Notices", icon: ClipboardList, category: "psn" },
-  { href: "/wallet", label: "Wallet", icon: CreditCard, category: "wallet" },
-  { href: "/wallet/recurring", label: "Recurring storage", icon: Repeat },
-  { href: "/orders", label: "Orders", icon: Truck, category: "order" },
-  { href: "/storefront", label: "Storefront", icon: Store },
-  { href: "/returns", label: "Returns", icon: Undo2, category: "return" },
+  { href: "/products", label: "Products", icon: Package, lockedUntilVerified: true },
+  { href: "/inventory", label: "Inventory", icon: Boxes, lockedUntilVerified: true },
+  { href: "/psn", label: "Pre-Shipment Notices", icon: ClipboardList, category: "psn", lockedUntilVerified: true },
+  { href: "/wallet", label: "Wallet", icon: CreditCard, category: "wallet", lockedUntilVerified: true },
+  { href: "/wallet/recurring", label: "Recurring storage", icon: Repeat, lockedUntilVerified: true },
+  { href: "/orders", label: "Orders", icon: Truck, category: "order", lockedUntilVerified: true },
+  { href: "/storefront", label: "Storefront", icon: Store, lockedUntilVerified: true },
+  { href: "/returns", label: "Returns", icon: Undo2, category: "return", lockedUntilVerified: true },
   { href: "/notifications", label: "Notifications", icon: Bell, category: "__total__" },
-  { href: "/referrals", label: "Referrals", icon: Gift },
-  { href: "/settings/integrations", label: "Store integration", icon: Plug },
+  { href: "/referrals", label: "Referrals", icon: Gift, lockedUntilVerified: true },
+  { href: "/settings/integrations", label: "Store integration", icon: Plug, lockedUntilVerified: true },
   // { href: "/team", label: "Team", icon: Users },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
@@ -81,6 +90,8 @@ interface VendorMeForSidebar {
 
 export function Sidebar(): JSX.Element {
   const pathname = usePathname();
+  const router = useRouter();
+  const toast = useToast();
   const { open, close } = useSidebar();
 
   // The vendor profile is already cached by other portal pages — this query
@@ -188,6 +199,48 @@ export function Sidebar(): JSX.Element {
           const activeClass = active && !item.disabled ? "bg-ink text-text-inv hover:bg-ink" : "";
           const attention = item.needsAttention?.({ kycStatus }) ?? false;
           const badge = badgeFor(item);
+
+          // Lock operational pages until KYC is APPROVED. Only lock once the
+          // status is known and NOT approved — never during load, so a
+          // verified vendor doesn't see a flash of locked rows.
+          const locked =
+            !!item.lockedUntilVerified &&
+            kycStatus !== undefined &&
+            kycStatus !== "APPROVED";
+
+          if (locked) {
+            return (
+              <button
+                key={item.href}
+                type="button"
+                aria-disabled={true}
+                title="Verify your account to unlock this page"
+                onClick={() =>
+                  toast.show({
+                    title: "Verify your account first",
+                    body: "Finish verification to unlock this page.",
+                    severity: "warning",
+                    dedupeKey: "kyc-locked",
+                    action: {
+                      label: "Verify now",
+                      onClick: () => {
+                        close();
+                        router.push("/verification");
+                      },
+                    },
+                  })
+                }
+                className={cn(
+                  "mb-0.5 flex w-full items-center gap-3 rounded-sm px-3 py-2 text-left text-body-sm font-medium text-text-subtle transition-colors duration-fast ease-out hover:bg-cream-deep/40",
+                )}
+              >
+                <Icon className="h-4 w-4 shrink-0 opacity-70" aria-hidden />
+                <span className="truncate">{item.label}</span>
+                <Lock className="ml-auto h-3.5 w-3.5 shrink-0 text-text-subtle" aria-hidden />
+              </button>
+            );
+          }
+
           return (
             <Link
               key={item.href}
