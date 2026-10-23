@@ -1,30 +1,34 @@
 "use client";
 
 /**
- * Shared printable SKU label view — Avery 5160 grid + Code128B barcode.
+ * Shared printable SKU label view — one label per page + Code128B barcode.
  *
  * Used by both the vendor flow (`/inventory/[skuId]/label`) and the admin
  * flow (`/admin/inventory/[skuId]/label`). The two pages differ only in
  * where they fetch the SKU data from (vendor-scoped vs admin-scoped API),
- * not in how the labels are rendered. Centralising the layout here keeps
+ * not in how the label is rendered. Centralising the layout here keeps
  * the two surfaces byte-for-byte identical — if an operator prints an
  * admin-side label and a vendor prints a vendor-side label for the same
- * SKU, they MUST come out the same on Avery sheets, or scanners will get
- * confused at receive time.
+ * SKU, they MUST come out the same, or scanners will get confused at
+ * receive time.
  *
- * Why 5160? It's the de facto vendor-printed SKU label format used
- * across Amazon FBA, Avery, and most fulfillment inbound flows:
+ * ── Printing model (the Shippo model) ──────────────────────────────────
+ * We follow the same rule a shipping-label provider like Shippo uses: the
+ * PAGE is sized to the LABEL, not to a sheet of office paper. Shippo's
+ * "4x6 PDF" is a page that is exactly the 4×6 label with no surrounding
+ * whitespace; the physical paper (a thermal roll, or "fit to A4/Letter" on
+ * an office printer) is then chosen in the printer's own dialog.
  *
- *   - 1" × 2⅝" per label (25.4 × 66.7 mm)
- *   - 30 labels per US Letter sheet (3 columns × 10 rows)
- *   - Top/bottom margin 0.5" (12.7 mm); side margin 0.19" (4.8 mm);
- *     0 horizontal gap between labels (Avery sheet pre-cuts)
- *   - Prints on any office laser/inkjet — no thermal printer needed
+ * So here `@page { size }` is set to the label's own dimensions
+ * (2.625in × 1in) with zero margin. One label fills one printed page —
+ * never a lone sticker stranded in the corner of a full A4/Letter sheet.
+ * The operator's print dialog decides the real paper and any scaling; the
+ * system does NOT force A4 or Letter.
  *
- * Equivalent A4 sheet is Avery L7160 (3×7 = 21 labels, 63.5×38.1 mm).
- * Vendors with A4 paper should pick that in their print dialog; the
- * page CSS uses Letter as the default but the label cells are sized
- * absolutely so they line up correctly on Avery sheets either way.
+ * Default quantity is 1 (the normal "print a label for this SKU" case).
+ * The quantity field is kept for the occasional "I need a few" run — each
+ * additional label is simply another label-sized page, so they feed
+ * straight onto a label roll or print one-per-sheet on an office printer.
  *
  * The barcode is Code128B (lib/barcode.ts), encoding the full SKU id.
  * Renders as inline SVG so the print path stays vector-perfect at any DPI.
@@ -40,21 +44,18 @@ import { useMemo, useState } from "react";
 
 import { encodeCode128B } from "@/lib/barcode";
 
-// Avery 5160 geometry — exact values from Avery's spec sheet.
-const AVERY_5160 = {
-  pageWidthIn: 8.5,
-  pageHeightIn: 11,
-  topMarginIn: 0.5,
-  sideMarginIn: 0.1875,
-  labelWidthIn: 2.625,
-  labelHeightIn: 1,
-  cols: 3,
-  rows: 10,
-  // Vertical gutter is 0; horizontal gutter is also 0 on a 5160 sheet.
-  gutterXIn: 0,
-  gutterYIn: 0,
+// Label geometry. 1" × 2⅝" is the de-facto vendor-printed SKU label size
+// (Avery 5160 / Amazon FBA / most fulfillment inbound flows). We print it
+// one-per-page rather than 30-up on an Avery sheet so the page IS the
+// label — see the header note on the Shippo printing model.
+const LABEL = {
+  widthIn: 2.625,
+  heightIn: 1,
 } as const;
-const LABELS_PER_SHEET = AVERY_5160.cols * AVERY_5160.rows;
+
+// Hard cap on a single print run. Nobody needs tens of thousands of pages;
+// this just stops a paste-bombed value from locking up the tab.
+const MAX_LABELS = 300;
 
 /**
  * The minimum SKU shape needed to render a label. Both vendor and admin
@@ -74,28 +75,29 @@ export interface SkuLabelData {
 export interface SkuLabelPrintViewProps {
   /** SKU data to render — null while the host page is still fetching. */
   sku: SkuLabelData | null;
-  /** Optional heading shown above the controls. Defaults to "Print SKU labels". */
+  /** Optional heading shown above the controls. Defaults to "Print SKU label". */
   heading?: string;
 }
 
 /**
  * Full-page print view: a heading, the control bar (quantity, Print,
- * Back), and the Avery sheets themselves. Designed to take the entire
+ * Back), and the label pages themselves. Designed to take the entire
  * viewport — the host page should render this as its only child.
  */
 export function SkuLabelPrintView({
   sku,
-  heading = "Print SKU labels",
+  heading = "Print SKU label",
 }: SkuLabelPrintViewProps): JSX.Element {
-  // Operator picks how many labels they need. Default to one full sheet
-  // (30) so the typical "stick a label on every unit" workflow needs
-  // zero clicks before printing.
-  const [quantity, setQuantity] = useState<number>(LABELS_PER_SHEET);
-  // Defensive clamp — Number() returns NaN for empty strings, and we
-  // never want to render hundreds of thousands of sheets if someone
-  // types or paste-bombs an absurd value.
+  // Default to a single label — the common "stick one on this SKU" case.
+  // The field lets an operator bump it up for a small batch; each extra
+  // label is just another label-sized page.
+  const [quantity, setQuantity] = useState<number>(1);
+  // Defensive clamp — Number() returns NaN for empty strings, and we never
+  // want to render hundreds of thousands of pages from a bad value.
   const safeQuantity =
-    Number.isFinite(quantity) && quantity > 0 ? Math.min(Math.floor(quantity), 600) : 1;
+    Number.isFinite(quantity) && quantity > 0
+      ? Math.min(Math.floor(quantity), MAX_LABELS)
+      : 1;
 
   // Encode the SKU id as Code128B once. Memoised because re-renders on
   // quantity change shouldn't re-encode the same string. Module width
@@ -109,18 +111,19 @@ export function SkuLabelPrintView({
     }
   }, [sku]);
 
-  const sheetCount = Math.ceil(safeQuantity / LABELS_PER_SHEET);
-  const sheets = Array.from({ length: sheetCount }, (_, sheetIndex) => sheetIndex);
+  const pages = Array.from({ length: safeQuantity }, (_, i) => i);
 
   return (
     <>
       <style jsx global>{`
-        /* Print-only rules: hide every chrome element on the page, then
-           re-show ONLY the print container. The container holds one
-           absolutely-positioned sheet per A4/Letter page. */
+        /* Print-only rules: the printed PAGE is sized to the LABEL itself,
+           not to A4/Letter — so one label fills one page instead of
+           sitting alone in the corner of a big sheet. The physical paper
+           and any scaling are chosen in the operator's print dialog; we
+           never force a paper size here. */
         @media print {
           @page {
-            size: ${AVERY_5160.pageWidthIn}in ${AVERY_5160.pageHeightIn}in;
+            size: ${LABEL.widthIn}in ${LABEL.heightIn}in;
             margin: 0;
           }
           html,
@@ -141,45 +144,42 @@ export function SkuLabelPrintView({
             top: 0 !important;
             left: 0 !important;
           }
-          .label-sheet {
+          /* One label = one page. */
+          .label-page {
+            width: ${LABEL.widthIn}in;
+            height: ${LABEL.heightIn}in;
             page-break-after: always;
             page-break-inside: avoid;
+            margin: 0 !important;
+            box-shadow: none !important;
           }
-          .label-sheet:last-child {
+          .label-page:last-child {
             page-break-after: auto;
           }
         }
-        /* Screen-only preview chrome — gives the operator a visual sense
-           of how the printed page will look without taking over the
-           whole viewport in every browser. */
-        .label-sheet {
+        /* One label, sized exactly to the label. On screen we add a light
+           guide border + drop shadow so the operator can see the label
+           boundary; @media print strips both. */
+        .label-page {
           position: relative;
-          width: ${AVERY_5160.pageWidthIn}in;
-          height: ${AVERY_5160.pageHeightIn}in;
+          width: ${LABEL.widthIn}in;
+          height: ${LABEL.heightIn}in;
           background: white;
-          margin: 0 auto;
-        }
-        .label-cell {
-          position: absolute;
-          width: ${AVERY_5160.labelWidthIn}in;
-          height: ${AVERY_5160.labelHeightIn}in;
-          padding: 0.08in 0.12in;
           box-sizing: border-box;
+          padding: 0.08in 0.12in;
           overflow: hidden;
           font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
           font-size: 8pt;
           line-height: 1.1;
           color: #000;
         }
-        /* On screen we draw a 1px guide so the operator can see label
-           boundaries; @media print strips it so it doesn't show on the
-           Avery sheet. */
         @media screen {
-          .label-cell {
-            outline: 1px dashed rgba(0, 0, 0, 0.15);
+          .label-page {
+            outline: 1px dashed rgba(0, 0, 0, 0.2);
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
           }
         }
-        .label-cell svg {
+        .label-page svg {
           display: block;
           width: 100%;
           height: auto;
@@ -192,21 +192,22 @@ export function SkuLabelPrintView({
           <div>
             <h1 className="text-h2 font-semibold text-ink">{heading}</h1>
             <p className="mt-1 text-body-sm text-text-muted">
-              Avery 5160 / L7160 layout — 1″ × 2⅝″ per label, 30 per US Letter sheet.
-              Use any office laser or inkjet. Pick &quot;US Letter&quot; or &quot;A4&quot; in your printer
-              dialog (the cells are sized to fit either pre-cut sheet).
+              Prints one label per page at label size (1″ × 2⅝″) — not on a full
+              sheet. Choose the paper and any scaling in your printer dialog: a
+              label roll / thermal printer prints it as-is, or pick &quot;Fit to
+              page&quot; on A4 or Letter.
             </p>
           </div>
 
           <div className="flex flex-wrap items-end gap-4 rounded-md border border-line bg-white p-4">
             <label className="flex flex-col gap-1">
               <span className="font-mono text-mono-label uppercase text-text-muted">
-                How many labels?
+                How many copies?
               </span>
               <input
                 type="number"
                 min={1}
-                max={600}
+                max={MAX_LABELS}
                 step={1}
                 value={quantity}
                 onChange={(e) => setQuantity(Number(e.target.value))}
@@ -214,17 +215,9 @@ export function SkuLabelPrintView({
               />
               <span className="text-caption text-text-muted">
                 {safeQuantity} label{safeQuantity === 1 ? "" : "s"} ·{" "}
-                {sheetCount} sheet{sheetCount === 1 ? "" : "s"}
+                {safeQuantity} page{safeQuantity === 1 ? "" : "s"}
               </span>
             </label>
-
-            <button
-              type="button"
-              onClick={() => setQuantity(LABELS_PER_SHEET)}
-              className="h-10 rounded-sm border border-line-strong bg-cream-soft px-3 font-mono text-mono-label uppercase text-text hover:border-ink"
-            >
-              1 full sheet (30)
-            </button>
 
             <button
               type="button"
@@ -244,44 +237,23 @@ export function SkuLabelPrintView({
           </div>
         </div>
 
-        {/* Sheets — one absolute-positioned page each, filled with cells.
-            Each cell renders the same artwork; operator picks how many. */}
-        <div className="label-print-root flex flex-col items-center gap-6">
+        {/* Label pages — one label per page, each sized to the label. */}
+        <div className="label-print-root flex flex-col items-center gap-4">
           {!sku ? (
             <div className="flex h-40 items-center justify-center font-mono text-mono-label uppercase text-text-muted">
               Loading…
             </div>
           ) : (
-            sheets.map((sheetIndex) => (
-              <div key={sheetIndex} className="label-sheet shadow-2 print:shadow-none">
-                {Array.from({ length: LABELS_PER_SHEET }).map((_, i) => {
-                  const labelIndex = sheetIndex * LABELS_PER_SHEET + i;
-                  if (labelIndex >= safeQuantity) return null;
-                  const col = i % AVERY_5160.cols;
-                  const row = Math.floor(i / AVERY_5160.cols);
-                  const left =
-                    AVERY_5160.sideMarginIn +
-                    col * (AVERY_5160.labelWidthIn + AVERY_5160.gutterXIn);
-                  const top =
-                    AVERY_5160.topMarginIn +
-                    row * (AVERY_5160.labelHeightIn + AVERY_5160.gutterYIn);
-                  return (
-                    <div
-                      key={i}
-                      className="label-cell"
-                      style={{ left: `${left}in`, top: `${top}in` }}
-                    >
-                      <LabelContent
-                        productCode={sku.productCode}
-                        productName={sku.productName}
-                        skuId={sku.id}
-                        variant={sku.variant}
-                        storageTier={sku.storageTier}
-                        barcodeSvg={barcodeSvg}
-                      />
-                    </div>
-                  );
-                })}
+            pages.map((i) => (
+              <div key={i} className="label-page">
+                <LabelContent
+                  productCode={sku.productCode}
+                  productName={sku.productName}
+                  skuId={sku.id}
+                  variant={sku.variant}
+                  storageTier={sku.storageTier}
+                  barcodeSvg={barcodeSvg}
+                />
               </div>
             ))
           )}
@@ -292,7 +264,7 @@ export function SkuLabelPrintView({
 }
 
 /**
- * One label cell. Layout is tight — 1×2⅝ inch:
+ * One label. Layout is tight — 1×2⅝ inch:
  *
  *   ┌──────────────────────────────────────┐
  *   │ PRODUCT CODE        Tier · Variant   │
