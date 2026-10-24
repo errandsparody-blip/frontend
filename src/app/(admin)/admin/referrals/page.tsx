@@ -35,6 +35,13 @@ interface ReferralRow {
   createdAt: string;
   rewardedAt: string | null;
 }
+interface ReferrerRollupRow {
+  referrerVendorId: string;
+  referrerVendor: string;
+  referredCount: number;
+  rewardedCount: number;
+  earnedCents: number;
+}
 
 function usd(cents: number): string {
   return (cents / 100).toLocaleString("en-US", { style: "currency", currency: "USD" });
@@ -47,10 +54,31 @@ export default function AdminReferralsPage(): JSX.Element {
   const qc = useQueryClient();
   const [campaignFilter, setCampaignFilter] = useState<string>("");
   const [err, setErr] = useState<string | null>(null);
+  // Tracks which share link was just copied (keyed by campaign code) so the
+  // button can flash "Copied ✓" for the right row only.
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+
+  function signupLink(code: string): string {
+    return `${origin}/signup?ref=${encodeURIComponent(code)}`;
+  }
+  async function copyLink(code: string): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(signupLink(code));
+      setCopiedKey(code);
+      window.setTimeout(() => setCopiedKey((k) => (k === code ? null : k)), 2000);
+    } catch {
+      /* clipboard blocked — admin can copy from the visible field */
+    }
+  }
 
   const campaignsQ = useQuery({
     queryKey: ["admin", "referrals", "campaigns"],
     queryFn: () => api.get<{ items: Campaign[] }>("/admin/referrals/campaigns"),
+  });
+  const referrersQ = useQuery({
+    queryKey: ["admin", "referrals", "referrers"],
+    queryFn: () => api.get<{ items: ReferrerRollupRow[] }>("/admin/referrals/referrers"),
   });
   const listQ = useQuery({
     queryKey: ["admin", "referrals", "list", campaignFilter],
@@ -62,7 +90,7 @@ export default function AdminReferralsPage(): JSX.Element {
 
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
-  const [reward, setReward] = useState("50");
+  const [reward, setReward] = useState("10");
 
   const createMut = useMutation({
     mutationFn: () =>
@@ -75,7 +103,7 @@ export default function AdminReferralsPage(): JSX.Element {
     onSuccess: async () => {
       setCode("");
       setName("");
-      setReward("50");
+      setReward("10");
       await qc.invalidateQueries({ queryKey: ["admin", "referrals", "campaigns"] });
     },
     onError: (e) => setErr(normalizeError(e).entry.title),
@@ -152,6 +180,7 @@ export default function AdminReferralsPage(): JSX.Element {
                 <tr className="text-left font-mono text-[11px] uppercase tracking-[1.2px] text-text-muted">
                   <th className="px-4 py-2">Code</th>
                   <th className="px-4 py-2">Name</th>
+                  <th className="px-4 py-2">Share link</th>
                   <th className="px-4 py-2 text-right">Reward</th>
                   <th className="px-4 py-2 text-right">Signups</th>
                   <th className="px-4 py-2 text-right">Status</th>
@@ -163,6 +192,23 @@ export default function AdminReferralsPage(): JSX.Element {
                   <tr key={c.id} className="border-t border-line">
                     <td className="px-4 py-2 font-mono text-ink">{c.code}</td>
                     <td className="px-4 py-2 text-text">{c.name}</td>
+                    <td className="px-4 py-2">
+                      <div className="flex items-center gap-2">
+                        <input
+                          readOnly
+                          value={signupLink(c.code)}
+                          onFocus={(e) => e.currentTarget.select()}
+                          className="w-48 rounded-sm border border-line bg-cream-soft px-2 py-1 font-mono text-[11px] text-ink"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => copyLink(c.code)}
+                          className="shrink-0 font-mono text-[11px] uppercase tracking-[1.2px] text-amber hover:text-amber-hi"
+                        >
+                          {copiedKey === c.code ? "Copied ✓" : "Copy"}
+                        </button>
+                      </div>
+                    </td>
                     <td className="px-4 py-2 text-right tabular-nums">{usd(c.rewardCents)}</td>
                     <td className="px-4 py-2 text-right tabular-nums">
                       <button
@@ -194,6 +240,41 @@ export default function AdminReferralsPage(): JSX.Element {
           </div>
         ) : (
           <div className="text-body-sm text-text-muted">No campaigns yet. Create one for your event.</div>
+        )}
+      </section>
+
+      {/* Top referrers — how many each brand has referred */}
+      <section className="rounded-md border border-line bg-white p-6">
+        <div className="mb-3 font-mono text-mono-label uppercase text-text-muted">
+          Top referrers
+        </div>
+        {referrersQ.data && referrersQ.data.items.length > 0 ? (
+          <div className="overflow-x-auto rounded-md border border-line">
+            <table className="w-full text-body-sm">
+              <thead className="bg-cream-soft">
+                <tr className="text-left font-mono text-[11px] uppercase tracking-[1.2px] text-text-muted">
+                  <th className="px-4 py-2">Brand</th>
+                  <th className="px-4 py-2 text-right">Brands referred</th>
+                  <th className="px-4 py-2 text-right">Rewarded</th>
+                  <th className="px-4 py-2 text-right">Earned</th>
+                </tr>
+              </thead>
+              <tbody>
+                {referrersQ.data.items.map((r) => (
+                  <tr key={r.referrerVendorId} className="border-t border-line">
+                    <td className="px-4 py-2 text-ink">{r.referrerVendor}</td>
+                    <td className="px-4 py-2 text-right tabular-nums">{r.referredCount}</td>
+                    <td className="px-4 py-2 text-right tabular-nums">{r.rewardedCount}</td>
+                    <td className="px-4 py-2 text-right tabular-nums">{usd(r.earnedCents)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="text-body-sm text-text-muted">
+            {referrersQ.isLoading ? "Loading…" : "No vendor-to-vendor referrals yet."}
+          </div>
         )}
       </section>
 

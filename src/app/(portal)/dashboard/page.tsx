@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
+import { useState } from "react";
 
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
@@ -149,7 +150,174 @@ export default function DashboardPage() {
           ctaLabel="Open inventory"
         />
       </section>
+
+      <BestSellers />
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// BestSellers — order status report below the overview tiles.
+//
+// Shows the vendor's fastest-moving products over a chosen window so they
+// can see what's selling. Presets (7 / 30 / 90 days, all time) plus a
+// custom date range. Units sold = outbound order-line quantity on real
+// orders (drafts/cancelled excluded), newest-first by volume.
+// ---------------------------------------------------------------------------
+
+type RangePreset = "7" | "30" | "90" | "all" | "custom";
+
+interface TopProduct {
+  productId: string;
+  productCode: string;
+  productName: string;
+  unitsSold: number;
+  orderCount: number;
+}
+
+function startOfDaysAgo(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString();
+}
+
+function BestSellers(): JSX.Element {
+  const [preset, setPreset] = useState<RangePreset>("30");
+  const [customFrom, setCustomFrom] = useState<string>("");
+  const [customTo, setCustomTo] = useState<string>("");
+
+  // Resolve the preset/custom selection into ISO from/to for the API.
+  let from: string | undefined;
+  let to: string | undefined;
+  if (preset === "7") from = startOfDaysAgo(7);
+  else if (preset === "30") from = startOfDaysAgo(30);
+  else if (preset === "90") from = startOfDaysAgo(90);
+  else if (preset === "custom") {
+    from = customFrom ? new Date(customFrom).toISOString() : undefined;
+    // Include the whole "to" day by pushing to end-of-day.
+    if (customTo) {
+      const t = new Date(customTo);
+      t.setHours(23, 59, 59, 999);
+      to = t.toISOString();
+    }
+  }
+
+  const params = new URLSearchParams();
+  if (from) params.set("from", from);
+  if (to) params.set("to", to);
+  params.set("limit", "10");
+
+  const q = useQuery({
+    queryKey: ["vendors", "top-products", { from, to }],
+    queryFn: () =>
+      api.get<{ items: TopProduct[]; from: string | null; to: string | null }>(
+        `/vendors/me/top-products?${params.toString()}`,
+      ),
+    staleTime: 30_000,
+  });
+
+  const presets: Array<{ key: RangePreset; label: string }> = [
+    { key: "7", label: "7 days" },
+    { key: "30", label: "30 days" },
+    { key: "90", label: "90 days" },
+    { key: "all", label: "All time" },
+    { key: "custom", label: "Custom" },
+  ];
+
+  return (
+    <section className="flex flex-col gap-4 rounded-md border border-line bg-white p-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <div className="font-mono text-mono-eyebrow uppercase text-amber">Order report</div>
+          <h2 className="mt-1 text-h3 font-medium text-ink">Best-selling products</h2>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {presets.map((p) => (
+            <button
+              key={p.key}
+              type="button"
+              onClick={() => setPreset(p.key)}
+              className={
+                "rounded-full px-3 py-1.5 font-mono text-[11px] uppercase tracking-[1.2px] transition-colors " +
+                (preset === p.key
+                  ? "bg-ink text-text-inv"
+                  : "border border-line text-text-muted hover:border-line-strong hover:text-ink")
+              }
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {preset === "custom" ? (
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="flex flex-col gap-1">
+            <span className="font-mono text-[11px] uppercase tracking-[1.2px] text-text-muted">From</span>
+            <input
+              type="date"
+              value={customFrom}
+              onChange={(e) => setCustomFrom(e.target.value)}
+              className="h-10 rounded-md border border-line bg-cream-soft px-3 text-body-sm"
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="font-mono text-[11px] uppercase tracking-[1.2px] text-text-muted">To</span>
+            <input
+              type="date"
+              value={customTo}
+              onChange={(e) => setCustomTo(e.target.value)}
+              className="h-10 rounded-md border border-line bg-cream-soft px-3 text-body-sm"
+            />
+          </label>
+        </div>
+      ) : null}
+
+      {q.isLoading ? (
+        <div className="font-mono text-mono-label uppercase text-text-muted">Loading…</div>
+      ) : q.isError ? (
+        <div className="rounded-md border-l-4 border-error bg-error/10 px-4 py-3 text-body-sm text-error">
+          Couldn&apos;t load the report. Try again in a moment.
+        </div>
+      ) : !q.data || q.data.items.length === 0 ? (
+        <div className="rounded-md border border-dashed border-line px-4 py-8 text-center text-body-sm text-text-muted">
+          No sales in this period yet.
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-md border border-line">
+          <table className="w-full text-body-sm">
+            <thead className="bg-cream-soft">
+              <tr className="text-left font-mono text-[11px] uppercase tracking-[1.2px] text-text-muted">
+                <th className="px-4 py-2">#</th>
+                <th className="px-4 py-2">Product</th>
+                <th className="px-4 py-2 text-right">Units sold</th>
+                <th className="px-4 py-2 text-right">Orders</th>
+              </tr>
+            </thead>
+            <tbody>
+              {q.data.items.map((p, i) => (
+                <tr key={p.productId} className="border-t border-line">
+                  <td className="px-4 py-2 tabular-nums text-text-muted">{i + 1}</td>
+                  <td className="px-4 py-2">
+                    <div className="flex flex-col">
+                      <span className="text-ink">{p.productName}</span>
+                      <span className="font-mono text-caption text-text-muted">{p.productCode}</span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-2 text-right tabular-nums font-medium text-ink">
+                    {p.unitsSold.toLocaleString()}
+                  </td>
+                  <td className="px-4 py-2 text-right tabular-nums text-text-muted">
+                    {p.orderCount.toLocaleString()}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
   );
 }
 

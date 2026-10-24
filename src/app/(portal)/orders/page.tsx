@@ -130,7 +130,7 @@ export default function OrdersListPage() {
           <THead>
             <Th>Reference / Recipient</Th>
             <Th>Status</Th>
-            <Th>Carrier</Th>
+            <Th>Carrier / Tracking</Th>
             <Th align="right">Lines</Th>
             <Th align="right">Charged</Th>
             <Th>Submitted</Th>
@@ -162,26 +162,8 @@ export default function OrdersListPage() {
                 <Td>
                   <StatusPill tone={TONE[o.status]}>{o.status.replace(/_/g, " ")}</StatusPill>
                 </Td>
-                <Td mono className="text-text-muted">
-                  {o.fulfillmentMode === "VENDOR_CARRIER" ? (
-                    <div className="flex flex-col gap-0.5">
-                      {/* Migration 0037 — make the branch unmistakable in
-                          the vendor's own list. Vendors who use their
-                          own carrier shouldn't be looking for tracking
-                          updates in the platform — the badge tells them
-                          where the responsibility line is. */}
-                      <span className="inline-flex w-fit items-center rounded-sm border border-amber/30 bg-amber/10 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[1.1px] text-amber">
-                        Your carrier
-                      </span>
-                      <span>
-                        {o.vendorCarrierName?.trim() ||
-                          o.carrierService ||
-                          "Your label"}
-                      </span>
-                    </div>
-                  ) : (
-                    (o.carrierService ?? "—")
-                  )}
+                <Td className="text-text-muted">
+                  <CarrierCell order={o} />
                 </Td>
                 <Td num>{o.lines.length}</Td>
                 <Td num strong>
@@ -215,5 +197,75 @@ export default function OrdersListPage() {
         />
       ) : null}
     </div>
+  );
+}
+
+/**
+ * Carrier / tracking cell. Shows the actual shipping company (DHL, FedEx,
+ * USPS, UPS…) as the primary line — not just the service level — with the
+ * service beneath it, and the tracking number with a one-tap copy button
+ * so vendors don't have to open the order to grab it.
+ *
+ * Carrier identity differs by fulfillment mode:
+ *   PLATFORM_SHIP   → set when USA Errands buys the label (carrier /
+ *                     carrierService / trackingNumber).
+ *   VENDOR_CARRIER  → the vendor's own carrier + tracking they supplied.
+ * Until a label is bought / tracking is known, these are null and we show
+ * a dash rather than an empty cell.
+ */
+function CarrierCell({ order }: { order: PublicOrder }): JSX.Element {
+  const isVendor = order.fulfillmentMode === "VENDOR_CARRIER";
+  const carrierName = isVendor
+    ? order.vendorCarrierName?.trim() || null
+    : order.carrier?.trim() || null;
+  const service = isVendor ? null : order.carrierService?.trim() || null;
+  const tracking = isVendor
+    ? order.vendorTrackingNumber?.trim() || null
+    : order.trackingNumber?.trim() || null;
+
+  return (
+    <div className="flex flex-col gap-0.5">
+      {isVendor ? (
+        <span className="inline-flex w-fit items-center rounded-sm border border-amber/30 bg-amber/10 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[1.1px] text-amber">
+          Your carrier
+        </span>
+      ) : null}
+      <span className="font-medium text-text">
+        {carrierName ?? (isVendor ? "Your label" : "—")}
+      </span>
+      {service ? (
+        <span className="font-mono text-caption text-text-muted">{service}</span>
+      ) : null}
+      {tracking ? <CopyTracking value={tracking} /> : null}
+    </div>
+  );
+}
+
+/** Tracking number + inline copy button. */
+function CopyTracking({ value }: { value: string }): JSX.Element {
+  const [copied, setCopied] = useState(false);
+  async function copy(): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* clipboard blocked — the number is still visible to select manually */
+    }
+  }
+  return (
+    <span className="mt-0.5 inline-flex items-center gap-1.5">
+      <span className="font-mono text-caption text-text" title={value}>
+        {value}
+      </span>
+      <button
+        type="button"
+        onClick={copy}
+        className="shrink-0 font-mono text-[10px] uppercase tracking-[1.1px] text-amber hover:text-amber-hi"
+        aria-label="Copy tracking number"
+      >
+        {copied ? "Copied ✓" : "Copy"}
+      </button>
+    </span>
   );
 }
