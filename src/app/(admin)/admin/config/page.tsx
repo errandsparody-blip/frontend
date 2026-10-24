@@ -70,6 +70,12 @@ const VIRTUAL_EDITORS: Array<{ href: string; title: string; description: string 
     description:
       "Warehouse locations (aisle / bay / shelf / bin) that SKUs can be assigned to. Shown to operators on pack + PSN receive so they can walk to the item.",
   },
+  {
+    href: "/admin/config/shipping-origin",
+    title: "Shipping origin (sender address)",
+    description:
+      "Read-only view of the sender/return address — including the phone — sent to Shippo on every label. Confirm the correct number is live; this is what prints, not the Shippo dashboard address.",
+  },
 ];
 
 interface EmailTestResult {
