@@ -167,6 +167,9 @@ interface VendorDetail {
     primaryShippingCountries: string | null;
     requiresReturnsHandling: boolean | null;
     productHazards: string[];
+    sellsOnEcommerce: boolean | null;
+    ecommercePlatforms: string | null;
+    wantsPlatformIntegration: boolean | null;
   };
 }
 
@@ -1439,6 +1442,34 @@ function KycV2Card({
               : null
           }
         />
+      </KycSection>
+
+      <KycSection title="Sales channels">
+        <KycRow
+          label="Sells on e-commerce platforms"
+          value={
+            typeof kyc.sellsOnEcommerce === "boolean"
+              ? kyc.sellsOnEcommerce
+                ? "Yes"
+                : "No"
+              : null
+          }
+        />
+        {kyc.sellsOnEcommerce === true ? (
+          <>
+            <KycRow label="Platform(s)" value={kyc.ecommercePlatforms} />
+            <KycRow
+              label="Wants integration"
+              value={
+                typeof kyc.wantsPlatformIntegration === "boolean"
+                  ? kyc.wantsPlatformIntegration
+                    ? "Yes"
+                    : "No"
+                  : null
+              }
+            />
+          </>
+        ) : null}
       </KycSection>
 
     </section>

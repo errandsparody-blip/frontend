@@ -95,6 +95,11 @@ interface KycV2State {
   primaryShippingCountries: string | null;
   requiresReturnsHandling: boolean | null;
   productHazards: string[];
+  // Sales channels — does the vendor already sell on e-commerce platforms,
+  // which ones, and do they want us to integrate with them.
+  sellsOnEcommerce: boolean | null;
+  ecommercePlatforms: string | null;
+  wantsPlatformIntegration: boolean | null;
 }
 
 interface VendorProfile {
@@ -256,6 +261,12 @@ const wizardSchema = z
     requiresReturnsHandling: z.union([z.boolean(), z.literal("")]).optional(),
     productHazards: z.array(hazardEnum).max(5).optional(),
 
+    // Sales channels. Empty string = "not answered yet" so the state stays
+    // JSON-serialisable, mirroring the other boolean fields in this wizard.
+    sellsOnEcommerce: z.union([z.boolean(), z.literal("")]).optional(),
+    ecommercePlatforms: z.string().max(400).optional(),
+    wantsPlatformIntegration: z.union([z.boolean(), z.literal("")]).optional(),
+
     // Social presence — at least one of the four is required to submit KYC
     // (see `isStepComplete("review")` below). The wizard PATCHes these to
     // /vendors/me right before the kyc/submit POST. Strict patterns mirror
@@ -320,6 +331,9 @@ const EMPTY_WIZARD: WizardInput = {
   primaryShippingCountries: "",
   requiresReturnsHandling: "",
   productHazards: [],
+  sellsOnEcommerce: "",
+  ecommercePlatforms: "",
+  wantsPlatformIntegration: "",
   // Social presence — at least one is required for final submit (mirrors
   // the backend `submitKyc` `hasAnyHandle` check). Each defaults to ""
   // and the Review step PATCHes /vendors/me right before kyc/submit.
@@ -340,6 +354,7 @@ type StepKey =
   | "verification"
   | "inventory"
   | "shipping"
+  | "channels"
   | "review";
 
 const STEPS: Array<{ key: StepKey; label: string }> = [
@@ -349,6 +364,7 @@ const STEPS: Array<{ key: StepKey; label: string }> = [
   { key: "verification", label: "Business verification" },
   { key: "inventory", label: "Inventory" },
   { key: "shipping", label: "Shipping & ops" },
+  { key: "channels", label: "Sales channels" },
   { key: "review", label: "Review & submit" },
 ];
 
@@ -393,6 +409,11 @@ const STEP_FIELDS: Record<StepKey, Array<keyof WizardInput>> = {
     "primaryShippingCountries",
     "requiresReturnsHandling",
     "productHazards",
+  ],
+  channels: [
+    "sellsOnEcommerce",
+    "ecommercePlatforms",
+    "wantsPlatformIntegration",
   ],
   review: [],
 };
@@ -455,6 +476,12 @@ function isStepComplete(step: StepKey, v: WizardInput): boolean {
         Array.isArray(v.productHazards) &&
         v.productHazards.length > 0
       );
+    case "channels":
+      // Must answer the yes/no. If they sell on platforms, they must name at
+      // least one AND answer whether they want integration. If not, done.
+      if (typeof v.sellsOnEcommerce !== "boolean") return false;
+      if (v.sellsOnEcommerce === false) return true;
+      return has(v.ecommercePlatforms) && typeof v.wantsPlatformIntegration === "boolean";
     case "review":
       // The Submit button is the gesture on this step, but it must only
       // enable when every prior step is complete. Server-side .superRefine
@@ -474,6 +501,7 @@ function isStepComplete(step: StepKey, v: WizardInput): boolean {
         isStepComplete("verification", v) &&
         isStepComplete("inventory", v) &&
         isStepComplete("shipping", v) &&
+        isStepComplete("channels", v) &&
         (has(v.instagramHandle) ||
           has(v.tiktokHandle) ||
           has(v.xHandle) ||
@@ -498,6 +526,7 @@ function missingStepsForReview(v: WizardInput): string[] {
     "verification",
     "inventory",
     "shipping",
+    "channels",
   ];
   const missing = order
     .filter((k) => !isStepComplete(k, v))
@@ -582,6 +611,28 @@ function buildPayload(
   }
   if (include("productHazards") && Array.isArray(values.productHazards) && values.productHazards.length > 0) {
     out.productHazards = values.productHazards;
+  }
+
+  // Sales channels.
+  if (include("sellsOnEcommerce") && typeof values.sellsOnEcommerce === "boolean") {
+    out.sellsOnEcommerce = values.sellsOnEcommerce;
+  }
+  // Only forward the platform names + integration answer when they actually
+  // sell on platforms; clear them otherwise so a "No" doesn't carry stale
+  // "Yes" answers.
+  if (include("ecommercePlatforms")) {
+    if (values.sellsOnEcommerce === true && typeof values.ecommercePlatforms === "string" && values.ecommercePlatforms.trim().length > 0) {
+      out.ecommercePlatforms = values.ecommercePlatforms.trim();
+    } else if (values.sellsOnEcommerce === false) {
+      out.ecommercePlatforms = "";
+    }
+  }
+  if (include("wantsPlatformIntegration")) {
+    if (values.sellsOnEcommerce === true && typeof values.wantsPlatformIntegration === "boolean") {
+      out.wantsPlatformIntegration = values.wantsPlatformIntegration;
+    } else if (values.sellsOnEcommerce === false) {
+      out.wantsPlatformIntegration = false;
+    }
   }
 
   if (finalSubmit) {
@@ -711,6 +762,20 @@ export default function VerificationPage(): JSX.Element {
           : Array.isArray(stored?.productHazards)
             ? (stored?.productHazards as string[])
             : [],
+      sellsOnEcommerce:
+        typeof kyc.sellsOnEcommerce === "boolean"
+          ? kyc.sellsOnEcommerce
+          : typeof stored?.sellsOnEcommerce === "boolean"
+            ? stored.sellsOnEcommerce
+            : "",
+      ecommercePlatforms:
+        kyc.ecommercePlatforms ?? stored?.ecommercePlatforms ?? "",
+      wantsPlatformIntegration:
+        typeof kyc.wantsPlatformIntegration === "boolean"
+          ? kyc.wantsPlatformIntegration
+          : typeof stored?.wantsPlatformIntegration === "boolean"
+            ? stored.wantsPlatformIntegration
+            : "",
       // Social handles live at the top level of the /vendors/me payload
       // (next to businessName), not inside `kyc.kycV2`. Pre-fill so a
       // vendor who already filled them on /settings doesn't have to
@@ -1001,6 +1066,7 @@ export default function VerificationPage(): JSX.Element {
         ) : null}
         {stepKey === "inventory" ? <InventoryStep form={form} /> : null}
         {stepKey === "shipping" ? <ShippingStep form={form} /> : null}
+        {stepKey === "channels" ? <ChannelsStep form={form} /> : null}
         {stepKey === "review" ? (
           <ReviewStep values={watched} businessName={profile.businessName} form={form} />
         ) : null}
@@ -1896,6 +1962,110 @@ function ShippingStep({ form }: StepProps): JSX.Element {
   );
 }
 
+function ChannelsStep({ form }: StepProps): JSX.Element {
+  const sells = form.watch("sellsOnEcommerce");
+  const wantsIntegration = form.watch("wantsPlatformIntegration");
+
+  return (
+    <div className="grid grid-cols-1 gap-4">
+      <h2 className="text-h3 font-semibold text-ink">Sales channels</h2>
+
+      <fieldset className="flex flex-col gap-2">
+        <legend className="font-mono text-[11px] uppercase tracking-[1.4px] text-text-muted">
+          Do you currently sell on any e-commerce platforms? *
+        </legend>
+        <div className="flex gap-6 pt-1">
+          <label className="flex cursor-pointer items-center gap-2 text-body-sm text-text">
+            <input
+              type="radio"
+              name="sellsOnEcommerce"
+              checked={sells === true}
+              onChange={() =>
+                form.setValue("sellsOnEcommerce", true, {
+                  shouldValidate: true,
+                  shouldDirty: true,
+                })
+              }
+            />
+            Yes
+          </label>
+          <label className="flex cursor-pointer items-center gap-2 text-body-sm text-text">
+            <input
+              type="radio"
+              name="sellsOnEcommerce"
+              checked={sells === false}
+              onChange={() => {
+                // Clear the follow-ups so a later switch back to Yes starts clean
+                // and a "No" never submits stale platform answers.
+                form.setValue("sellsOnEcommerce", false, {
+                  shouldValidate: true,
+                  shouldDirty: true,
+                });
+                form.setValue("ecommercePlatforms", "", { shouldDirty: true });
+                form.setValue("wantsPlatformIntegration", "", { shouldDirty: true });
+              }}
+            />
+            No
+          </label>
+        </div>
+      </fieldset>
+
+      {/* Follow-ups only when they sell on platforms. */}
+      {sells === true ? (
+        <>
+          <Field
+            label="Which platform(s)? *"
+            hint="Comma-separate (e.g. Shopify, Amazon, Etsy, WooCommerce)"
+            error={form.formState.errors.ecommercePlatforms?.message}
+          >
+            <Input type="text" {...form.register("ecommercePlatforms")} />
+          </Field>
+
+          <fieldset className="flex flex-col gap-2">
+            <legend className="font-mono text-[11px] uppercase tracking-[1.4px] text-text-muted">
+              Would you like us to integrate with your store(s)? *
+            </legend>
+            <p className="text-body-sm text-text-muted">
+              Integration lets your platform push orders to us automatically for
+              fulfilment.
+            </p>
+            <div className="flex gap-6 pt-1">
+              <label className="flex cursor-pointer items-center gap-2 text-body-sm text-text">
+                <input
+                  type="radio"
+                  name="wantsPlatformIntegration"
+                  checked={wantsIntegration === true}
+                  onChange={() =>
+                    form.setValue("wantsPlatformIntegration", true, {
+                      shouldValidate: true,
+                      shouldDirty: true,
+                    })
+                  }
+                />
+                Yes
+              </label>
+              <label className="flex cursor-pointer items-center gap-2 text-body-sm text-text">
+                <input
+                  type="radio"
+                  name="wantsPlatformIntegration"
+                  checked={wantsIntegration === false}
+                  onChange={() =>
+                    form.setValue("wantsPlatformIntegration", false, {
+                      shouldValidate: true,
+                      shouldDirty: true,
+                    })
+                  }
+                />
+                No
+              </label>
+            </div>
+          </fieldset>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Review step — read-only summary of every field collected in steps 1–6.
 //
@@ -2057,6 +2227,22 @@ function ReviewStep({
           value={fmtBool(values.requiresReturnsHandling)}
         />
         <ReviewRow label="Product hazards" value={fmtHazards(values.productHazards)} />
+      </ReviewSection>
+
+      <ReviewSection title="Sales channels">
+        <ReviewRow
+          label="Sells on e-commerce platforms"
+          value={fmtBool(values.sellsOnEcommerce)}
+        />
+        {values.sellsOnEcommerce === true ? (
+          <>
+            <ReviewRow label="Platform(s)" value={fmt(values.ecommercePlatforms)} />
+            <ReviewRow
+              label="Wants integration"
+              value={fmtBool(values.wantsPlatformIntegration)}
+            />
+          </>
+        ) : null}
       </ReviewSection>
 
       {/* Online presence — collected inline on the Review step so a
