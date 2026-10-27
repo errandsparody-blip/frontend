@@ -31,7 +31,7 @@ export default function NewProductPage() {
         description="The product code is part of the SKU id. Make it short, uppercase, and stable — once products are received against it, the code is locked."
       />
       <div className="rounded-md border border-line bg-white p-8">
-        <ProductForm submitLabel="Create product" onSubmit={onSubmit} />
+        <ProductForm submitLabel="Create product" onSubmit={onSubmit} draftKey="product_new" />
       </div>
     </div>
   );

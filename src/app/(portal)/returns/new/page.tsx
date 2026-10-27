@@ -16,7 +16,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { AttachmentUploader } from "@/components/portal/attachment-uploader";
 import { ErrorBanner } from "@/components/errors/error-banner";
@@ -29,9 +29,12 @@ import { PageHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
 import { SuggestInput } from "@/components/ui/suggest-input";
 import { DataTable, TBody, THead, Th, TR, Td } from "@/components/ui/table";
+import { DraftResumeBanner } from "@/components/ui/draft-resume-banner";
 import { api } from "@/lib/api-client";
+import { useAuth } from "@/lib/auth-context";
 import { useApiErrorHandler } from "@/lib/errors";
 import { rememberText } from "@/lib/suggestions";
+import { useFormDraft } from "@/lib/use-form-draft";
 import type { PublicOrder } from "@/lib/schemas/orders";
 import {
   isOrderReturnable,
@@ -74,14 +77,47 @@ export default function NewReturnPage(): JSX.Element {
   const [expectedDate, setExpectedDate] = useState("");
   const [attachments, setAttachments] = useState<string[]>([]);
 
-  // Seed the qty map to 0 for each line when an order loads.
+  // Seed the qty map for each line when an order loads. Merge-preserve any
+  // existing values so a resumed draft's quantities survive the order fetch.
   useEffect(() => {
     const o = orderQ.data;
     if (!o) return;
-    const seed: Record<string, number> = {};
-    for (const l of o.lines) seed[l.id] = 0;
-    setQty(seed);
+    setQty((prev) => {
+      const seed: Record<string, number> = {};
+      for (const l of o.lines) seed[l.id] = prev[l.id] ?? 0;
+      return seed;
+    });
   }, [orderQ.data]);
+
+  // ---- autosave draft (survives logout / reload / crash) -----------------
+  const { user } = useAuth();
+  const draftValue = useMemo(
+    () => ({ selectedId, reason, qty, carrier, tracking, expectedDate, attachments }),
+    [selectedId, reason, qty, carrier, tracking, expectedDate, attachments],
+  );
+  const draft = useFormDraft({
+    form: "return_new",
+    userId: user?.id,
+    value: draftValue,
+    isEmpty: (v) =>
+      !v.selectedId &&
+      v.tracking.trim() === "" &&
+      v.carrier.trim() === "" &&
+      v.expectedDate.trim() === "" &&
+      v.attachments.length === 0 &&
+      Object.values(v.qty).every((n) => !n),
+  });
+  function resumeDraft(): void {
+    const d = draft.resume();
+    if (!d) return;
+    setSelectedId(d.selectedId ?? null);
+    setReason(d.reason ?? "DEFECTIVE");
+    setQty(d.qty ?? {});
+    setCarrier(d.carrier ?? "");
+    setTracking(d.tracking ?? "");
+    setExpectedDate(d.expectedDate ?? "");
+    setAttachments(d.attachments ?? []);
+  }
 
   const createMut = useMutation({
     mutationFn: (body: CreateReturnInput) => api.post<ReturnSnapshot>("/returns", body),
@@ -90,6 +126,8 @@ export default function NewReturnPage(): JSX.Element {
       // Auto-remember what was typed so it's suggested next time.
       rememberText("return-carrier", carrier);
       rememberText("return-tracking", tracking);
+      // Return filed — drop the autosaved draft.
+      draft.clear();
       await qc.invalidateQueries({ queryKey: ["returns"] });
       router.push(`/returns/${created.id}`);
     },
@@ -123,6 +161,14 @@ export default function NewReturnPage(): JSX.Element {
         description="Pick a shipped order, then tell us what's coming back."
         actions={<BackButton fallback="/returns" />}
       />
+
+      {draft.hasDraft ? (
+        <DraftResumeBanner
+          savedAt={draft.savedAt}
+          onResume={resumeDraft}
+          onDiscard={draft.discard}
+        />
+      ) : null}
 
       {/* Step 1 — order picker */}
       {selectedId === null ? (

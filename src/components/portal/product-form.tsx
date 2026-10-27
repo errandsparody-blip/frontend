@@ -8,10 +8,13 @@ import { z } from "zod";
 import { ProductImageUploader } from "@/components/portal/product-image-uploader";
 import { StorageTierGuide } from "@/components/portal/storage-tier-guide";
 import { Button } from "@/components/ui/button";
+import { DraftResumeBanner } from "@/components/ui/draft-resume-banner";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { SuggestInput } from "@/components/ui/suggest-input";
+import { useAuth } from "@/lib/auth-context";
 import { rememberText } from "@/lib/suggestions";
+import { useFormDraft } from "@/lib/use-form-draft";
 import type { ApiError } from "@/lib/api-client";
 import { COUNTRIES } from "@/lib/countries";
 import {
@@ -52,6 +55,13 @@ interface ProductFormProps {
    * @deprecated use `locked` instead
    */
   variantLocked?: boolean;
+  /**
+   * When set, autosaves the in-progress form to localStorage under this key
+   * (per-user) so a logout / reload / crash doesn't lose the entry, and offers
+   * to resume on return. Only pass this on the CREATE page (e.g. "product_new")
+   * — edit pages must NOT autosave, so they leave it undefined.
+   */
+  draftKey?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -202,6 +212,7 @@ export function ProductForm({
   showCode = true,
   locked: lockedProp = false,
   variantLocked = false,
+  draftKey,
 }: ProductFormProps): JSX.Element {
   // Either the new full-product lock OR the legacy variant-only flag
   // disables every editable field. Both end up at the same place: an
@@ -241,6 +252,7 @@ export function ProductForm({
     handleSubmit,
     setValue,
     getValues,
+    reset,
     watch,
     formState: { errors, isSubmitting },
   } = useForm<FormInput>({
@@ -284,6 +296,29 @@ export function ProductForm({
   const widthIn = watch("widthIn");
   const heightIn = watch("heightIn");
   const storageTier = watch("storageTier");
+
+  // ---- autosave draft (create page only; survives logout / reload) --------
+  // `draftKey` gates this entirely: when it's undefined (edit pages) we pass
+  // userId=undefined so the hook is fully inert — no save, no resume banner.
+  const { user } = useAuth();
+  const allValues = watch();
+  const draftValue = useMemo(
+    () => ({ form: allValues, imageUrl }),
+    [allValues, imageUrl],
+  );
+  const draft = useFormDraft({
+    form: draftKey ?? "product_new",
+    userId: draftKey ? user?.id : undefined,
+    value: draftValue,
+    enabled: !locked,
+    isEmpty: (v) => !v.form.code?.trim() && !v.form.name?.trim() && !v.imageUrl,
+  });
+  function resumeDraft(): void {
+    const d = draft.resume();
+    if (!d) return;
+    if (d.form) reset(d.form as FormInput);
+    setImageUrl(d.imageUrl ?? null);
+  }
 
   // Compute a suggested tier from the typed dimensions + weight. Returns
   // null when the form doesn't have enough info, in which case the
@@ -357,6 +392,8 @@ export function ProductForm({
         imageUrl: (imageUrl ?? null) as string,
       };
       await onSubmit(wireValues);
+      // Saved — drop the autosaved draft (no-op on edit pages).
+      draft.clear();
       // Auto-remember the variant so it's suggested on the next product.
       rememberText("product-variant", wireValues.variant);
       // Success — flash the confirmation. If the parent navigated away
@@ -372,6 +409,13 @@ export function ProductForm({
 
   return (
     <form onSubmit={handleSubmit(submit)} className="flex flex-col gap-6" noValidate>
+      {draft.hasDraft ? (
+        <DraftResumeBanner
+          savedAt={draft.savedAt}
+          onResume={resumeDraft}
+          onDiscard={draft.discard}
+        />
+      ) : null}
       {locked ? (
         <div
           role="note"

@@ -15,9 +15,12 @@ import { rememberAddress, SavedAddressPicker } from "@/components/ui/saved-addre
 import { StatusPill } from "@/components/ui/status-pill";
 import { SuggestInput } from "@/components/ui/suggest-input";
 import { DataTable, TBody, THead, Th, TR, Td } from "@/components/ui/table";
+import { DraftResumeBanner } from "@/components/ui/draft-resume-banner";
 import { api } from "@/lib/api-client";
+import { useAuth } from "@/lib/auth-context";
 import { useApiErrorHandler } from "@/lib/errors";
 import { rememberText } from "@/lib/suggestions";
+import { useFormDraft } from "@/lib/use-form-draft";
 import {
   recipientAddressSchema,
   type CreateOrderInput,
@@ -261,6 +264,64 @@ export default function NewOrderPage() {
   const [step, setStep] = useState<Step>("lines");
   const [submitted, setSubmitted] = useState<PublicOrder | null>(null);
 
+  // ---- autosave draft (survives logout / reload / crash) -----------------
+  const { user } = useAuth();
+  const draftValue = useMemo(
+    () => ({
+      lines,
+      address,
+      externalReference,
+      fulfillmentMode,
+      vendorCarrierName,
+      vendorTrackingNumber,
+      vendorLabelUrl,
+      insuranceRequested,
+      signatureRequired,
+      adultSignatureRequired,
+    }),
+    [
+      lines,
+      address,
+      externalReference,
+      fulfillmentMode,
+      vendorCarrierName,
+      vendorTrackingNumber,
+      vendorLabelUrl,
+      insuranceRequested,
+      signatureRequired,
+      adultSignatureRequired,
+    ],
+  );
+  const draft = useFormDraft({
+    form: "order_new",
+    userId: user?.id,
+    value: draftValue,
+    // Don't persist a pristine form — only once the vendor has actually
+    // started entering an order.
+    isEmpty: (v) =>
+      v.lines.length === 0 &&
+      v.externalReference.trim() === "" &&
+      v.address.recipientName.trim() === "" &&
+      v.address.shipAddressLine1.trim() === "",
+  });
+  function resumeDraft(): void {
+    const d = draft.resume();
+    if (!d) return;
+    setLines(d.lines ?? []);
+    setAddress(d.address ?? EMPTY_ADDRESS);
+    setExternalReference(d.externalReference ?? "");
+    setFulfillmentMode(d.fulfillmentMode ?? "PLATFORM_SHIP");
+    setVendorCarrierName(d.vendorCarrierName ?? "");
+    setVendorTrackingNumber(d.vendorTrackingNumber ?? "");
+    setVendorLabelUrl(d.vendorLabelUrl ?? "");
+    setInsuranceRequested(!!d.insuranceRequested);
+    setSignatureRequired(!!d.signatureRequired);
+    setAdultSignatureRequired(!!d.adultSignatureRequired);
+    // Intentionally do NOT restore the wizard step — the quote/rate selection
+    // is ephemeral, so we resume at the first step with all data intact and
+    // let the vendor re-quote.
+  }
+
   // ---- mutations
   const quoteMut = useMutation({
     mutationFn: async () => {
@@ -403,6 +464,8 @@ export default function NewOrderPage() {
         recipientEmail: address.recipientEmail || undefined,
       });
       rememberText("order-reference", externalReference);
+      // Order placed — drop the autosaved draft so it isn't offered again.
+      draft.clear();
       setSubmitted(o);
     },
     onError: (err) => handle(err),
@@ -495,6 +558,14 @@ export default function NewOrderPage() {
           </button>
         }
       />
+
+      {draft.hasDraft ? (
+        <DraftResumeBanner
+          savedAt={draft.savedAt}
+          onResume={resumeDraft}
+          onDiscard={draft.discard}
+        />
+      ) : null}
 
       <Stepper step={step} />
 
