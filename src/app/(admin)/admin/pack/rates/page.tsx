@@ -544,9 +544,7 @@ export default function AdminRatePickerPage(): JSX.Element {
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() =>
-                      window.open(`/admin/pack/${selectedRow.id}/packing-slip`, "_blank", "noopener")
-                    }
+                    onClick={() => router.push(`/admin/pack/${selectedRow.id}/packing-slip`)}
                   >
                     Slip
                   </Button>

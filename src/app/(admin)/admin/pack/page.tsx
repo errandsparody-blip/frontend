@@ -25,6 +25,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import { ErrorBanner } from "@/components/errors/error-banner";
@@ -115,6 +116,7 @@ const MAX_NOTES_LEN = 500;
 
 export default function AdminPackQueuePage(): JSX.Element {
   const qc = useQueryClient();
+  const router = useRouter();
   const { bannerError, handle, clear } = useApiErrorHandler();
   const [selected, setSelected] = useState<QueueRow | null>(null);
 
@@ -247,9 +249,7 @@ export default function AdminPackQueuePage(): JSX.Element {
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() =>
-                        window.open(`/admin/pack/${row.id}/packing-slip`, "_blank", "noopener")
-                      }
+                      onClick={() => router.push(`/admin/pack/${row.id}/packing-slip`)}
                     >
                       Slip
                     </Button>
