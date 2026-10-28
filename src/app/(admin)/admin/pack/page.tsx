@@ -247,6 +247,16 @@ export default function AdminPackQueuePage(): JSX.Element {
                       type="button"
                       variant="outline"
                       size="sm"
+                      onClick={() =>
+                        window.open(`/admin/pack/${row.id}/packing-slip`, "_blank", "noopener")
+                      }
+                    >
+                      Slip
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
                       onClick={() => setCancelTarget(row)}
                     >
                       Cancel

@@ -442,6 +442,16 @@ export default function AdminOrderDetailPage() {
               {o.shipCity}, {o.shipState} {o.shipPostalCode} · {o.shipCountry}
             </div>
             {o.recipientPhone ? <div className="font-mono text-body-sm text-text-muted">{o.recipientPhone}</div> : null}
+            {/* Customer email drives the shipped/delivered tracking emails.
+                Surface it (or its absence) so ops can see whether the
+                customer will be notified. */}
+            <div className="font-mono text-body-sm text-text-muted">
+              {o.recipientEmail ? (
+                o.recipientEmail
+              ) : (
+                <span className="text-amber">No customer email — no tracking email will be sent</span>
+              )}
+            </div>
           </div>
           <div>
             <div className="font-mono text-mono-label uppercase text-text-muted">Money</div>
