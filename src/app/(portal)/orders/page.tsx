@@ -131,6 +131,7 @@ export default function OrdersListPage() {
             <Th>Reference / Recipient</Th>
             <Th>Status</Th>
             <Th>Carrier / Tracking</Th>
+            <Th align="right">Weight</Th>
             <Th align="right">Lines</Th>
             <Th align="right">Charged</Th>
             <Th>Submitted</Th>
@@ -164,6 +165,9 @@ export default function OrdersListPage() {
                 </Td>
                 <Td className="text-text-muted">
                   <CarrierCell order={o} />
+                </Td>
+                <Td num>
+                  <WeightCell order={o} />
                 </Td>
                 <Td num>{o.lines.length}</Td>
                 <Td num strong>
@@ -213,6 +217,33 @@ export default function OrdersListPage() {
  * Until a label is bought / tracking is known, these are null and we show
  * a dash rather than an empty cell.
  */
+/** oz → a compact "X.X lb" (or "N oz" under a pound). */
+function formatWeight(oz: number): string {
+  const lb = oz / 16;
+  return lb >= 1 ? `${lb.toFixed(1)} lb` : `${Math.round(oz)} oz`;
+}
+
+/**
+ * Package weight. Shows the ACTUAL packed weight once the warehouse records
+ * it; before that, shows the ESTIMATE from product weights (tagged "est."),
+ * so vendors can gauge weight while setting their own shipping rates.
+ */
+function WeightCell({ order }: { order: PublicOrder }): JSX.Element {
+  const actual = order.packedWeightOz;
+  const oz = actual ?? order.estimatedWeightOz;
+  if (oz == null) return <span className="text-text-subtle">—</span>;
+  return (
+    <span className="inline-flex flex-col items-end leading-tight">
+      <span className={actual != null ? "font-medium text-text" : "text-text-muted"}>
+        {formatWeight(oz)}
+      </span>
+      {actual == null ? (
+        <span className="font-mono text-[9px] uppercase tracking-[1px] text-text-subtle">est.</span>
+      ) : null}
+    </span>
+  );
+}
+
 function CarrierCell({ order }: { order: PublicOrder }): JSX.Element {
   const isVendor = order.fulfillmentMode === "VENDOR_CARRIER";
   const carrierName = isVendor

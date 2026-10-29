@@ -392,6 +392,8 @@ export interface PublicOrder {
   packedWeightOz: number | null;
   packedAt: string | null;
   packagingLabel: string | null;
+  /** Estimated package weight (oz) from product weights, before packing. */
+  estimatedWeightOz: number | null;
   lines: Array<{
     id: string;
     skuId: string;

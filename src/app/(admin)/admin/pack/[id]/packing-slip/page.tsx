@@ -85,6 +85,16 @@ export default function PackingSlipPage(): JSX.Element {
             left: 0 !important;
             width: 100% !important;
           }
+          /* Printers wash out the on-screen grays — force EVERYTHING on the
+             slip to solid black and bold so it's fully legible on paper. */
+          .slip-root,
+          .slip-root * {
+            color: #000 !important;
+            font-weight: 700 !important;
+            border-color: #000 !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
           .no-print {
             display: none !important;
           }
