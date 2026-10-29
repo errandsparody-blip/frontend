@@ -99,6 +99,16 @@ export default function PackingSlipPage(): JSX.Element {
             display: none !important;
           }
         }
+        /* Render the slip in solid black + bold at ALL times (screen and
+           print). Printers wash out the design-system grays, and the printed
+           slip is the thing that has to be legible — so everything on it is
+           forced to #000 and bold, borders included. */
+        .slip-root,
+        .slip-root * {
+          color: #000 !important;
+          font-weight: 700 !important;
+          border-color: #000 !important;
+        }
       `}</style>
 
       <div className="flex min-h-screen flex-col items-center bg-cream py-10 print:bg-white print:py-0">
