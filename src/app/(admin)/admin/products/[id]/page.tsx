@@ -405,7 +405,7 @@ export default function AdminProductEditPage(): JSX.Element {
 }
 
 // ---------------------------------------------------------------------------
-// Barcode manager (Migration 0044)
+// Barcode manager
 // ---------------------------------------------------------------------------
 
 interface AdminBarcode {

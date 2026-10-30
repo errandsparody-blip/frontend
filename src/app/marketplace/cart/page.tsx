@@ -1,6 +1,6 @@
 "use client";
 
-/** Cross-vendor cart (Phase 2) — grouped by store, then one guided checkout. */
+/** Cross-vendor cart — grouped by store, then one guided checkout. */
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";

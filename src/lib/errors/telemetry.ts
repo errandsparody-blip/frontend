@@ -5,7 +5,7 @@
  * hasn't been updated for, the user sees a generic "something went wrong"
  * banner. We want to know that's happening so we can fill the gap. The
  * catalog already exposes a `setUnknownErrorCodeTracker()` injection point
- * (Phase 1) — this module connects it to Sentry's `captureMessage()` so
+ * — this module connects it to Sentry's `captureMessage()` so
  * unknown codes show up as `info`-level events with the code as a tag.
  *
  * Sampling — every unknown code is captured. The cardinality is bounded by

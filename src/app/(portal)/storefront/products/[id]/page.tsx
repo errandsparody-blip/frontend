@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Storefront product details editor (Migration 0070). A dedicated page where a
+ * Storefront product details editor. A dedicated page where a
  * vendor writes the buyer-facing details for one product — description, colour,
  * fit, gender, material, care, brand, ships-from — shown ASOS-style in the
  * "Product details" section on the public product page.

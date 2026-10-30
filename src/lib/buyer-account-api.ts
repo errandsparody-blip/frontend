@@ -1,5 +1,5 @@
 /**
- * Optional buyer-account client (Migration 0060). Passwordless: a magic link
+ * Optional buyer-account client. Passwordless: a magic link
  * yields a session token, kept in localStorage and sent as `x-buyer-session`.
  */
 import type { ShipAddressInput } from "./storefront-api";

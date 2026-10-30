@@ -88,7 +88,7 @@ interface RecurringStorage {
     /** Earliest nextBillingDate among this PSN's SKUs — "this PSN starts billing on". */
     firstBillingDate: string | null;
     /**
-     * Migration 0036 — true when every box on this PSN is bundled with
+     * true when every box on this PSN is bundled with
      * an existing parent pallet (ADD_TO_PALLET shipment). The row should
      * render a "Bundled with pallet" badge instead of a per-month charge
      * and a first-bill date, because the parent pallet's monthly $45
@@ -97,7 +97,7 @@ interface RecurringStorage {
     isBundledWithParentPallet: boolean;
   }>;
   /**
-   * Migration 0036 — boxes the vendor has that ride inside an existing
+   * boxes the vendor has that ride inside an existing
    * parent pallet and so don't bill independently. Surfaced separately
    * so vendors who ship ADD_TO_PALLET can see they're carrying extra
    * inventory without thinking the next charge will jump.

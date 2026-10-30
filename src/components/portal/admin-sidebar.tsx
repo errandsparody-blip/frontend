@@ -47,14 +47,14 @@ interface NavItem {
    */
   category?: NotificationCategory | "__total__";
   /**
-   * Migration 0039 — the page-permission key that gates this item
+   * the page-permission key that gates this item
    * for the ADMIN role. Items with a key are hidden when
    * permissions[key] is false. SUPER_ADMIN and the legacy admin
    * roles always see items (server returns all-true for them).
    */
   pageKey?: PageKey;
   /**
-   * Migration 0039 — items reachable only by SUPER_ADMIN. Filtered
+   * items reachable only by SUPER_ADMIN. Filtered
    * out for every other role. Used for the config editors that
    * never appear on the ADMIN registry (no page key can grant
    * them).
@@ -64,7 +64,7 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard, pageKey: "admin.dashboard" },
-  // Phase H — SUPER_ADMIN-only platform dashboard (finance-sensitive
+  // SUPER_ADMIN-only platform dashboard (finance-sensitive
   // aggregates: revenue, wallet totals, warehouse KPIs).
   {
     href: "/admin/super-dashboard",
@@ -76,7 +76,7 @@ const NAV: NavItem[] = [
   { href: "/admin/vendors", label: "Vendors", icon: Building2, category: "vendor", pageKey: "admin.vendors.read" },
   { href: "/admin/inventory", label: "Inventory", icon: Package, pageKey: "admin.inventory.read" },
   { href: "/admin/orders", label: "Orders", icon: ClipboardList, category: "order", pageKey: "admin.orders.read" },
-  // Migration 0042 — Fulfillment v2 pack queue. Same page-permission
+  // Fulfillment v2 pack queue. Same page-permission
   // gate as legacy orders because packing IS an order-write action;
   // any operator who can pick/pack today can also record v2 dimensions.
   { href: "/admin/pack", label: "Pack (v2)", icon: Boxes, pageKey: "admin.orders.write" },
@@ -92,7 +92,7 @@ const NAV: NavItem[] = [
     category: "__total__",
     pageKey: "admin.notifications.read",
   },
-  // Migration 0039 — SUPER_ADMIN-only. Manages who has which admin
+  // SUPER_ADMIN-only. Manages who has which admin
   // role, including promoting an operator to the new ADMIN role
   // whose per-page access is configured separately.
   {
@@ -101,7 +101,7 @@ const NAV: NavItem[] = [
     icon: Building2,
     superAdminOnly: true,
   },
-  // Migration 0039 — pricing / config editors are SUPER_ADMIN-only.
+  // pricing / config editors are SUPER_ADMIN-only.
   // No page key on the ADMIN registry maps to these, so the sidebar
   // hides them entirely for other roles.
   { href: "/admin/config/fees", label: "Pricing (Fulfillment)", icon: Tag, superAdminOnly: true },
@@ -126,7 +126,7 @@ export function AdminSidebar(): JSX.Element {
   // already served its purpose.
   const markCategoryRead = useMarkCategoryRead();
 
-  // Migration 0039 — sidebar filtering. Two independent filters:
+  // sidebar filtering. Two independent filters:
   //   1. `pageKey` items → hidden when permissions[key] is false.
   //      For non-ADMIN admin roles the server returns all-true so
   //      nothing gets hidden from them; for ADMIN the server maps

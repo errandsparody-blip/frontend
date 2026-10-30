@@ -37,17 +37,17 @@ interface AdminOrderDetail {
   fulfillmentFeeCents: number;
   insuranceFeeCents: number;
   itemsDeclaredValueCents: number;
-  // Migration 0055 — vendor-selected label add-ons to honour at buy time.
+  // vendor-selected label add-ons to honour at buy time.
   insuranceRequested: boolean;
   signatureRequired: boolean;
   adultSignatureRequired: boolean;
-  // Migration 0057 — hazmat / special-handling add-ons.
+  // hazmat / special-handling add-ons.
   containsAlcohol: boolean;
   alcoholRecipientType: string | null;
   containsDryIce: boolean;
   dryIceWeightOz: number | null;
   containsLithium: boolean;
-  // Migration 0074 — vendor cancellation request state.
+  // vendor cancellation request state.
   cancelRequestedAt: string | null;
   cancelRequestReason: string | null;
   cancelRequestNote: string | null;
@@ -55,7 +55,7 @@ interface AdminOrderDetail {
   cancelRequestOutcome: string | null;
   vendor: { id: string; businessName: string };
   /**
-   * Migration 0037 — branches the entire fulfillment workflow:
+   * branches the entire fulfillment workflow:
    *   - PLATFORM_SHIP: USA Errands buys the Shippo label, operator runs
    *     purchase-label → pick → pack → ship.
    *   - VENDOR_CARRIER: vendor supplies their own carrier + tracking +
@@ -69,7 +69,7 @@ interface AdminOrderDetail {
   vendorTrackingNumber: string | null;
   vendorLabelUrl: string | null;
   handedOffAt: string | null;
-  // Phase T1 — surfaced from the backend admin projection so the
+  // surfaced from the backend admin projection so the
   // next-step panel can branch v1 vs v2. Every order gets this
   // field (DB default = 1); no null case to handle.
   workflowVersion: number;
@@ -112,7 +112,7 @@ const TONE: Record<string, "neutral" | "info" | "success" | "warning" | "error">
   SHIPPED: "info",
   IN_TRANSIT: "info",
   DELIVERED: "success",
-  // Migration 0037 — terminal success state for VENDOR_CARRIER orders.
+  // terminal success state for VENDOR_CARRIER orders.
   HANDED_OFF: "success",
   EXCEPTION: "error",
   CANCELLED: "error",
@@ -252,7 +252,7 @@ export default function AdminOrderDetailPage() {
     onError: (err) => handle(err),
   });
 
-  // Migration 0074 — admin decision on a vendor cancellation request.
+  // admin decision on a vendor cancellation request.
   const [decisionNote, setDecisionNote] = useState("");
 
   const approveCancel = useMutation({
@@ -325,7 +325,7 @@ export default function AdminOrderDetailPage() {
   const next = getNextAction(o.status, o.fulfillmentMode, o.workflowVersion);
   const isVendorCarrier = o.fulfillmentMode === "VENDOR_CARRIER";
 
-  // Migration 0037 — the meta row (under the status pill) needs to render
+  // the meta row (under the status pill) needs to render
   // the right "carrier" string per branch. For VENDOR_CARRIER we prefer
   // the vendor-typed name; for PLATFORM_SHIP we keep using the Shippo
   // carrier service. Tracking number falls through the same hierarchy
@@ -404,7 +404,7 @@ export default function AdminOrderDetailPage() {
         <div className="flex flex-wrap items-baseline gap-4">
           <StatusPill tone={TONE[o.status] ?? "neutral"}>{o.status.replace(/_/g, " ")}</StatusPill>
           {isVendorCarrier ? (
-            // Migration 0037 — make the branch unmistakable at the top of
+            // make the branch unmistakable at the top of
             // the page so operators don't go looking for a Shippo label
             // that doesn't exist.
             <span
@@ -630,7 +630,7 @@ export default function AdminOrderDetailPage() {
             </div>
           </section>
         ) : (
-          // Phase T2 — advisory card. Renders instead of the amber CTA
+          // advisory card. Renders instead of the amber CTA
           // when the order has reached a state where the operator has
           // no required click. Keeps the same left-border color for
           // visual continuity so the operator's eye still lands on
@@ -792,7 +792,7 @@ function LabelLink({ labelUrl }: { labelUrl: string }): JSX.Element {
 }
 
 /**
- * Migration 0037 — renders the vendor-supplied label URL for VENDOR_CARRIER
+ * renders the vendor-supplied label URL for VENDOR_CARRIER
  * orders. The URL is collected at order creation (a Cloudflare R2 upload
  * routed through the same AttachmentUploader the rest of the app uses),
  * so we can safely use it as `href`. We still defend with rel="noreferrer"

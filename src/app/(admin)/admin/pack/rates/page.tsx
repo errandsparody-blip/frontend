@@ -1,5 +1,5 @@
 /**
- * /admin/pack/rates — Fulfillment v2 rate-picker queue (Migration 0042).
+ * /admin/pack/rates — Fulfillment v2 rate-picker queue.
  *
  * Two-panel layout: left is the queue of orders in PACKING_COMPLETED
  * or AWAITING_SHIPPING_SELECTION or AWAITING_WALLET_FUNDING, right is
@@ -79,7 +79,7 @@ interface RateOption {
 }
 
 /**
- * Phase P-D — order detail projection used by the rate picker's edit
+ * order detail projection used by the rate picker's edit
  * panel. Only the fields the panel reads; the full admin order shape
  * is bigger.
  */
@@ -96,11 +96,11 @@ interface PackOrderDetail {
   shipPostalCode: string;
   shipCountry: string;
   itemsDeclaredValueCents: number;
-  // Migration 0055 — vendor-requested label add-ons the operator honours.
+  // vendor-requested label add-ons the operator honours.
   insuranceRequested: boolean;
   signatureRequired: boolean;
   adultSignatureRequired: boolean;
-  // Migration 0057 — hazmat / special-handling add-ons.
+  // hazmat / special-handling add-ons.
   containsAlcohol: boolean;
   alcoholRecipientType: string | null;
   containsDryIce: boolean;
@@ -116,7 +116,7 @@ interface PackOrderDetail {
 
 type SelectRateResponse =
   | {
-      // Phase P-C — the click also purchases the label in one shot
+      // the click also purchases the label in one shot
       // (spec Step 7). SHIPPING_PAID is no longer a terminal client-
       // observable outcome; LABEL_PURCHASED is.
       outcome: "LABEL_PURCHASED";
@@ -231,7 +231,7 @@ export default function AdminRatePickerPage(): JSX.Element {
     staleTime: 10_000,
   });
 
-  // Phase P-D — order detail fetch so the right panel can surface
+  // order detail fetch so the right panel can surface
   // packed dims, weight, packaging, address, and (via the "Edit"
   // action) let the operator correct any of them BEFORE the label
   // is bought. Guarded on selectedId; short stale time so an edit

@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Vendor storefront management (Migration 0059). Set up the store, connect a
+ * Vendor storefront management. Set up the store, connect a
  * payout account, go live (one-time $50), toggle the marketplace feature, and
  * manage discount codes — all in one place.
  */

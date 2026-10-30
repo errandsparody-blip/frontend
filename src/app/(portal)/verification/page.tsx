@@ -168,7 +168,7 @@ const ORDER_VOLUMES = [
 ] as const;
 
 // SERVICE_INTENTS removed — vendors are no longer asked which service track
-// they intend to use during KYC (migration 0031).
+// they intend to use during KYC.
 
 const HAZARDS = [
   { value: "BATTERIES", label: "Batteries" },
@@ -1525,7 +1525,7 @@ function IdentityStep({ form }: StepProps): JSX.Element {
 }
 
 // ---------------------------------------------------------------------------
-// Verification step — the four KYC document uploads (migration 0032).
+// Verification step — the four KYC document uploads.
 //
 // Each tile owns a presign-then-PUT cycle:
 //   1. POST /v1/vendors/me/kyc/uploads/presign with { kind, contentType,

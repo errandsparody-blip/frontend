@@ -1,9 +1,9 @@
 "use client";
 
 /**
- * Storefront cart (Migration 0059) — a small client-side cart scoped to one
+ * Storefront cart — a small client-side cart scoped to one
  * store, persisted in localStorage so a buyer's cart survives a refresh. Cart
- * is single-vendor by design (Phase 1), so it's keyed by slug.
+ * is single-vendor by design, so it's keyed by slug.
  */
 import {
   createContext,

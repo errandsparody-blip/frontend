@@ -32,7 +32,7 @@ import {
 import { US_STATES } from "@/lib/us-states";
 import { CA_PROVINCES } from "@/lib/ca-provinces";
 
-// Migration 0037 — new "fulfillment" step splits the flow into two
+// new "fulfillment" step splits the flow into two
 // branches after the recipient address is collected. PLATFORM_SHIP
 // (default) continues through "rates" (carrier quote selection) →
 // "review". VENDOR_CARRIER skips "rates" and goes straight to
@@ -140,7 +140,7 @@ export default function NewOrderPage() {
   const [address, setAddress] = useState<RecipientAddress>(EMPTY_ADDRESS);
   const [externalReference, setExternalReference] = useState("");
 
-  // ---- step 3: fulfillment branch (migration 0037)
+  // ---- step 3: fulfillment branch
   // Default to PLATFORM_SHIP so existing vendor habits + automation
   // scripts (anyone POSTing /orders without specifying a mode) keep
   // hitting the original Shippo-quoted path.
@@ -151,14 +151,14 @@ export default function NewOrderPage() {
 
   // ---- step 4: rates
   const [insuranceRequested, setInsuranceRequested] = useState(false);
-  // Migration 0055 — signature-on-delivery add-ons. Adult supersedes
+  // signature-on-delivery add-ons. Adult supersedes
   // standard; keep both flags so the payload is explicit.
   const [signatureRequired, setSignatureRequired] = useState(false);
   const [adultSignatureRequired, setAdultSignatureRequired] = useState(false);
   const [quote, setQuote] = useState<QuoteResult | null>(null);
   const [chosen, setChosen] = useState<QuoteRateOption | null>(null);
 
-  // Migration 0047 — Fulfillment v1 abolished per spec ("Studio mvp
+  // Fulfillment v1 abolished per spec ("Studio mvp
   // task 71326.pdf", page 8: "WE ARE ABOLISHING THIS FLOW ENTIRELY").
   // v2Enabled stays as a local constant (rather than being deleted)
   // so the surrounding wizard branches keep reading a boolean symbol;
@@ -167,7 +167,7 @@ export default function NewOrderPage() {
   // now, so an older cached web build won't misbehave either.
   const v2Enabled = true;
 
-  // Migration 0037 — live fulfillment-cost estimate for the
+  // live fulfillment-cost estimate for the
   // VENDOR_CARRIER branch. We don't quote carrier rates on this path
   // (the vendor brings their own label), but the vendor still pays
   // handling + insurance. Re-fetched whenever lines or insurance
@@ -195,7 +195,7 @@ export default function NewOrderPage() {
         insuranceFeeCents: number;
         totalCents: number;
       }>("/orders/fulfillment-estimate", { lines, insuranceRequested }),
-    // Migration 0041 — v2 + PLATFORM_SHIP also needs the fulfillment
+    // v2 + PLATFORM_SHIP also needs the fulfillment
     // fee for the wallet-cover check on Review, so include that branch.
     enabled:
       lines.length > 0 &&
@@ -207,7 +207,7 @@ export default function NewOrderPage() {
     staleTime: 30_000,
   });
 
-  // Migration 0041 — wallet snapshot for the v2 review gate. The
+  // wallet snapshot for the v2 review gate. The
   // v2 backend refuses to submit unless walletBalance >=
   // fulfillmentFee + estimatedShippingMax. We mirror that check
   // client-side so the user sees the "add funds" prompt BEFORE
@@ -224,7 +224,7 @@ export default function NewOrderPage() {
     refetchOnWindowFocus: true,
   });
 
-  // Migration 0041 — shipping-points ESTIMATE preview for v2 +
+  // shipping-points ESTIMATE preview for v2 +
   // PLATFORM_SHIP. Gates the Review step's wallet-cover check and
   // renders the "estimated shipping" strip. Never fires under
   // VENDOR_CARRIER (that branch has no platform shipping to
@@ -418,7 +418,7 @@ export default function NewOrderPage() {
         // order to PENDING_PACKING. `carrierService` +
         // `maxAcceptableTotalCents` are omitted (the admin picks a rate at
         // pack time). The label add-ons the vendor chose here ARE
-        // persisted (migration 0055) so the admin honours them when they
+        // persisted so the admin honours them when they
         // buy the label.
         payload = {
           externalReference: externalReference.trim() || undefined,
@@ -663,7 +663,7 @@ export default function NewOrderPage() {
             }
             setValidationError(null);
             setAddressErrors({});
-            // Migration 0037 — after recipient, the vendor picks their
+            // after recipient, the vendor picks their
             // fulfillment path. Quoting only fires if they choose
             // PLATFORM_SHIP on that step.
             setStep("fulfillment");
@@ -686,7 +686,7 @@ export default function NewOrderPage() {
           onBack={() => setStep("address")}
           onNext={() => {
             if (fulfillmentMode === "PLATFORM_SHIP") {
-              // Migration 0041 — v2 kills the rate-picker step.
+              // v2 kills the rate-picker step.
               // Vendor commits to the fulfillment fee + estimate
               // range and lands directly on Review. Actual carrier
               // rate is chosen at pack time by admin.
@@ -850,7 +850,7 @@ export default function NewOrderPage() {
           vendorCarrierName={vendorCarrierName}
           vendorTrackingNumber={vendorTrackingNumber}
           vendorLabelUrl={vendorLabelUrl}
-          // Migration 0037 — surface the same handling + insurance
+          // surface the same handling + insurance
           // breakdown the cost strip shows, right before the vendor
           // commits. The estimate is fetched at the wizard level, so
           // we just hand it down. May be null while in-flight; the
@@ -1473,7 +1473,7 @@ function ReviewPanel({
 }
 
 // ===========================================================================
-// Migration 0037 — Fulfillment-mode step.
+// Fulfillment-mode step.
 //
 // Sits between Recipient and Carrier/Review. The vendor picks one of two
 // cards: have USA Errands ship it on a Shippo-bought label, or use their
@@ -1507,7 +1507,7 @@ function FulfillmentStep({
   onBack: () => void;
   onNext: () => void;
 }): JSX.Element {
-  // Migration 0037 — derive the gating flag locally so the Continue
+  // derive the gating flag locally so the Continue
   // button and the inline hint both react to the same state. For
   // PLATFORM_SHIP this is always true (the rates step has its own
   // gating); for VENDOR_CARRIER we require either a label OR a
@@ -1645,7 +1645,7 @@ function FulfillmentStep({
           withArrow
           onClick={onNext}
           loading={quoting}
-          // Migration 0037 — block VENDOR_CARRIER continuation when
+          // block VENDOR_CARRIER continuation when
           // neither a label nor carrier+tracking is supplied. The
           // parent's submit-time validation catches this at the end
           // too, but disabling here makes the requirement visible
@@ -1742,7 +1742,7 @@ function VendorCarrierReviewPanel({
   onBack: () => void;
   onSubmit: () => void;
 }): JSX.Element {
-  // Migration 0037 — render the breakdown right above the Submit
+  // render the breakdown right above the Submit
   // button. We deliberately KEEP it consistent with the strip up
   // top (same labels, same formatting) so the vendor reads the
   // same number in both places. Dollars helper is local to this
@@ -1858,7 +1858,7 @@ function VendorCarrierReviewPanel({
 }
 
 /**
- * Migration 0041 — Fulfillment v2 review panel.
+ * Fulfillment v2 review panel.
  *
  * v2 flips the money model: the vendor commits ONLY the fulfillment
  * fee at submit. Shipping is quoted and debited later, when the
@@ -2132,7 +2132,7 @@ function SummaryRow({
 }
 
 /**
- * Migration 0037 — pinned cost strip for the VENDOR_CARRIER branch of
+ * pinned cost strip for the VENDOR_CARRIER branch of
  * the order wizard. Renders below the stepper, visible on every step
  * from Lines onwards, so the vendor always knows what they'll be
  * charged. Shipping is NOT included on this branch (the vendor uses

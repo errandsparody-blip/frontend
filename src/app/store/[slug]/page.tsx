@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Storefront catalog (Migration 0059) — the page buyers land on. Sleek and
+ * Storefront catalog — the page buyers land on. Sleek and
  * minimal: a quiet hero, category filter chips, and a responsive grid of
  * product cards that rise in with a subtle stagger.
  */

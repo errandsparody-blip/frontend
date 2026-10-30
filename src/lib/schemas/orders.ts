@@ -18,11 +18,11 @@ export const ORDER_STATUS = [
   "SHIPPED",
   "IN_TRANSIT",
   "DELIVERED",
-  // Migration 0037 — terminal hand-off status for VENDOR_CARRIER orders.
+  // terminal hand-off status for VENDOR_CARRIER orders.
   // The platform never observes carrier-side tracking for these, so
   // "handed off to the vendor's carrier" is as far as we go.
   "HANDED_OFF",
-  // Migration 0041 — Fulfillment v2 lifecycle statuses. These sit
+  // Fulfillment v2 lifecycle statuses. These sit
   // between SUBMITTED and LABEL_PURCHASED for workflowVersion=2 orders
   // only. Legacy (v1) orders never enter them.
   //
@@ -57,7 +57,7 @@ export const ORDER_CANCEL_REASON = [
 ] as const;
 export type OrderCancelReason = (typeof ORDER_CANCEL_REASON)[number];
 
-// Migration 0074 — reasons a vendor can give when REQUESTING cancellation of
+// reasons a vendor can give when REQUESTING cancellation of
 // an order already past the instant self-cancel window. Must match the API's
 // requestCancellationSchema.
 export const ORDER_CANCEL_REQUEST_REASON = [
@@ -238,7 +238,7 @@ export const createOrderSchema = z.object({
     .or(z.literal("").transform(() => undefined)),
   recipient: recipientAddressSchema,
   lines: z.array(orderLineInputSchema).min(1).max(50),
-  // Migration 0037 — branches the order pipeline. Mirrors the backend
+  // branches the order pipeline. Mirrors the backend
   // contract: PLATFORM_SHIP requires `carrierService`; VENDOR_CARRIER
   // requires `vendorCarrier` with either a label URL or carrier +
   // tracking. The backend re-validates with the same superRefine — the
@@ -252,7 +252,7 @@ export const createOrderSchema = z.object({
     .optional()
     .or(z.literal("").transform(() => undefined)),
   insuranceRequested: z.boolean().default(false),
-  // Migration 0055 — signature-on-delivery add-ons the vendor opts into.
+  // signature-on-delivery add-ons the vendor opts into.
   signatureRequired: z.boolean().default(false),
   adultSignatureRequired: z.boolean().default(false),
   maxAcceptableTotalCents: z.coerce.number().int().positive().max(50_000_000).optional(),
@@ -313,7 +313,7 @@ export interface PublicOrder {
   trackingNumber: string | null;
   labelUrl: string | null;
   itemsDeclaredValueCents: number;
-  // Migration 0055 — vendor-selected label add-ons (surfaced to admin).
+  // vendor-selected label add-ons (surfaced to admin).
   insuranceRequested?: boolean;
   signatureRequired?: boolean;
   adultSignatureRequired?: boolean;
@@ -325,7 +325,7 @@ export interface PublicOrder {
   reassessmentDeltaCents: number;
   cancelReason: OrderCancelReason | null;
   cancelNote: string | null;
-  // Migration 0074 — vendor cancellation request state.
+  // vendor cancellation request state.
   cancelRequestedAt: string | null;
   cancelRequestReason: string | null;
   cancelRequestNote: string | null;
@@ -340,14 +340,14 @@ export interface PublicOrder {
   createdAt: string;
   updatedAt: string;
   /**
-   * Migration 0018 — when the vendor's return window expires for this
+   * when the vendor's return window expires for this
    * order. Computed server-side as `deliveredAt + returns_window_days`.
    * Null if the order isn't delivered yet (no return possible anyway).
    * Frontend hides the "Request return" CTA when this is in the past.
    */
   returnableUntil: string | null;
   /**
-   * Migration 0037 — fulfillment branch:
+   * fulfillment branch:
    *   PLATFORM_SHIP   USA Errands buys + prints the carrier label.
    *   VENDOR_CARRIER  Vendor brings their own label / carrier. We
    *                   store their tracking + optional label URL and
@@ -361,7 +361,7 @@ export interface PublicOrder {
   vendorLabelUrl: string | null;
   handedOffAt: string | null;
   /**
-   * Migration 0041 — Fulfillment workflow version:
+   * Fulfillment workflow version:
    *   1 = legacy (vendor picks Shippo rate + wallet debit for full charge at submit)
    *   2 = v2 (vendor pays fulfillment fee only at submit; shipping debited at pack)
    * Set once at create time, never mutated. UI branches on this to
@@ -370,7 +370,7 @@ export interface PublicOrder {
    */
   workflowVersion: number;
   /**
-   * Migration 0041 — shipping-points ESTIMATE snapshot captured at
+   * shipping-points ESTIMATE snapshot captured at
    * submit for workflowVersion=2. Immutable — the actual shipping
    * charge (once determined at pack time) lives in shippingCostCents.
    * Null on legacy orders and on VENDOR_CARRIER v2 orders (nothing to
@@ -379,7 +379,7 @@ export interface PublicOrder {
   estimatedShippingMinCents: number | null;
   estimatedShippingMaxCents: number | null;
   /**
-   * Phase O — vendor-visible packaging summary. All null until the
+   * vendor-visible packaging summary. All null until the
    * warehouse records pack. `packagingLabel` reads either the library
    * preset's label, the Shippo carrier template's friendly name
    * ("USPS Medium Flat Rate Box"), or null for pure ad-hoc packaging.

@@ -32,7 +32,7 @@ const FRIENDLY_EDITORS: Record<string, { href: string; label: string }> = {
   shopper_warehouse_state: { href: "/admin/config/shopper", label: "Edit shopper →" },
   shopper_tax_rates: { href: "/admin/config/shopper", label: "Edit shopper →" },
   shopper_freight_rates: { href: "/admin/config/shopper", label: "Edit shopper →" },
-  // Migration 0039 — dedicated matrix editor for the ADMIN role's
+  // dedicated matrix editor for the ADMIN role's
   // page permissions. Backed by the sanitising service; the raw
   // JSON is discouraged but still editable via the generic
   // /admin/config/:key path for emergencies.
@@ -40,14 +40,14 @@ const FRIENDLY_EDITORS: Record<string, { href: string; label: string }> = {
     href: "/admin/config/admin-permissions",
     label: "Edit admin access →",
   },
-  // Migration 0040 — Fulfillment v2 shipping-point range table.
+  // Fulfillment v2 shipping-point range table.
   // The friendly editor validates coherence (no overlap, ordered
   // buckets, dollars-min ≤ dollars-max) before saving.
   shipping_point_estimate_ranges: {
     href: "/admin/config/shipping-point-ranges",
     label: "Edit shipping ranges →",
   },
-  // Migration 0047 — Fulfillment v1 abolished. The
+  // Fulfillment v1 abolished. The
   // `fulfillment_v2_enabled` config row is retained in the DB as a
   // read-only tombstone (see migration 0047) but no longer has a UI
   // toggle. Every order is v2 unconditionally.

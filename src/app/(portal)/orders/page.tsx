@@ -24,9 +24,9 @@ const TONE: Record<OrderStatus, "neutral" | "info" | "success" | "warning" | "er
   SHIPPED: "info",
   IN_TRANSIT: "info",
   DELIVERED: "success",
-  // Migration 0037 — terminal success state for VENDOR_CARRIER orders.
+  // terminal success state for VENDOR_CARRIER orders.
   HANDED_OFF: "success",
-  // Migration 0041 — v2 lifecycle states. All treated as "in progress"
+  // v2 lifecycle states. All treated as "in progress"
   // from the vendor's viewpoint — none are terminal. AWAITING_WALLET_FUNDING
   // is amber-tinted (warning) so the vendor notices they need to act.
   PENDING_PACKING: "info",

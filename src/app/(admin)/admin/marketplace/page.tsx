@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Admin marketplace (Migration 0059) — super-admin marketplace discount codes
+ * Admin marketplace — super-admin marketplace discount codes
  * (all vendors or a targeted subset) + a cross-vendor storefront orders view.
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";

@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Storefront shell (Migration 0059) — resolves the store, provides store +
+ * Storefront shell — resolves the store, provides store +
  * cart context, and renders the sleek shared chrome (header with cart, footer).
  * Minimalist by design: lots of cream space, one accent colour per store, a
  * quiet monospace eyebrow, and restrained motion.

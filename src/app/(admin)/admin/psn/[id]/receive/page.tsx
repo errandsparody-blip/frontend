@@ -30,7 +30,7 @@ interface AdminPsn {
     | "HOLD"
     | "REJECTED"
     | "RETURN_REQUESTED";
-  // Migration 0033 — shipping mode is surfaced so the operator can route
+  // shipping mode is surfaced so the operator can route
   // ADD_TO_PALLET PSNs to the right physical pallet (boxes get placed on
   // the vendor's existing pallet, not landed loose).
   shippingMode: "LOOSE" | "PALLET" | "ADD_TO_PALLET";
@@ -56,14 +56,14 @@ interface AdminPsn {
     receivedQty: number;
     acceptedQty: number;
     damagedQty: number;
-    // Migration 0024 — items declared but absent from the box.
+    // items declared but absent from the box.
     missingQty: number;
     notes: string | null;
-    // Migration 0024 — product include now returns the storage tier so we
+    // product include now returns the storage tier so we
     // can render a "Tier size" column. Older PSNs missing it default to
     // SMALL on the Product side, so this is always defined at runtime.
     product?: {
-      // Migration 0040 — product `id` is now surfaced so the admin
+      // product `id` is now surfaced so the admin
       // receive UI can PATCH shipping points against the specific
       // product from the inline editor without a second lookup.
       id?: string;
@@ -78,7 +78,7 @@ interface AdminPsn {
        */
       imageUrl?: string | null;
       /**
-       * Migration 0040 — Fulfillment v2 shipping-cost proxy. Set by
+       * Fulfillment v2 shipping-cost proxy. Set by
        * super admin at receive time. `null` means unassigned, which
        * blocks Complete Receiving until every product on the PSN has
        * a value. Decimal at the DB layer; arrives here as a plain
@@ -101,7 +101,7 @@ const HOLD_REASON_OPTIONS: ReadonlyArray<{ code: string; label: string }> = [
 
 type DialogKind = null | "hold" | "reject" | "returnRequest";
 
-// Migration 0024 — Accept is no longer typed by the operator. They
+// Accept is no longer typed by the operator. They
 // enter Missing + Damaged; Accept is computed as
 //   remaining = declaredQty - receivedQty
 //   accepted  = remaining - missing - damaged   (clamped at zero)
@@ -115,7 +115,7 @@ interface ReceivingState {
 }
 
 /**
- * Migration 0040 — inline shipping-points cell for the admin PSN
+ * inline shipping-points cell for the admin PSN
  * receive UI. Renders as one of three states:
  *
  *   1. SUPER_ADMIN, no value set → tight inline input + Save button.
@@ -354,7 +354,7 @@ export default function ReceivePsnPage() {
     onError: (err) => handle(err),
   });
 
-  // Migration 0040 — Fulfillment v2. Per-product shipping-points
+  // Fulfillment v2. Per-product shipping-points
   // editor. Only SUPER_ADMIN can save; every other admin role sees
   // the current value as read-only. The receive completion is
   // gated (backend AND frontend) on every product having a
@@ -986,7 +986,7 @@ export default function ReceivePsnPage() {
                 submitMut.mutate();
               }}
               loading={submitMut.isPending}
-              // Migration 0040 — receive completion is gated on every
+              // receive completion is gated on every
               // product having shipping points. Backend enforces the
               // same rule; disabling here surfaces the block up-front
               // instead of after the click. The inline banner up top

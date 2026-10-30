@@ -51,7 +51,7 @@ interface AdminOrderRow {
   vendor: { id: string; businessName: string; country: string };
   lines: Array<{ id: string; quantity: number; productName: string }>;
   /**
-   * Migration 0037 — `PLATFORM_SHIP` is a USA Errands-bought carrier
+   * `PLATFORM_SHIP` is a USA Errands-bought carrier
    * label; `VENDOR_CARRIER` is the vendor's own label / carrier hand-off.
    * Older orders pre-migration default to `PLATFORM_SHIP` (server-side
    * default), so this field is always present on the wire.
@@ -59,12 +59,12 @@ interface AdminOrderRow {
   fulfillmentMode: "PLATFORM_SHIP" | "VENDOR_CARRIER";
   vendorCarrierName: string | null;
   vendorTrackingNumber: string | null;
-  // Migration 0038 — storefront-integration provenance + hold lifecycle.
+  // storefront-integration provenance + hold lifecycle.
   // source = "API" for orders pushed from a vendor's website; holdReason is
   // set only while status = ON_HOLD.
   source: "MANUAL" | "API";
   holdReason: string | null;
-  // Migration 0074 — pending vendor cancellation request flag.
+  // pending vendor cancellation request flag.
   cancelRequestedAt: string | null;
   cancelRequestResolvedAt: string | null;
   createdAt: string;
@@ -78,7 +78,7 @@ const POST_QUEUE_STATUSES = [
   "SHIPPED",
   "IN_TRANSIT",
   "DELIVERED",
-  // Migration 0037 — terminal status for VENDOR_CARRIER orders. Slotted
+  // terminal status for VENDOR_CARRIER orders. Slotted
   // next to DELIVERED in the filter row so operators looking up
   // completed orders find both branches in the same place.
   "HANDED_OFF",
@@ -96,7 +96,7 @@ const TONE: Record<AdminOrderRow["status"], "info" | "success" | "warning" | "er
   SHIPPED: "info",
   IN_TRANSIT: "info",
   DELIVERED: "success",
-  // Migration 0037 — terminal success state for VENDOR_CARRIER orders.
+  // terminal success state for VENDOR_CARRIER orders.
   // We don't observe carrier delivery (no Shippo webhook), so "handed
   // off" is as good as it gets — treated as a success outcome.
   HANDED_OFF: "success",
@@ -127,7 +127,7 @@ type TabValue =
 
 const ORDER_STATUS_OPTIONS: FilterOption[] = [
   { value: "queue", label: "Queue (active)" },
-  // Migration 0038 — storefront orders parked awaiting a fix (funds / mapping).
+  // storefront orders parked awaiting a fix (funds / mapping).
   { value: "ON_HOLD", label: "Held (storefront)" },
   ...QUEUE_STATUSES.map((s) => ({ value: s, label: s.replace(/_/g, " ") })),
   ...POST_QUEUE_STATUSES.map((s) => ({ value: s, label: s.replace(/_/g, " ") })),
@@ -185,7 +185,7 @@ export default function AdminOrdersQueuePage() {
     placeholderData: keepPreviousData,
   });
 
-  // Migration 0038 — retry allocation on a held storefront order after the
+  // retry allocation on a held storefront order after the
   // blocker is resolved (funds added, SKU received, address fixed).
   const releaseMut = useMutation({
     mutationFn: (id: string) =>

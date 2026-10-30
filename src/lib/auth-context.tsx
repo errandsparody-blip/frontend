@@ -16,7 +16,7 @@ import { api, setAccessToken } from "@/lib/api-client";
 export interface AuthUser {
   id: string;
   email: string;
-  // Migration 0039 — ADMIN is a general-purpose admin whose page-
+  // ADMIN is a general-purpose admin whose page-
   // level access is configurable by SUPER_ADMIN via
   // /admin/config/admin-permissions. Home route below routes them
   // to /admin the same as the other admin flavours.
@@ -47,7 +47,7 @@ export function homeForRole(user: { role: AuthUser["role"] }): string {
     user.role === "SUPER_ADMIN" ||
     user.role === "FINANCE_ADMIN" ||
     user.role === "WAREHOUSE_OPERATOR" ||
-    // Migration 0039 — new ADMIN role lands on the admin dashboard
+    // new ADMIN role lands on the admin dashboard
     // the same as the other admin flavours. Their sidebar is
     // filtered by page permissions, but the landing route is the
     // same.

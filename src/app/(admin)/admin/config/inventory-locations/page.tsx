@@ -1,6 +1,6 @@
 /**
  * /admin/config/inventory-locations — SUPER_ADMIN-only editor for the
- * warehouse-location catalog (Migration 0045).
+ * warehouse-location catalog.
  *
  * Talks to:
  *   GET    /v1/admin/inventory-locations

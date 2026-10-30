@@ -155,7 +155,7 @@ interface VendorDetail {
     idNumber: string | null;
     idExpirationDate: string | null;
     // KYC v2 Phase 2 — public R2 URLs the reviewer opens to inspect the
-    // four uploaded documents (migration 0032). Null until the vendor
+    // four uploaded documents. Null until the vendor
     // uploads the matching file in the wizard.
     idFrontUrl: string | null;
     idBackUrl: string | null;

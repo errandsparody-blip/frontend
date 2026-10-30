@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Vendor storefront orders (Migration 0059) — a record of sales, what the
+ * Vendor storefront orders — a record of sales, what the
  * buyer paid, the speed chosen, and tracking once shipped.
  */
 import { useQuery } from "@tanstack/react-query";

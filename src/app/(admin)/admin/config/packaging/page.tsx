@@ -1,6 +1,6 @@
 /**
  * /admin/config/packaging — SUPER_ADMIN-only editor for the packaging
- * library (Migration 0043).
+ * library.
  *
  * Talks to:
  *   GET    /v1/admin/packaging-options

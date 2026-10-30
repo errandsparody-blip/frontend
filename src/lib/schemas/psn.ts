@@ -7,7 +7,7 @@ import { z } from "zod";
 const tierSchema = z.enum(["SMALL", "MEDIUM", "LARGE", "X_LARGE", "PALLET"]);
 export type StorageTier = z.infer<typeof tierSchema>;
 
-// Migration 0033 — explicit shipping mode. Mirror of the backend enum at
+// explicit shipping mode. Mirror of the backend enum at
 // usa-errands-api/src/common/schemas/psn.schema.ts. Defaults to LOOSE so
 // any code path that omits the field keeps the pre-migration behaviour.
 export const shippingModeSchema = z.enum(["LOOSE", "PALLET", "ADD_TO_PALLET"]);
@@ -44,7 +44,7 @@ export const PSN_STATUS = [
   "RECEIVED",
   "DISCREPANCY",
   "CANCELLED",
-  // Migration 0020 — Phase 2 admin receiving outcomes.
+  // Phase 2 admin receiving outcomes.
   "HOLD",
   "REJECTED",
   "RETURN_REQUESTED",
@@ -63,7 +63,7 @@ export interface ActiveHold {
 export interface PublicPsn {
   id: string;
   status: PsnStatus;
-  // Migration 0033 — surfaced so the vendor PSN detail view and the
+  // surfaced so the vendor PSN detail view and the
   // admin receive page can render mode-specific copy + badges.
   shippingMode: ShippingMode;
   expectedArrivalDate: string | null;
@@ -85,7 +85,7 @@ export interface PublicPsn {
     receivedQty: number;
     acceptedQty: number;
     damagedQty: number;
-    // Migration 0024 — items declared but absent at receive. Same value
+    // items declared but absent at receive. Same value
     // the admin recorded on the receive page; vendors see it on their
     // PSN detail so they know exactly what the warehouse counted.
     missingQty: number;

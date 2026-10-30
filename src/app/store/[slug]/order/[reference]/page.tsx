@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Order confirmation (Migration 0059). Reached after the processor redirects
+ * Order confirmation. Reached after the processor redirects
  * back on success. Clears the cart and reassures the buyer; tracking arrives by
  * email once the warehouse ships.
  */

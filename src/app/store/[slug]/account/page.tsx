@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Buyer account (Migration 0060) — optional, passwordless. Request a magic
+ * Buyer account — optional, passwordless. Request a magic
  * link, then view order history + saved details. Reached from a store, so it
  * keeps the store chrome.
  */

@@ -381,7 +381,7 @@ function PaymentMethodCard({ spec }: { spec: PaymentMethodSpec }): JSX.Element {
 }
 
 // ---------------------------------------------------------------------------
-// Wire-transfer threshold (migration 0023)
+// Wire-transfer threshold
 //
 // Items-subtotal above which a buyer is routed onto the wire-transfer +
 // ID-verification track instead of paying by card. Backend reads
@@ -545,7 +545,7 @@ function WireThresholdCard(): JSX.Element {
 }
 
 // ---------------------------------------------------------------------------
-// Freight rates per shipping method (migration 0017)
+// Freight rates per shipping method
 //
 // Each method has a single per-lb rate in cents. The admin shipping form
 // reads these to live-calculate cost as the operator enters total weight,

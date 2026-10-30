@@ -1,5 +1,5 @@
 /**
- * Public storefront API client (Migration 0059).
+ * Public storefront API client.
  *
  * Buyers are anonymous — these calls carry NO auth token (unlike the vendor/
  * admin api-client). Thin fetch wrappers over the public endpoints.
@@ -174,7 +174,7 @@ export function formatUsd(cents: number): string {
 }
 
 // ---------------------------------------------------------------------------
-// Multi-vendor marketplace feed (Phase 2)
+// Multi-vendor marketplace feed
 // ---------------------------------------------------------------------------
 
 export interface MarketplaceProduct extends StoreProduct {

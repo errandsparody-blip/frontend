@@ -79,7 +79,7 @@ export default function NewPsnPage() {
   const form = useForm<CreatePsnInput>({
     resolver: zodResolver(createPsnSchema),
     defaultValues: {
-      // Migration 0033 — explicit shipping mode on the wire. LOOSE matches
+      // explicit shipping mode on the wire. LOOSE matches
       // the historical implicit default for any client that didn't carry
       // the field.
       shippingMode: "LOOSE",
@@ -104,7 +104,7 @@ export default function NewPsnPage() {
 
   // ---------------------------------------------------------------------------
   // Shipping mode — loose boxes, new pallet shipment, or top-up of an
-  // existing pallet. Mirrors the backend ShippingMode enum (migration 0033).
+  // existing pallet. Mirrors the backend ShippingMode enum.
   // Local string is uppercase to match the wire format directly; submit
   // includes `shippingMode` on the payload alongside `declaredBoxCounts`.
   //

@@ -3,7 +3,7 @@
 /**
  * Admin Shopper detail.
  *
- * Phase 2 redesign (Migration 0021) — the estimate-vs-actual reconciliation
+ * Phase 2 redesign — the estimate-vs-actual reconciliation
  * flow has been retired. If a price/availability change in-store would
  * materially affect the total, admin uses the chat to ask the buyer to
  * cancel + rebook (parent-link supported) rather than mutating intake.
@@ -61,7 +61,7 @@ const TONE: Record<ShopperRequestStatus, "neutral" | "info" | "success" | "warni
   AWAITING_INTAKE_PAYMENT: "warning",
   PAID: "info",
   PROCURING: "info",
-  // Migration 0021 — Phase 2 shopper redesign. Items purchased, waiting
+  // Phase 2 shopper redesign. Items purchased, waiting
   // for them to arrive at our warehouse before shipping onward.
   AWAITING_DELIVERY: "info",
   AWAITING_RECONCILIATION: "warning",
@@ -71,7 +71,7 @@ const TONE: Record<ShopperRequestStatus, "neutral" | "info" | "success" | "warni
   DELIVERED: "success",
   CANCELLED: "neutral",
   REFUNDED: "neutral",
-  // Migration 0023 — wire-track statuses. Warning when the ball is in
+  // wire-track statuses. Warning when the ball is in
   // the buyer's court; info while we're processing on our side.
   AWAITING_ID_VERIFICATION: "warning",
   ID_UNDER_REVIEW: "info",
@@ -97,7 +97,7 @@ function fmtTime(iso: string): string {
   });
 }
 
-// Migration 0058 — human label for a committed payment-method code. "stripe"
+// human label for a committed payment-method code. "stripe"
 // reads as "Card (Stripe)" so the record clearly shows a card payment even
 // though the request rides the WIRE rail.
 function paymentMethodLabel(code: string): string {
@@ -255,7 +255,7 @@ function MoneyPanel({ request }: { request: ShopperRequestSnapshot }): JSX.Eleme
 }
 
 // ---------------------------------------------------------------------------
-// Migration 0023 — wire-track admin panel
+// wire-track admin panel
 //
 // Two side-by-side cards: ID Review (top) and Wire Payment Review
 // (bottom). Each card renders its own approve / reject controls based
@@ -292,7 +292,7 @@ function IdReviewCard({
   const [rejectMode, setRejectMode] = useState(false);
   const [reason, setReason] = useState("");
   const { bannerError, handle, clear } = useApiErrorHandler();
-  // Migration 0026 — "approve mode" reveals the bank-instructions form
+  // "approve mode" reveals the bank-instructions form
   // so the admin can pick a specific account number for THIS buyer
   // before approving. The fields submit alongside the approve call.
   const [approveMode, setApproveMode] = useState(false);
@@ -451,7 +451,7 @@ function IdReviewCard({
             </div>
           </div>
         ) : approveMode ? (
-          // Migration 0026 — bank-account form. Required: account
+          // bank-account form. Required: account
           // number. Everything else optional so a domestic-only USD
           // account fits as easily as an IBAN-only international one.
           // The form posts the data alongside the approval — buyer
@@ -613,7 +613,7 @@ function WireReviewCard({
     onError: (err) => handle(err),
   });
 
-  // Migration 0058 — clear the buyer's committed (locked) payment method so
+  // clear the buyer's committed (locked) payment method so
   // they can pick again from their order page.
   const resetMethod = useMutation({
     mutationFn: () =>
@@ -1044,7 +1044,7 @@ function WorkflowPanel({
   // The setShipping action accepts: method, parcel weight (pounds), optional
   // parcel dimensions, and the destination address. The receipt always
   // shows weight × rate so the buyer can see exactly what was charged.
-  // Migration 0025 — four shipping methods. Each one drives a different
+  // four shipping methods. Each one drives a different
   // form below (rate/weight/dest only for the two freight modes; label
   // upload only for BUYER_FREIGHT; pickup name + date only for PICKUP).
   type ShippingMethodOption =
@@ -1435,7 +1435,7 @@ function WorkflowPanel({
               liveWeightLb > 0 && liveRateCentsPerLb > 0
                 ? Math.round(liveWeightLb * liveRateCentsPerLb)
                 : 0;
-            // Migration 0025 — readiness is now method-aware.
+            // readiness is now method-aware.
             //   PLATFORM_FREIGHT / BUYER_FORWARDER → rate + weight + dest
             //   BUYER_FREIGHT                       → label URL only
             //   PICKUP                              → pickup name + date
@@ -1844,7 +1844,7 @@ function WorkflowPanel({
         ) : null}
 
         {actions.includes("delivered_to_warehouse") ? (() => {
-          // Migration 0027 — gate on shipping-invoice payment. We
+          // gate on shipping-invoice payment. We
           // mirror the server-side check so admin sees a clear
           // disabled state instead of a 409 after the click.
           const ra = r as unknown as {

@@ -50,7 +50,7 @@ const STATUS_TONE: Record<ShopperRequestStatus, "neutral" | "info" | "success" |
   DELIVERED: "success",
   CANCELLED: "neutral",
   REFUNDED: "neutral",
-  // Migration 0023 — wire-track statuses. Warning while we need an
+  // wire-track statuses. Warning while we need an
   // action from the buyer; info once the ball is in our court.
   AWAITING_ID_VERIFICATION: "warning",
   ID_UNDER_REVIEW: "info",
@@ -76,7 +76,7 @@ const STATUS_LABEL: Record<ShopperRequestStatus, string> = {
   DELIVERED: "Delivered",
   CANCELLED: "Cancelled",
   REFUNDED: "Refunded",
-  // Migration 0023 — wire-track labels. Plain-English so the buyer can
+  // wire-track labels. Plain-English so the buyer can
   // map the badge to a screen-level instruction.
   AWAITING_ID_VERIFICATION: "Verify your identity",
   ID_UNDER_REVIEW: "ID under review",
@@ -630,7 +630,7 @@ function ThreadError({ error }: { error: unknown }): JSX.Element {
 }
 
 // ---------------------------------------------------------------------------
-// Migration 0023 — wire-track buyer cards
+// wire-track buyer cards
 //
 // These two cards drive the buyer-side state machine for high-value
 // orders. They render at the top of the thread page (above lines/chat)
@@ -825,7 +825,7 @@ function WirePaymentCard({
 }): JSX.Element | null {
   const [proofUrls, setProofUrls] = useState<string[]>([]);
   const [selectedMethodCode, setSelectedMethodCode] = useState<string | null>(null);
-  // Migration 0058 — the method the buyer is CONFIRMING. Clicking "Continue to
+  // the method the buyer is CONFIRMING. Clicking "Continue to
   // payment" no longer sends immediately; it opens a confirmation gate so the
   // buyer understands that confirming commits them to that method (and releases
   // the payment details) and that they won't be able to switch afterwards.
@@ -890,7 +890,7 @@ function WirePaymentCard({
     [request.paymentMethods],
   );
 
-  // Migration 0058 — once the buyer has committed, the choice is locked and
+  // once the buyer has committed, the choice is locked and
   // the server collapses `paymentMethods` to that single entry, so there's no
   // picker to seed. Pre-commit: pick the first method as soon as the list is
   // populated, and re-seed if an admin deactivates the selected method between

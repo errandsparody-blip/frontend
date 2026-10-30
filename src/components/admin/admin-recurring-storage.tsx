@@ -65,7 +65,7 @@ interface RecurringStorage {
     monthlyEstimateCents: number;
     firstBillingDate: string | null;
     /**
-     * Migration 0036 — true when every box on this PSN is bundled with
+     * true when every box on this PSN is bundled with
      * an existing parent pallet (ADD_TO_PALLET shipment). UI renders a
      * "Bundled with pallet" badge instead of a per-month charge.
      */
@@ -84,7 +84,7 @@ interface StorageBox {
   status: string;
   receivedAt: string;
   /**
-   * Migration 0036 — null means "bundled with parent pallet, not billed
+   * null means "bundled with parent pallet, not billed
    * independently". UI renders bundled rows with a badge instead of a
    * charge date.
    */

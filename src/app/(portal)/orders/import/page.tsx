@@ -1,5 +1,5 @@
 /**
- * /orders/import — Vendor CSV bulk import (Migration 0046).
+ * /orders/import — Vendor CSV bulk import.
  *
  * Talks to:
  *   POST /v1/orders/import       — process one CSV

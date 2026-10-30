@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Self-service returns (Migration 0072). Two steps:
+ * Self-service returns. Two steps:
  *   1. Look up an order by number + email → shows every store's items in that
  *      cart, with whether each can be returned right now.
  *   2. Pick the items to send back, give a reason + the tracking number of the

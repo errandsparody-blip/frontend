@@ -42,9 +42,9 @@ const TONE: Record<OrderStatus, "neutral" | "info" | "success" | "warning" | "er
   SHIPPED: "info",
   IN_TRANSIT: "info",
   DELIVERED: "success",
-  // Migration 0037 — terminal success state for VENDOR_CARRIER orders.
+  // terminal success state for VENDOR_CARRIER orders.
   HANDED_OFF: "success",
-  // Migration 0041 — v2 lifecycle states (see schemas/orders.ts).
+  // v2 lifecycle states (see schemas/orders.ts).
   PENDING_PACKING: "info",
   PACKING_COMPLETED: "info",
   AWAITING_SHIPPING_SELECTION: "info",
@@ -55,7 +55,7 @@ const TONE: Record<OrderStatus, "neutral" | "info" | "success" | "warning" | "er
   RETURNED: "warning",
 };
 
-// Migration 0041 — extend the cancellable set for v2 orders so vendors
+// extend the cancellable set for v2 orders so vendors
 // can still bail out while the order is waiting on the warehouse.
 // The backend v2 cancel path (createV2 refund) refunds the fulfillment
 // fee, releases the reservation, and moves the order to CANCELLED.
@@ -106,7 +106,7 @@ export default function OrderDetailPage() {
   const [cancelReason, setCancelReason] = useState<(typeof ORDER_CANCEL_REASON)[number]>("VENDOR_REQUEST");
   const [cancelNote, setCancelNote] = useState("");
 
-  // Migration 0074 — "Request cancellation" for orders past self-cancel.
+  // "Request cancellation" for orders past self-cancel.
   const [showRequest, setShowRequest] = useState(false);
   const [requestReason, setRequestReason] =
     useState<(typeof ORDER_CANCEL_REQUEST_REASON)[number]>("VENDOR_REQUEST");
@@ -118,7 +118,7 @@ export default function OrderDetailPage() {
   const [showReturn, setShowReturn] = useState(false);
   const [returnReason, setReturnReason] = useState<ReturnReason>("DEFECTIVE");
   const [returnQty, setReturnQty] = useState<Record<string, number>>({});
-  // Migration 0018 — vendor-supplied photo evidence at RMA-creation
+  // vendor-supplied photo evidence at RMA-creation
   // time. Up to 5 R2 URLs from the AttachmentUploader.
   const [returnAttachments, setReturnAttachments] = useState<string[]>([]);
   // Returns v2 — the customer ships the return themselves, so the vendor
@@ -144,7 +144,7 @@ export default function OrderDetailPage() {
     onError: (err) => handle(err),
   });
 
-  // Migration 0074 — request cancellation (admin reviews + refunds).
+  // request cancellation (admin reviews + refunds).
   const requestMut = useMutation({
     mutationFn: () =>
       api.post<PublicOrder>(`/orders/${params.id}/request-cancellation`, {
@@ -232,7 +232,7 @@ export default function OrderDetailPage() {
 
       {(() => {
         const isVendorCarrier = o.fulfillmentMode === "VENDOR_CARRIER";
-        // Migration 0037 — same hierarchy as the admin page: prefer the
+        // same hierarchy as the admin page: prefer the
         // vendor-typed name, fall back to whatever made it onto the
         // canonical `carrier`/`trackingNumber` columns (the create
         // pipeline mirrors VENDOR_CARRIER values onto them at write time).
@@ -832,7 +832,7 @@ function Event({
 }
 
 /**
- * Migration 0037 — renders the vendor's uploaded label URL for
+ * renders the vendor's uploaded label URL for
  * VENDOR_CARRIER orders. The URL is captured at order creation through
  * the same AttachmentUploader → R2 pipeline the rest of the portal
  * uses, so we know it's an R2-hosted public URL by construction.
@@ -877,7 +877,7 @@ function VendorLabelLink({ labelUrl }: { labelUrl: string }): JSX.Element {
 }
 
 /**
- * Migration 0041 — human-readable v2 lifecycle explainer.
+ * human-readable v2 lifecycle explainer.
  *
  * Rendered under the status pill only for workflowVersion=2 orders and
  * only for the states where the vendor might otherwise wonder "what

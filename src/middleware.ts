@@ -1,5 +1,5 @@
 /**
- * Storefront subdomain resolver (Migration 0059).
+ * Storefront subdomain resolver.
  *
  * Maps `[slug].myusaerrands.com` (and `[slug].localhost` in dev) onto the
  * canonical `/store/[slug]` route, so the subdomain and the path-slug URL
@@ -7,7 +7,7 @@
  * reserved subdomains (www, api, app…) pass through untouched, so the
  * marketing / portal / admin app is unaffected.
  *
- * Custom domains (Phase 3) will add a host lookup here without changing the
+ * Custom domains will add a host lookup here without changing the
  * rewrite target.
  */
 import { NextResponse, type NextRequest } from "next/server";
@@ -75,7 +75,7 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // 2. Custom domain (Phase 3): a verified vendor host → /store/[slug].
+  // 2. Custom domain: a verified vendor host → /store/[slug].
   //    Off by default (adds a per-request resolve), enabled once DNS + SSL are
   //    provisioned by setting NEXT_PUBLIC_CUSTOM_DOMAINS=1.
   if (label === null && process.env.NEXT_PUBLIC_CUSTOM_DOMAINS === "1") {

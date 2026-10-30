@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Global marketplace cart (Phase 2) — spans multiple stores, grouped by vendor.
+ * Global marketplace cart — spans multiple stores, grouped by vendor.
  * Persisted in localStorage. Distinct from the per-store cart used on an
  * individual storefront.
  */

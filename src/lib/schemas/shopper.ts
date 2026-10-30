@@ -19,12 +19,12 @@ export const SHOPPER_REQUEST_STATUS = [
   "AWAITING_INTAKE_PAYMENT",
   "PAID",
   "PROCURING",
-  // Migration 0021 — Phase 2 shopper redesign. Items purchased; waiting
+  // Phase 2 shopper redesign. Items purchased; waiting
   // for them to physically arrive at the warehouse before shipping out.
   "AWAITING_DELIVERY",
   "AWAITING_RECONCILIATION",
   "READY_TO_SHIP",
-  // Migration 0025a — PICKUP-method readiness state. Distinct from
+  // PICKUP-method readiness state. Distinct from
   // READY_TO_SHIP so the UI can show "ready for buyer pickup" instead
   // of "ready to ship" when the method is PICKUP.
   "READY_FOR_PICKUP",
@@ -32,7 +32,7 @@ export const SHOPPER_REQUEST_STATUS = [
   "DELIVERED",
   "CANCELLED",
   "REFUNDED",
-  // Migration 0023a — wire-transfer + ID-verification track (high-value).
+  // wire-transfer + ID-verification track (high-value).
   "AWAITING_ID_VERIFICATION",
   "ID_UNDER_REVIEW",
   "QUOTE_SENT",
@@ -44,11 +44,11 @@ export const SHOPPER_REQUEST_STATUS = [
 ] as const;
 export type ShopperRequestStatus = (typeof SHOPPER_REQUEST_STATUS)[number];
 
-// Migration 0023 — payment rail. Server-derived; the client never sets it.
+// payment rail. Server-derived; the client never sets it.
 export const SHOPPER_PAYMENT_METHOD = ["STRIPE", "WIRE"] as const;
 export type ShopperPaymentMethod = (typeof SHOPPER_PAYMENT_METHOD)[number];
 
-// Migration 0023 — gov-ID review lifecycle (WIRE rail only).
+// gov-ID review lifecycle (WIRE rail only).
 export const SHOPPER_ID_VERIFICATION_STATUS = [
   "NONE",
   "PENDING_UPLOAD",
@@ -61,7 +61,7 @@ export type ShopperIdVerificationStatus =
 
 export const SHOPPER_SHIPPING_METHOD = [
   "PLATFORM_FREIGHT",
-  // Migration 0025a — buyer supplies their own carrier label.
+  // buyer supplies their own carrier label.
   "BUYER_FREIGHT",
   "BUYER_FORWARDER",
   "PICKUP",
@@ -157,7 +157,7 @@ export const createShopperRequestSchema = z.object({
     .max(254)
     .refine((v) => !v.includes(".."), "Email cannot contain consecutive dots.")
     .refine((v) => STRICT_EMAIL_RE.test(v), "Looks like a typo — double-check the email."),
-  // Migration 0023 — required. The wire flow needs a real identity on
+  // required. The wire flow needs a real identity on
   // every request that might cross the threshold; we tighten the schema
   // for ALL requests rather than branching here.
   buyerName: z
@@ -165,7 +165,7 @@ export const createShopperRequestSchema = z.object({
     .trim()
     .min(1, "Required.")
     .max(120, "Up to 120 characters."),
-  // Migration 0023 — required at intake. Loose digit/`+` shape; the
+  // required at intake. Loose digit/`+` shape; the
   // canonical formatting is stripped before validation so the buyer can
   // type "(415) 555-1212" without rejection.
   buyerPhone: z
@@ -234,12 +234,12 @@ export interface ShopperLineSnapshot {
   quantity: number;
   estimatedUnitPriceCents: number;
   actualUnitPriceCents: number | null;
-  // Migration 0016 — actual per-line weight in ounces, captured at receive.
+  // actual per-line weight in ounces, captured at receive.
   actualWeightOz: number | null;
   procurementStatus: ShopperLineProcurementStatus | null;
 }
 
-// Migration 0023 — bank-transfer instructions, only ever populated by
+// bank-transfer instructions, only ever populated by
 // the server when ID is APPROVED + the request is past QUOTE_SENT. The
 // shape mirrors the `shopper_bank_instructions` configuration row.
 export interface ShopperBankInstructions {
@@ -255,7 +255,7 @@ export interface ShopperBankInstructions {
 
 export interface ShopperRequestSnapshot {
   id: string;
-  // Migration 0015 — short human-readable reference (SHP-000042).
+  // short human-readable reference (SHP-000042).
   reference: string;
   parentRequestId: string | null;
   /** Resolved parent reference for display ("addition to SHP-000041"). */
@@ -263,7 +263,7 @@ export interface ShopperRequestSnapshot {
   status: ShopperRequestStatus;
   buyerEmail: string;
   buyerName: string | null;
-  // Migration 0023 — wire/ID packet visible to the buyer. We never
+  // wire/ID packet visible to the buyer. We never
   // surface the document URLs themselves — booleans tell the UI whether
   // an upload already exists.
   buyerPhone: string | null;
@@ -300,7 +300,7 @@ export interface ShopperRequestSnapshot {
     label: string;
   }>;
   /**
-   * Migration 0058 — the method the buyer has COMMITTED to. Null until they
+   * the method the buyer has COMMITTED to. Null until they
    * confirm. Once set, the choice is hard-locked: the picker is hidden and the
    * buyer can no longer switch (an admin must reset it). This is also what
    * reflects HOW they actually paid — e.g. "stripe" for a card payment, even
@@ -366,12 +366,12 @@ export interface ShopperRequestSnapshot {
   shippingCostCents: number | null;
   followupAmountCents: number | null;
   followupResolvedAt: string | null;
-  // Migration 0016 — packed parcel dimensions + total weight.
+  // packed parcel dimensions + total weight.
   parcelLengthIn: number | null;
   parcelWidthIn: number | null;
   parcelHeightIn: number | null;
   parcelWeightOz: number | null;
-  // Migration 0017 — freight rate snapshot + system-calculated cost.
+  // freight rate snapshot + system-calculated cost.
   // Receipt shows "weight × rate = calc · charged X" so any operator
   // override is visible to the buyer.
   freightRateCentsPerLb: number | null;
@@ -400,11 +400,11 @@ export interface CreateShopperRequestResponse {
   /** Empty string when the buyer was routed onto the wire-transfer track. */
   payUrl: string;
   intakeTotalCents: number;
-  // Migration 0023 — which rail the server placed this request on.
+  // which rail the server placed this request on.
   paymentMethod: ShopperPaymentMethod;
 }
 
-// Migration 0023 — wire-track submission schemas mirroring the API copy.
+// wire-track submission schemas mirroring the API copy.
 export const submitShopperIdUploadsSchema = z.object({
   idDocumentUrl: z.string().url().max(2048),
   idSelfieUrl: z.string().url().max(2048),

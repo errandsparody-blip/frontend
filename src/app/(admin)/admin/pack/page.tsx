@@ -1,5 +1,5 @@
 /**
- * /admin/pack — Fulfillment v2 pack queue (Migration 0042).
+ * /admin/pack — Fulfillment v2 pack queue.
  *
  * Lists orders in PENDING_PACKING. Warehouse operators click a row to
  * open a modal that captures real box dimensions + weight, then POSTs
@@ -51,7 +51,7 @@ interface QueueRow {
 }
 
 /**
- * Migration 0043 — packaging library preset shape (must mirror the API
+ * packaging library preset shape (must mirror the API
  * `/admin/packaging-options/active` response). Kept local to this
  * file — the pack UI is the only web consumer for now.
  */
@@ -63,7 +63,7 @@ interface PackagingPreset {
   widthIn: number;
   heightIn: number;
   tareWeightOz: number;
-  // Phase N — set on library presets that map to a Shippo carrier
+  // set on library presets that map to a Shippo carrier
   // template (e.g. seeded USPS flat-rate presets). Absent for custom
   // presets. Not exposed as user input on this tab — presence flows
   // through to the server automatically via packagingOptionId.
@@ -72,7 +72,7 @@ interface PackagingPreset {
 }
 
 /**
- * Phase N — Shippo carrier template (Option A in the spec). Static
+ * Shippo carrier template (Option A in the spec). Static
  * list served from `/admin/packaging-options/carrier`. Selecting one
  * at pack time unlocks flat-rate / one-rate / simple-rate pricing at
  * the Shippo rate request.
@@ -127,7 +127,7 @@ export default function AdminPackQueuePage(): JSX.Element {
     refetchOnWindowFocus: true,
   });
 
-  // Migration 0043 — packaging presets. Fetched once per session (via
+  // packaging presets. Fetched once per session (via
   // the shared PackagingLibraryService cache on the API) and passed
   // into every pack dialog opened during this session.
   const presetsQ = useQuery({
@@ -139,7 +139,7 @@ export default function AdminPackQueuePage(): JSX.Element {
     staleTime: 5 * 60_000,
   });
 
-  // Phase N — Shippo carrier templates. Static registry on the backend
+  // Shippo carrier templates. Static registry on the backend
   // so this is effectively cache-forever from the browser's viewpoint.
   const carrierTemplatesQ = useQuery({
     queryKey: ["admin", "packaging-options", "carrier"],
@@ -338,7 +338,7 @@ interface AdminOrderDetail {
   id: string;
   vendor: { id: string; businessName: string };
   lines: OrderLine[];
-  // Migration 0037 — fulfillment mode + vendor-supplied carrier details.
+  // fulfillment mode + vendor-supplied carrier details.
   // VENDOR_CARRIER means the vendor brought their own label; packing
   // hands the order off directly (no platform label / rate picker).
   fulfillmentMode?: "PLATFORM_SHIP" | "VENDOR_CARRIER";
@@ -402,7 +402,7 @@ function EscapeKeyHandler({
 // ---------------------------------------------------------------------------
 
 /**
- * ScanPanel (Migration 0044) — bar-code verification for the pack step.
+ * ScanPanel — bar-code verification for the pack step.
  *
  * Renders a scanner-style text input (auto-focus, `Enter` submits),
  * a per-line progress list with a checkmark once fully scanned, and
@@ -439,7 +439,7 @@ function ScanPanel({
   onReset: () => void;
   loading: boolean;
   /**
-   * Migration 0045 — SKU → location map. Undefined for a SKU still
+   * SKU → location map. Undefined for a SKU still
    * loading; null for a SKU with no location assigned. Rendered as a
    * chip under the product name so the operator can walk directly.
    */
@@ -612,7 +612,7 @@ function ScanPanel({
  * inline. Cancel + Escape close without submitting.
  */
 /**
- * Phase N — packaging tab. Determines which source of truth the pack
+ * packaging tab. Determines which source of truth the pack
  * form uses for dimensions:
  *   * "carrier"  — pick a Shippo carrier template (Option A). Dims
  *                  auto-populate, disabled. Weight = goods only.
@@ -666,24 +666,24 @@ function PackDialog({
   const [errors, setErrors] = useState<Partial<Record<keyof PackFormState, string>>>(
     {},
   );
-  // Phase N — active packaging tab. Defaults to "carrier" because it
+  // active packaging tab. Defaults to "carrier" because it
   // maps directly onto the spec's Option A (fastest UX: pick, weigh,
   // submit — and unlocks flat-rate pricing).
   const [tab, setTab] = useState<PackTab>("carrier");
   const [carrierTemplateId, setCarrierTemplateId] = useState<string>("");
   const chosenCarrier =
     carrierTemplates.find((t) => t.template === carrierTemplateId) ?? null;
-  // Migration 0043 — selected packaging preset. Empty string = no
+  // selected packaging preset. Empty string = no
   // preset (unused when tab !== "library"). When set, the dims
   // fields are pre-filled AND disabled — the preset's dims are
   // authoritative and any local edit would just be discarded server-side.
   const [presetId, setPresetId] = useState<string>("");
   const chosenPreset = presets.find((p) => p.id === presetId) ?? null;
-  // Phase N — Poly Mailer vs Box toggle for the ad-hoc tab. Poly
+  // Poly Mailer vs Box toggle for the ad-hoc tab. Poly
   // mailer only requires L+W; box requires all three dims.
   const [adhocType, setAdhocType] = useState<AdhocPackagingType>("BOX");
 
-  // Migration 0044 — fetch this order's line items so the scan panel
+  // fetch this order's line items so the scan panel
   // can validate scans against them. Cached across modal remounts by
   // React Query (keyed on the order id).
   const orderQ = useQuery({
@@ -727,7 +727,7 @@ function PackDialog({
         (o.packagingLabel ? ` · ${o.packagingLabel}` : ""),
     );
   }, [orderQ.data]);
-  // Migration 0045 — resolve each line SKU's location so the pack UI
+  // resolve each line SKU's location so the pack UI
   // shows warehouse operators exactly where to walk. Runs in parallel
   // (one lookup per SKU); errors and misses render as "—" rather
   // than blocking the pack flow.
@@ -844,7 +844,7 @@ function PackDialog({
   // When a preset is picked, mirror its dims into the form so the
   // user SEES what will be sent. Weight stays as goods weight; the
   // dialog's tare hint shows what's added on the server.
-  // Phase N — mirror dims from whichever source the active tab uses:
+  // mirror dims from whichever source the active tab uses:
   //   * Carrier tab → the chosen carrier template's canonical dims.
   //   * Library tab → the chosen library preset's dims.
   //   * Ad-hoc tab → nothing (operator types the values).
@@ -902,7 +902,7 @@ function PackDialog({
   } | { ok: false } {
     const next: Partial<Record<keyof PackFormState, string>> = {};
 
-    // Phase N — tab-specific gate. Carrier and Library both require a
+    // tab-specific gate. Carrier and Library both require a
     // selection before submit; ad-hoc requires typed dims (L+W always;
     // H only when the packaging type is BOX). The three converge on
     // the same numeric-parsing helpers below.

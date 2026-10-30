@@ -49,7 +49,7 @@ type LineFormShape = {
 
 type FormShape = {
   buyerEmail: string;
-  // Migration 0023 — name + phone are required for new requests.
+  // name + phone are required for new requests.
   buyerName: string;
   buyerPhone: string;
   lines: LineFormShape[];
@@ -152,7 +152,7 @@ export default function ShopperIntakePage(): JSX.Element {
     mutationFn: (payload: CreateShopperRequestInput) =>
       api.post<CreateShopperRequestResponse>("/shopper", payload),
     onSuccess: (data) => {
-      // Migration 0023 — branch on the server-decided rail:
+      // branch on the server-decided rail:
       //   STRIPE → redirect to Checkout (existing behaviour).
       //   WIRE   → land the buyer on their thread page, where the ID
       //            verification panel renders. We refuse to navigate to
