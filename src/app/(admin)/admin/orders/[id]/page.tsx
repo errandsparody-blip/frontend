@@ -85,6 +85,9 @@ interface AdminOrderDetail {
   packedAt: string | null;
   packagingLabel: string | null;
   shippingCostCents: number;
+  // Why a storefront order is parked (UNMAPPED_SKU, INSUFFICIENT_STOCK,
+  // INSUFFICIENT_FUNDS, ADDRESS_INVALID). Null for every non-held order.
+  holdReason: string | null;
   lines: Array<{
     id: string;
     skuId: string;
@@ -94,6 +97,20 @@ interface AdminOrderDetail {
     quantity: number;
     declaredValueCents: number;
     allocationStatus: string;
+  }>;
+  // Held storefront orders have no real `lines` yet (allocation never ran).
+  // The server reconstructs this read-only view from the stored payload so
+  // the operator can see what the order contains while it waits. Resolved to
+  // our product when one matches the storefront SKU, otherwise the raw
+  // storefront SKU + the name the store sent.
+  pendingLines: Array<{
+    storefrontSku: string;
+    storefrontName: string | null;
+    quantity: number;
+    mapped: boolean;
+    productCode: string | null;
+    productName: string | null;
+    variant: string | null;
   }>;
   events: Array<{
     id: string;
@@ -226,6 +243,31 @@ function getNextAction(
     return { kind: "primary", label: "Hand to carrier (ship)", endpoint: "ship" };
   return null;
 }
+
+// Friendly copy for each storefront hold reason, shown on the held-order
+// banner so an operator knows exactly what the order is waiting on.
+const HOLD_REASON: Record<string, { label: string; detail: string }> = {
+  UNMAPPED_SKU: {
+    label: "Waiting on product mapping",
+    detail:
+      "The storefront sent one or more SKUs we have no product for yet. Create the product (or set its store SKU to match) and the order releases automatically — no action needed here.",
+  },
+  INSUFFICIENT_STOCK: {
+    label: "Waiting on stock",
+    detail:
+      "The products exist but are out of stock. The order releases automatically once a PSN is received (or stock is topped up). Fulfillment fees stay unbilled until then.",
+  },
+  INSUFFICIENT_FUNDS: {
+    label: "Waiting on wallet funds",
+    detail:
+      "The vendor's wallet can't cover the fulfillment fee. The order releases automatically once they top up.",
+  },
+  ADDRESS_INVALID: {
+    label: "Address needs fixing",
+    detail:
+      "The shipping address failed validation. Correct the recipient address to release this order.",
+  },
+};
 
 function formatCents(cents: number): string {
   return `$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -707,35 +749,104 @@ export default function AdminOrderDetailPage() {
         </section>
       ) : null}
 
-      <section className="rounded-md border border-line bg-white p-6">
-        <h2 className="font-mono text-mono-label uppercase text-text-muted">Lines</h2>
-        <div className="mt-3">
-          <DataTable>
-            <THead>
-              <Th>SKU</Th>
-              <Th>Product</Th>
-              <Th align="right">Qty</Th>
-              <Th align="right">Declared value</Th>
-              <Th>Allocation</Th>
-            </THead>
-            <TBody>
-              {o.lines.map((l) => (
-                <TR key={l.id}>
-                  <Td mono>{l.skuId}</Td>
-                  <Td>
-                    {l.productName} <span className="text-text-muted">({l.variant})</span>
-                  </Td>
-                  <Td num>{l.quantity}</Td>
-                  <Td num>{formatCents(l.declaredValueCents)}</Td>
-                  <Td mono className="text-text-muted">
-                    {l.allocationStatus}
-                  </Td>
-                </TR>
-              ))}
-            </TBody>
-          </DataTable>
-        </div>
-      </section>
+      {/* Held storefront orders carry no allocated lines yet, so the normal
+          table is empty. Show a reason banner + the reconstructed pending
+          lines (from the stored payload) so the operator can see what the
+          order contains and why it's waiting. */}
+      {o.status === "ON_HOLD" && o.pendingLines.length > 0 ? (
+        <section className="rounded-md border-l-4 border-amber bg-amber/5 p-6">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="font-mono text-mono-label uppercase text-amber">
+              On hold — {HOLD_REASON[o.holdReason ?? ""]?.label ?? "awaiting resolution"}
+            </h2>
+            {o.holdReason ? (
+              <span className="font-mono text-[11px] uppercase tracking-[1.2px] text-text-muted">
+                {o.holdReason.replace(/_/g, " ")}
+              </span>
+            ) : null}
+          </div>
+          <p className="mt-1 max-w-3xl text-body-sm text-text-muted">
+            {HOLD_REASON[o.holdReason ?? ""]?.detail ??
+              "This order is waiting on something before it can be fulfilled."}
+          </p>
+          <div className="mt-4">
+            <DataTable>
+              <THead>
+                <Th>Item</Th>
+                <Th>Mapped product</Th>
+                <Th align="right">Qty pending</Th>
+                <Th>Status</Th>
+              </THead>
+              <TBody>
+                {o.pendingLines.map((l, i) => (
+                  <TR key={`${l.storefrontSku}-${i}`}>
+                    <Td>
+                      <span className="font-mono">{l.storefrontSku}</span>
+                      {l.storefrontName ? (
+                        <span className="text-text-muted"> · {l.storefrontName}</span>
+                      ) : null}
+                    </Td>
+                    <Td>
+                      {l.mapped ? (
+                        <>
+                          <span className="font-mono">{l.productCode}</span>
+                          {l.productName ? (
+                            <span className="text-text-muted">
+                              {" "}
+                              {l.productName}
+                              {l.variant ? ` (${l.variant})` : ""}
+                            </span>
+                          ) : null}
+                        </>
+                      ) : (
+                        <span className="text-text-muted">Not mapped yet</span>
+                      )}
+                    </Td>
+                    <Td num>{l.quantity}</Td>
+                    <Td mono className="text-text-muted">
+                      {l.mapped ? "Awaiting stock" : "Unmapped SKU"}
+                    </Td>
+                  </TR>
+                ))}
+              </TBody>
+            </DataTable>
+          </div>
+          <p className="mt-3 text-body-sm text-text-subtle">
+            Fulfillment fees aren&apos;t charged while an order is on hold. It
+            releases and bills automatically once the blocker above is resolved.
+          </p>
+        </section>
+      ) : (
+        <section className="rounded-md border border-line bg-white p-6">
+          <h2 className="font-mono text-mono-label uppercase text-text-muted">Lines</h2>
+          <div className="mt-3">
+            <DataTable>
+              <THead>
+                <Th>SKU</Th>
+                <Th>Product</Th>
+                <Th align="right">Qty</Th>
+                <Th align="right">Declared value</Th>
+                <Th>Allocation</Th>
+              </THead>
+              <TBody>
+                {o.lines.map((l) => (
+                  <TR key={l.id}>
+                    <Td mono>{l.skuId}</Td>
+                    <Td>
+                      {l.productName} <span className="text-text-muted">({l.variant})</span>
+                    </Td>
+                    <Td num>{l.quantity}</Td>
+                    <Td num>{formatCents(l.declaredValueCents)}</Td>
+                    <Td mono className="text-text-muted">
+                      {l.allocationStatus}
+                    </Td>
+                  </TR>
+                ))}
+              </TBody>
+            </DataTable>
+          </div>
+        </section>
+      )}
 
       <section className="rounded-md border border-line bg-white p-6">
         <h2 className="font-mono text-mono-label uppercase text-text-muted">Timeline</h2>

@@ -11,7 +11,21 @@ import { Topbar } from "@/components/portal/topbar";
 import { ToastProvider } from "@/components/ui/toast";
 import { useAuth } from "@/lib/auth-context";
 
-const ADMIN_ROLES = new Set(["WAREHOUSE_OPERATOR", "FINANCE_ADMIN", "SUPER_ADMIN"]);
+// Roles allowed into the admin shell. MUST stay in sync with the admin
+// destinations in homeForRole() (auth-context) — if a role lands on /admin
+// there but isn't listed here, this layout bounces it to /dashboard, the
+// portal layout bounces it back via homeForRole, and the two redirect each
+// other forever until the render error boundary trips ("page couldn't
+// load"). The general-purpose ADMIN role (migration 0039) was added to
+// homeForRole but missed here, which is exactly what stranded upgraded
+// vendor→admin accounts at sign-in. Page-level access for ADMIN is still
+// filtered by AdminGate / page-permissions inside the shell.
+const ADMIN_ROLES = new Set([
+  "WAREHOUSE_OPERATOR",
+  "FINANCE_ADMIN",
+  "ADMIN",
+  "SUPER_ADMIN",
+]);
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
