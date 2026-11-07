@@ -43,15 +43,16 @@ export interface AuthUser {
  */
 export function homeForRole(user: { role: AuthUser["role"] }): string {
   if (user.role === "VENDOR" || user.role === "VENDOR_SUB_USER") return "/dashboard";
+  // The general-purpose ADMIN role is a fulfillment operator and, by default,
+  // does NOT have the cross-vendor dashboard (admin.dashboard). Landing it on
+  // /admin would render a page whose data call 403s. Send it to Receiving —
+  // the first of its granted functions — instead. (A SUPER_ADMIN who grants
+  // this ADMIN the dashboard key can still reach /admin from the sidebar.)
+  if (user.role === "ADMIN") return "/admin/psn";
   if (
     user.role === "SUPER_ADMIN" ||
     user.role === "FINANCE_ADMIN" ||
-    user.role === "WAREHOUSE_OPERATOR" ||
-    // new ADMIN role lands on the admin dashboard
-    // the same as the other admin flavours. Their sidebar is
-    // filtered by page permissions, but the landing route is the
-    // same.
-    user.role === "ADMIN"
+    user.role === "WAREHOUSE_OPERATOR"
   ) {
     return "/admin";
   }

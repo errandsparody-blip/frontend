@@ -53,8 +53,18 @@ export function isPageKey(value: unknown): value is PageKey {
  * this is a UX bootstrap only.
  */
 export const ADMIN_DEFAULT_PERMISSIONS: readonly PageKey[] = [
-  "admin.dashboard",
-  "admin.vendors.read",
+  // Keep in exact sync with the backend registry. The ADMIN role is a
+  // warehouse/fulfillment operator — its six sidebar functions (Receiving,
+  // Orders, Inventory, Pack v2, Returns, Shopper) map to these keys. Pack v2
+  // shares admin.orders.write. Excludes dashboard, vendors, finance,
+  // notifications and audit by design.
+  "admin.psn.read",
+  "admin.psn.write",
+  "admin.orders.read",
+  "admin.orders.write",
+  "admin.inventory.read",
+  "admin.returns.read",
+  "admin.returns.write",
   "admin.shopper.read",
   "admin.shopper.write",
 ];

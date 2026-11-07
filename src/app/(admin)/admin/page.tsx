@@ -18,10 +18,12 @@
 
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
 import { PageHeader } from "@/components/ui/page-header";
 import { api } from "@/lib/api-client";
+import { usePagePermissions } from "@/lib/page-permissions";
 
 interface AdminOverview {
   vendors: {
@@ -94,9 +96,25 @@ const TIER_LABEL: Record<string, string> = {
 };
 
 export default function AdminDashboardPage(): JSX.Element {
+  // This cross-vendor overview requires admin.dashboard. The ADMIN
+  // fulfillment role doesn't have it by default, so a stray hit on /admin
+  // (e.g. clicking the console logo) would otherwise render a page whose
+  // data call 403s. Send those users to Receiving instead, and don't fire
+  // the dashboard queries while we know access is denied.
+  const { permissions, isLoading: permsLoading } = usePagePermissions();
+  const router = useRouter();
+  const canSeeDashboard = permissions["admin.dashboard"] === true;
+
+  useEffect(() => {
+    if (!permsLoading && !canSeeDashboard) {
+      router.replace("/admin/psn");
+    }
+  }, [permsLoading, canSeeDashboard, router]);
+
   const { data, isLoading, error } = useQuery({
     queryKey: ["admin", "dashboard"],
     queryFn: () => api.get<AdminOverview>("/admin/dashboard"),
+    enabled: canSeeDashboard,
   });
 
   // Scope toggle for the insurable value card: "all" = every physical
@@ -118,7 +136,18 @@ export default function AdminDashboardPage(): JSX.Element {
     refetchInterval: 30_000,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
+    enabled: canSeeDashboard,
   });
+
+  // Hold a neutral placeholder while we resolve access / redirect, so an
+  // ADMIN without the dashboard key never sees the cross-vendor tiles flash.
+  if (permsLoading || !canSeeDashboard) {
+    return (
+      <div className="p-8 font-mono text-mono-label uppercase text-text-muted">
+        Loading…
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6">
