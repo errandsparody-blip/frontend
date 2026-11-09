@@ -150,6 +150,11 @@ const ADMIN_CANCELLABLE: string[] = [
   "AWAITING_SHIPPING_SELECTION",
   "AWAITING_WALLET_FUNDING",
   "SHIPPING_PAID",
+  // Held storefront orders — lets an operator clear a hold that can't
+  // resolve (e.g. a storefront SKU that will never map). Safe: a held order
+  // has no lines and $0 charged, so cancelling restocks nothing and refunds
+  // nothing. Mirrors FORCE_CANCELLABLE in admin-order.service.ts.
+  "ON_HOLD",
 ];
 
 /**
