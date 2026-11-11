@@ -26,7 +26,7 @@
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { ErrorBanner } from "@/components/errors/error-banner";
 import { PageHeader } from "@/components/ui/page-header";
@@ -57,6 +57,21 @@ type OrderStatus =
   | "RETURNED";
 
 type VendorStatus = "ACTIVE" | "PENDING_KYC" | "SUSPENDED" | "CLOSED";
+
+type FeeGranularity = "day" | "week" | "month";
+
+interface FeeBreakdown {
+  from: string;
+  to: string;
+  granularity: FeeGranularity;
+  buckets: Array<{
+    periodStart: string;
+    fulfillmentCents: number;
+    shippingCents: number;
+  }>;
+  totals: { fulfillmentCents: number; shippingCents: number };
+  generatedAt: string;
+}
 
 interface SuperAdminSnapshot {
   revenue: {
@@ -115,6 +130,167 @@ function dollars(cents: number): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
+}
+
+/** YYYY-MM-DD for a Date, in local time (matches the <input type="date"> value). */
+function toDateInput(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/** Label a bucket start for the table, scaled to the chosen granularity. */
+function bucketLabel(iso: string, g: FeeGranularity): string {
+  const d = new Date(iso);
+  if (g === "month") {
+    return d.toLocaleDateString("en-US", { year: "numeric", month: "short" });
+  }
+  if (g === "week") {
+    return `Week of ${d.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
+  }
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+/**
+ * Fulfillment-fee + shipping spend across the platform, filterable by date
+ * range and granularity. Reads the append-only ledger server-side, so the
+ * totals match what vendors see on their statements.
+ */
+function FeeBreakdownSection({ enabled }: { enabled: boolean }): JSX.Element {
+  const [granularity, setGranularity] = useState<FeeGranularity>("day");
+  // Default window: the last 30 days.
+  const [from, setFrom] = useState<string>(() =>
+    toDateInput(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)),
+  );
+  const [to, setTo] = useState<string>(() => toDateInput(new Date()));
+
+  // `to` is exclusive on the server, so send the day AFTER the picked end date
+  // to make the range inclusive of the end day the user chose.
+  const toExclusive = useMemo(() => {
+    const d = new Date(`${to}T00:00:00`);
+    d.setDate(d.getDate() + 1);
+    return toDateInput(d);
+  }, [to]);
+
+  const q = useQuery({
+    queryKey: ["admin", "super-dashboard", "fees", granularity, from, toExclusive],
+    queryFn: () =>
+      api.get<FeeBreakdown>(
+        `/admin/super-dashboard/fees?granularity=${granularity}&from=${from}&to=${toExclusive}`,
+      ),
+    enabled,
+    staleTime: 30_000,
+  });
+
+  const data = q.data;
+
+  return (
+    <section className="rounded-md border border-line bg-white p-6">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h2 className="font-mono text-mono-label uppercase text-text-muted">
+            Fulfillment &amp; shipping spend
+          </h2>
+          <p className="mt-1 text-body-sm text-text-muted">
+            Gross fees charged to vendor wallets across the platform, by date.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-end gap-3">
+          {/* Granularity toggle */}
+          <div className="inline-flex overflow-hidden rounded-sm border border-line-strong">
+            {(["day", "week", "month"] as FeeGranularity[]).map((g) => (
+              <button
+                key={g}
+                type="button"
+                onClick={() => setGranularity(g)}
+                className={
+                  granularity === g
+                    ? "bg-ink px-3 py-1.5 font-mono text-[11px] uppercase tracking-[1.2px] text-text-inv"
+                    : "bg-white px-3 py-1.5 font-mono text-[11px] uppercase tracking-[1.2px] text-text hover:bg-cream-soft"
+                }
+              >
+                {g === "day" ? "Daily" : g === "week" ? "Weekly" : "Monthly"}
+              </button>
+            ))}
+          </div>
+          <label className="flex flex-col gap-1 font-mono text-[10px] uppercase tracking-[1.2px] text-text-muted">
+            From
+            <input
+              type="date"
+              value={from}
+              max={to}
+              onChange={(e) => setFrom(e.target.value)}
+              className="h-9 rounded-sm border border-line-strong bg-white px-2 font-sans text-body-sm text-text outline-none focus:border-ink"
+            />
+          </label>
+          <label className="flex flex-col gap-1 font-mono text-[10px] uppercase tracking-[1.2px] text-text-muted">
+            To
+            <input
+              type="date"
+              value={to}
+              min={from}
+              onChange={(e) => setTo(e.target.value)}
+              className="h-9 rounded-sm border border-line-strong bg-white px-2 font-sans text-body-sm text-text outline-none focus:border-ink"
+            />
+          </label>
+        </div>
+      </div>
+
+      {/* Totals for the selected window */}
+      <div className="mt-5 grid gap-4 sm:grid-cols-2">
+        <div className="rounded-sm border border-line bg-cream-soft px-4 py-3">
+          <div className="font-mono text-[10px] uppercase tracking-[1.2px] text-text-muted">
+            Fulfillment fees
+          </div>
+          <div className="mt-1 text-h3 font-semibold text-ink">
+            {data ? dollars(data.totals.fulfillmentCents) : "—"}
+          </div>
+        </div>
+        <div className="rounded-sm border border-line bg-cream-soft px-4 py-3">
+          <div className="font-mono text-[10px] uppercase tracking-[1.2px] text-text-muted">
+            Shipping spend
+          </div>
+          <div className="mt-1 text-h3 font-semibold text-ink">
+            {data ? dollars(data.totals.shippingCents) : "—"}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-5">
+        {q.isLoading ? (
+          <p className="text-body-sm text-text-muted">Loading…</p>
+        ) : q.isError ? (
+          <p className="text-body-sm text-error">Couldn&apos;t load the breakdown.</p>
+        ) : data && data.buckets.length > 0 ? (
+          <DataTable>
+            <THead>
+              <Th>Period</Th>
+              <Th align="right">Fulfillment</Th>
+              <Th align="right">Shipping</Th>
+              <Th align="right">Total</Th>
+            </THead>
+            <TBody>
+              {data.buckets.map((b) => (
+                <TR key={b.periodStart}>
+                  <Td>{bucketLabel(b.periodStart, data.granularity)}</Td>
+                  <Td num>{dollars(b.fulfillmentCents)}</Td>
+                  <Td num>{dollars(b.shippingCents)}</Td>
+                  <Td num strong>
+                    {dollars(b.fulfillmentCents + b.shippingCents)}
+                  </Td>
+                </TR>
+              ))}
+            </TBody>
+          </DataTable>
+        ) : (
+          <p className="text-body-sm text-text-muted">
+            No fulfillment or shipping charges in this range.
+          </p>
+        )}
+      </div>
+    </section>
+  );
 }
 
 export default function SuperAdminDashboardPage(): JSX.Element {
@@ -178,6 +354,10 @@ export default function SuperAdminDashboardPage(): JSX.Element {
               }
             />
           </section>
+
+          {/* Fulfillment-fee + shipping spend, filterable by date range and
+              granularity (daily / weekly / monthly). */}
+          <FeeBreakdownSection enabled={user?.role === "SUPER_ADMIN"} />
 
           {/* Wallets + Vendors + Warehouse + Imports */}
           <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">

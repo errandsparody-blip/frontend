@@ -155,6 +155,34 @@ export const recipientAddressSchema = z.object({
 }).superRefine(refineCountryAddress);
 export type RecipientAddress = z.infer<typeof recipientAddressSchema>;
 
+// Looser recipient for CREATE — only the name is always required. A
+// VENDOR_CARRIER (own-label) order supplies the destination on its own label,
+// so the shipping address is optional. Mirrors the backend createRecipientSchema.
+// PLATFORM_SHIP still requires a full address; the submit flow validates that
+// through recipientAddressSchema before sending.
+export const createRecipientSchema = z.object({
+  recipientName: z
+    .string()
+    .trim()
+    .min(2, "Recipient name is too short.")
+    .max(120)
+    .refine((s) => /\s|[A-Za-z]{3,}/.test(s), "Use a real name (first + last)."),
+  recipientPhone: z.string().trim().max(40).optional(),
+  recipientEmail: z.string().trim().toLowerCase().email().max(254).optional(),
+  shipAddressLine1: z.string().trim().max(120).optional(),
+  shipAddressLine2: z.string().trim().max(120).optional(),
+  shipCity: z.string().trim().max(80).optional(),
+  shipState: z.string().trim().max(40).optional(),
+  shipPostalCode: z.string().trim().max(12).optional(),
+  shipCountry: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .pipe(z.enum(["US", "CA"]))
+    .default("US"),
+});
+export type CreateRecipientInput = z.infer<typeof createRecipientSchema>;
+
 // Country-aware state/postal check — mirrors refineCountryAddress in
 // usa-errands-api/src/common/schemas/order.schema.ts. KEEP IN SYNC.
 const US_STATES = new Set([
@@ -236,7 +264,7 @@ export const createOrderSchema = z.object({
     .regex(/^[A-Za-z0-9_\-./#]*$/, "Letters, digits, and -_./# only.")
     .optional()
     .or(z.literal("").transform(() => undefined)),
-  recipient: recipientAddressSchema,
+  recipient: createRecipientSchema,
   lines: z.array(orderLineInputSchema).min(1).max(50),
   // branches the order pipeline. Mirrors the backend
   // contract: PLATFORM_SHIP requires `carrierService`; VENDOR_CARRIER

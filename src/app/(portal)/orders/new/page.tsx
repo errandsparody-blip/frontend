@@ -386,8 +386,24 @@ export default function NewOrderPage() {
           );
         }
       }
-      const parsed = recipientAddressSchema.safeParse(address);
-      if (!parsed.success) throw new Error("Address is invalid.");
+      // PLATFORM_SHIP needs a full, valid address; VENDOR_CARRIER needs only a
+      // recipient name (the vendor's own label carries the destination).
+      let recipient: CreateOrderInput["recipient"];
+      if (fulfillmentMode === "VENDOR_CARRIER") {
+        if (address.recipientName.trim().length < 2) {
+          throw new Error("Enter the recipient's name.");
+        }
+        recipient = {
+          recipientName: address.recipientName.trim(),
+          recipientPhone: address.recipientPhone?.trim() || undefined,
+          recipientEmail: address.recipientEmail?.trim() || undefined,
+          shipCountry: address.shipCountry,
+        };
+      } else {
+        const parsed = recipientAddressSchema.safeParse(address);
+        if (!parsed.success) throw new Error("Address is invalid.");
+        recipient = parsed.data;
+      }
       const idempotencyKey =
         typeof crypto !== "undefined" && "randomUUID" in crypto
           ? crypto.randomUUID()
@@ -396,7 +412,7 @@ export default function NewOrderPage() {
       if (fulfillmentMode === "VENDOR_CARRIER") {
         payload = {
           externalReference: externalReference.trim() || undefined,
-          recipient: parsed.data,
+          recipient,
           lines,
           fulfillmentMode: "VENDOR_CARRIER",
           // carrierService is omitted on the vendor-carrier branch
@@ -422,7 +438,7 @@ export default function NewOrderPage() {
         // buy the label.
         payload = {
           externalReference: externalReference.trim() || undefined,
-          recipient: parsed.data,
+          recipient,
           lines,
           fulfillmentMode: "PLATFORM_SHIP",
           insuranceRequested,
@@ -432,7 +448,7 @@ export default function NewOrderPage() {
       } else {
         payload = {
           externalReference: externalReference.trim() || undefined,
-          recipient: parsed.data,
+          recipient,
           lines,
           fulfillmentMode: "PLATFORM_SHIP",
           carrierService: `${chosen!.carrier} ${chosen!.service}`,
@@ -622,7 +638,7 @@ export default function NewOrderPage() {
               }
             }
             setValidationError(null);
-            setStep("address");
+            setStep("fulfillment");
           }}
         />
       ) : null}
@@ -632,6 +648,7 @@ export default function NewOrderPage() {
           address={address}
           externalReference={externalReference}
           fieldErrors={addressErrors}
+          nameOnly={fulfillmentMode === "VENDOR_CARRIER"}
           onChangeAddress={(next) => {
             // Clear the field-level error as the user corrects it — keeps the
             // form from showing stale red borders after a typo is fixed.
@@ -642,8 +659,22 @@ export default function NewOrderPage() {
             }
           }}
           onChangeReference={setExternalReference}
-          onBack={() => setStep("lines")}
+          onBack={() => setStep("fulfillment")}
           onNext={() => {
+            // VENDOR_CARRIER (own label) needs only a recipient name — the
+            // vendor's own label already carries the destination, so we don't
+            // ask for or validate a shipping address.
+            if (fulfillmentMode === "VENDOR_CARRIER") {
+              if (address.recipientName.trim().length < 2) {
+                setAddressErrors({ recipientName: "Enter the recipient's name." });
+                setValidationError("Enter the recipient's name to continue.");
+                return;
+              }
+              setValidationError(null);
+              setAddressErrors({});
+              setStep("review");
+              return;
+            }
             const parsed = recipientAddressSchema.safeParse(address);
             if (!parsed.success) {
               // Collect every issue so the user sees ALL missing fields at
@@ -656,17 +687,16 @@ export default function NewOrderPage() {
               setAddressErrors(fieldMap);
               setValidationError(
                 parsed.error.errors.length === 1
-                  ? "Fix the highlighted field to get rates."
-                  : `Fix ${parsed.error.errors.length} highlighted fields to get rates.`,
+                  ? "Fix the highlighted field to continue."
+                  : `Fix ${parsed.error.errors.length} highlighted fields to continue.`,
               );
               return;
             }
             setValidationError(null);
             setAddressErrors({});
-            // after recipient, the vendor picks their
-            // fulfillment path. Quoting only fires if they choose
-            // PLATFORM_SHIP on that step.
-            setStep("fulfillment");
+            // PLATFORM_SHIP with a valid address goes straight to review; the
+            // admin picks the actual carrier rate at pack time (v2).
+            setStep("review");
           }}
           quoting={quoteMut.isPending}
         />
@@ -683,42 +713,29 @@ export default function NewOrderPage() {
           vendorLabelUrl={vendorLabelUrl}
           onChangeLabelUrl={setVendorLabelUrl}
           quoting={quoteMut.isPending}
-          onBack={() => setStep("address")}
+          onBack={() => setStep("lines")}
           onNext={() => {
-            if (fulfillmentMode === "PLATFORM_SHIP") {
-              // v2 kills the rate-picker step.
-              // Vendor commits to the fulfillment fee + estimate
-              // range and lands directly on Review. Actual carrier
-              // rate is chosen at pack time by admin.
-              if (v2Enabled) {
-                setValidationError(null);
-                setStep("review");
+            // Fulfillment now comes BEFORE recipient. Both modes advance to
+            // the recipient step next; what the recipient step asks for
+            // depends on the mode (full address for PLATFORM_SHIP, name-only
+            // for VENDOR_CARRIER).
+            if (fulfillmentMode === "VENDOR_CARRIER") {
+              // Defence in depth — the step's Next button is disabled until a
+              // label OR carrier+tracking is supplied, but re-check here so a
+              // bypassed disabled state can't carry a half-formed order on.
+              const hasLabel = vendorLabelUrl.trim().length > 0;
+              const hasManual =
+                vendorCarrierName.trim().length > 0 &&
+                vendorTrackingNumber.trim().length > 0;
+              if (!hasLabel && !hasManual) {
+                setValidationError(
+                  "Upload a pre-paid label, or enter both a carrier name and tracking number.",
+                );
                 return;
               }
-              // Legacy: fetch carrier rates — on success the mutation
-              // moves us to the "rates" step.
-              quoteMut.mutate();
-              return;
-            }
-            // VENDOR_CARRIER — defence in depth. The FulfillmentStep
-            // disables its Continue button when neither a label NOR
-            // (carrier + tracking) is supplied, so under normal
-            // operation this branch is unreachable. Kept in case the
-            // button's disabled state is bypassed (devtools, future
-            // refactor) so we never accept a half-formed VENDOR_CARRIER
-            // order at the wizard layer.
-            const hasLabel = vendorLabelUrl.trim().length > 0;
-            const hasManual =
-              vendorCarrierName.trim().length > 0 &&
-              vendorTrackingNumber.trim().length > 0;
-            if (!hasLabel && !hasManual) {
-              setValidationError(
-                "Upload a pre-paid label, or enter both a carrier name and tracking number.",
-              );
-              return;
             }
             setValidationError(null);
-            setStep("review");
+            setStep("address");
           }}
         />
       ) : null}
@@ -838,7 +855,7 @@ export default function NewOrderPage() {
           walletBalanceCents={walletBalanceQ.data?.balanceCents ?? null}
           walletLoading={walletBalanceQ.isLoading}
           submitting={submitMut.isPending}
-          onBack={() => setStep("fulfillment")}
+          onBack={() => setStep("address")}
           onSubmit={() => submitMut.mutate()}
         />
       ) : null}
@@ -859,7 +876,7 @@ export default function NewOrderPage() {
           costEstimate={fulfillmentEstimateQ.data ?? null}
           costLoading={fulfillmentEstimateQ.isLoading}
           submitting={submitMut.isPending}
-          onBack={() => setStep("fulfillment")}
+          onBack={() => setStep("address")}
           onSubmit={() => submitMut.mutate()}
         />
       ) : null}
@@ -872,9 +889,9 @@ export default function NewOrderPage() {
 function Stepper({ step }: { step: Step }): JSX.Element {
   const steps: Array<{ key: Step; label: string }> = [
     { key: "lines", label: "Lines" },
-    { key: "address", label: "Recipient" },
     { key: "fulfillment", label: "Fulfillment" },
-    { key: "rates", label: "Carrier" },
+    { key: "address", label: "Recipient" },
+    { key: "rates", label: "Delivery" },
     { key: "review", label: "Review" },
   ];
   const idx = steps.findIndex((s) => s.key === step);
@@ -997,7 +1014,7 @@ function LineBuilder({
 
       <div className="flex justify-end">
         <Button type="button" variant="amber" size="lg" withArrow onClick={onNext}>
-          Continue
+          Next
         </Button>
       </div>
     </section>
@@ -1015,6 +1032,7 @@ function AddressForm({
   onBack,
   onNext,
   quoting,
+  nameOnly = false,
 }: {
   address: RecipientAddress;
   externalReference: string;
@@ -1028,6 +1046,12 @@ function AddressForm({
   onBack: () => void;
   onNext: () => void;
   quoting: boolean;
+  /**
+   * VENDOR_CARRIER (own-label) orders only need the recipient's name — the
+   * vendor's own label already carries the shipping address. When true, every
+   * address field (and the paste / saved-address helpers) is hidden.
+   */
+  nameOnly?: boolean;
 }): JSX.Element {
   function patch<K extends keyof RecipientAddress>(key: K, value: RecipientAddress[K]): void {
     onChangeAddress({ ...address, [key]: value });
@@ -1069,6 +1093,15 @@ function AddressForm({
         </div>
       ) : null}
 
+      {nameOnly ? (
+        <p className="rounded-md border-l-4 border-line bg-cream-soft px-4 py-3 text-body-sm text-text-muted">
+          You&apos;re bringing your own label, so we only need the
+          recipient&apos;s name — the shipping address is already on your label.
+        </p>
+      ) : null}
+
+      {!nameOnly ? (
+      <>
       {/* Paste-and-parse shortcut — drop a full address on one line and we
           split it into the fields below (you can still edit after). */}
       <Field
@@ -1128,6 +1161,8 @@ function AddressForm({
           })
         }
       />
+      </>
+      ) : null}
 
       <div className="grid grid-cols-2 gap-4">
         <Field label="Recipient name" error={fieldErrors.recipientName}>
@@ -1147,26 +1182,32 @@ function AddressForm({
             placeholder="#1042"
           />
         </Field>
-        <Field label="Phone" error={fieldErrors.recipientPhone}>
-          <Input
-            type="tel"
-            autoComplete="shipping tel"
-            value={address.recipientPhone ?? ""}
-            invalid={!!fieldErrors.recipientPhone}
-            onChange={(e) => patch("recipientPhone", e.target.value)}
-          />
-        </Field>
-        <Field label="Email (optional)" error={fieldErrors.recipientEmail}>
-          <Input
-            type="email"
-            autoComplete="shipping email"
-            value={address.recipientEmail ?? ""}
-            invalid={!!fieldErrors.recipientEmail}
-            onChange={(e) => patch("recipientEmail", e.target.value || undefined)}
-          />
-        </Field>
+        {!nameOnly ? (
+          <>
+            <Field label="Phone" error={fieldErrors.recipientPhone}>
+              <Input
+                type="tel"
+                autoComplete="shipping tel"
+                value={address.recipientPhone ?? ""}
+                invalid={!!fieldErrors.recipientPhone}
+                onChange={(e) => patch("recipientPhone", e.target.value)}
+              />
+            </Field>
+            <Field label="Email (optional)" error={fieldErrors.recipientEmail}>
+              <Input
+                type="email"
+                autoComplete="shipping email"
+                value={address.recipientEmail ?? ""}
+                invalid={!!fieldErrors.recipientEmail}
+                onChange={(e) => patch("recipientEmail", e.target.value || undefined)}
+              />
+            </Field>
+          </>
+        ) : null}
       </div>
 
+      {!nameOnly ? (
+      <>
       <Field label="Address line 1" error={fieldErrors.shipAddressLine1}>
         <Input
           type="text"
@@ -1270,13 +1311,15 @@ function AddressForm({
           delivery.
         </p>
       ) : null}
+      </>
+      ) : null}
 
       <div className="flex justify-between">
         <Button type="button" variant="outline" onClick={onBack}>
           ← Back
         </Button>
         <Button type="button" variant="amber" size="lg" withArrow onClick={onNext} loading={quoting}>
-          {quoting ? "Quoting…" : "Get rates"}
+          Next
         </Button>
       </div>
     </section>
@@ -1379,7 +1422,7 @@ function RateSelector({
           ← Back
         </Button>
         <Button type="button" variant="amber" size="lg" withArrow onClick={onNext}>
-          Continue
+          Next
         </Button>
       </div>
     </section>
@@ -1465,7 +1508,7 @@ function ReviewPanel({
           ← Back
         </Button>
         <Button type="button" variant="amber" size="lg" withArrow onClick={onSubmit} loading={submitting}>
-          {submitting ? "Submitting…" : "Submit order"}
+          {submitting ? "Submitting…" : "Done"}
         </Button>
       </div>
     </section>
@@ -1523,8 +1566,7 @@ function FulfillmentStep({
         <h2 className="text-h2 font-semibold text-ink">How should this order ship?</h2>
         <p className="mt-1 max-w-prose text-body-sm text-text-muted">
           We can hand it to a carrier on a label we buy for you, or you can drop in your own
-          pre-paid label and we&apos;ll pick + pack + hand it off to whoever you&apos;ve
-          arranged. Either way we still do the warehouse work — only the label changes.
+          pre-paid label and we&apos;ll pick + pack + hand it off.
         </p>
       </header>
 
@@ -1655,11 +1697,7 @@ function FulfillmentStep({
           // mutation's loading state.
           disabled={mode === "VENDOR_CARRIER" && !canProceed}
         >
-          {quoting
-            ? "Getting rates…"
-            : mode === "VENDOR_CARRIER"
-              ? "Continue to review"
-              : "Continue to carrier rates"}
+          Next
         </Button>
       </div>
     </section>
@@ -1768,12 +1806,16 @@ function VendorCarrierReviewPanel({
 
       <dl className="grid gap-4 md:grid-cols-2">
         <SummaryRow label="Recipient" value={address.recipientName || "—"} />
-        <SummaryRow
-          label="Ship to"
-          value={`${address.shipAddressLine1}${
-            address.shipAddressLine2 ? `, ${address.shipAddressLine2}` : ""
-          }, ${address.shipCity}, ${address.shipState} ${address.shipPostalCode}`}
-        />
+        {/* Own-label orders don't capture a ship address (it's on the
+            vendor's label), so only show this row when one was entered. */}
+        {address.shipAddressLine1 ? (
+          <SummaryRow
+            label="Ship to"
+            value={`${address.shipAddressLine1}${
+              address.shipAddressLine2 ? `, ${address.shipAddressLine2}` : ""
+            }, ${address.shipCity}, ${address.shipState} ${address.shipPostalCode}`}
+          />
+        ) : null}
         <SummaryRow label="Line items" value={`${lineCount} line${lineCount === 1 ? "" : "s"}`} />
         {externalReference ? (
           <SummaryRow label="Your reference" value={externalReference} />
@@ -1850,7 +1892,7 @@ function VendorCarrierReviewPanel({
           // validation fires), the button enables.
           disabled={submitting || (costLoading && !costEstimate)}
         >
-          {submitting ? "Submitting…" : "Submit order"}
+          {submitting ? "Submitting…" : "Done"}
         </Button>
       </div>
     </section>
@@ -1958,12 +2000,16 @@ function V2ReviewPanel({
 
       <dl className="grid gap-4 md:grid-cols-2">
         <SummaryRow label="Recipient" value={address.recipientName || "—"} />
-        <SummaryRow
-          label="Ship to"
-          value={`${address.shipAddressLine1}${
-            address.shipAddressLine2 ? `, ${address.shipAddressLine2}` : ""
-          }, ${address.shipCity}, ${address.shipState} ${address.shipPostalCode}`}
-        />
+        {/* Own-label orders don't capture a ship address (it's on the
+            vendor's label), so only show this row when one was entered. */}
+        {address.shipAddressLine1 ? (
+          <SummaryRow
+            label="Ship to"
+            value={`${address.shipAddressLine1}${
+              address.shipAddressLine2 ? `, ${address.shipAddressLine2}` : ""
+            }, ${address.shipCity}, ${address.shipState} ${address.shipPostalCode}`}
+          />
+        ) : null}
         <SummaryRow
           label="Line items"
           value={`${lineCount} line${lineCount === 1 ? "" : "s"}`}
@@ -2096,7 +2142,7 @@ function V2ReviewPanel({
           loading={submitting}
           disabled={!canSubmit}
         >
-          {submitting ? "Submitting…" : "Submit order"}
+          {submitting ? "Submitting…" : "Done"}
         </Button>
       </div>
     </section>

@@ -41,5 +41,7 @@ export interface PublicLedgerEntry {
   description: string;
   referenceType: string | null;
   referenceId: string | null;
+  /** Human order reference (e.g. "#31356") for order-tagged charges; null otherwise. */
+  orderRef: string | null;
   createdAt: string;
 }
