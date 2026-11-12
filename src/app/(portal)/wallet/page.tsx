@@ -2,6 +2,7 @@
 
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
+import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -36,11 +37,15 @@ export default function WalletPage() {
     queryFn: () => api.get<WalletSnapshot>("/wallet"),
   });
   const page = useCursorPagination();
+  // USA + Canada: filter the statement by country.
+  const [country, setCountry] = useState<"ALL" | "US" | "CA">("ALL");
   const ledgerQ = useQuery({
-    queryKey: ["wallet", "ledger", { cursor: page.cursor, pageSize: page.pageSize }],
+    queryKey: ["wallet", "ledger", { cursor: page.cursor, pageSize: page.pageSize, country }],
     queryFn: () =>
       api.get<{ items: PublicLedgerEntry[]; nextCursor: string | null }>(
-        `/wallet/ledger?limit=${page.pageSize}${page.cursor ? `&cursor=${page.cursor}` : ""}`,
+        `/wallet/ledger?limit=${page.pageSize}${page.cursor ? `&cursor=${page.cursor}` : ""}${
+          country !== "ALL" ? `&country=${country}` : ""
+        }`,
       ),
     placeholderData: keepPreviousData,
   });
@@ -133,7 +138,29 @@ export default function WalletPage() {
       </section>
 
       {/* Ledger */}
-      <div className="mb-3 flex justify-end"><PageSizeSelect value={page.pageSize} onChange={page.setPageSize} /></div>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        {/* USA / Canada / All country filter. */}
+        <div className="inline-flex overflow-hidden rounded-sm border border-line-strong">
+          {(["ALL", "US", "CA"] as const).map((c) => (
+            <button
+              key={c}
+              type="button"
+              onClick={() => {
+                setCountry(c);
+                page.reset();
+              }}
+              className={
+                country === c
+                  ? "bg-ink px-3 py-1.5 font-mono text-[11px] uppercase tracking-[1.2px] text-text-inv"
+                  : "bg-white px-3 py-1.5 font-mono text-[11px] uppercase tracking-[1.2px] text-text hover:bg-cream-soft"
+              }
+            >
+              {c === "ALL" ? "All countries" : c === "US" ? "USA" : "Canada"}
+            </button>
+          ))}
+        </div>
+        <PageSizeSelect value={page.pageSize} onChange={page.setPageSize} />
+      </div>
       {ledgerQ.isLoading ? (
         <div className="font-mono text-mono-label uppercase text-text-muted">Loading ledger…</div>
       ) : !ledgerQ.data || ledgerQ.data.items.length === 0 ? (

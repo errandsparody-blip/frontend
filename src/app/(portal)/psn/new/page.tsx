@@ -83,6 +83,8 @@ export default function NewPsnPage() {
       // the historical implicit default for any client that didn't carry
       // the field.
       shippingMode: "LOOSE",
+      // USA / Canada destination for this shipment.
+      country: "US",
       declaredBoxCounts: { SMALL: 0, MEDIUM: 0, LARGE: 0, X_LARGE: 0, PALLET: 0 },
       lines: [],
       notes: "",
@@ -438,6 +440,29 @@ export default function NewPsnPage() {
               placeholder="Anything the warehouse should know"
               {...register("notes")}
             />
+          </Field>
+        </section>
+
+        {/* Destination country — which warehouse this shipment is headed to.
+            Stock received against this PSN lands in that country's inventory,
+            and orders for that country draw from it. */}
+        <section className="rounded-md border border-line bg-white p-8">
+          <h2 className="mb-1 font-mono text-mono-label uppercase text-text-muted">
+            Destination
+          </h2>
+          <p className="mb-4 max-w-prose text-body-sm text-text-muted">
+            Choose which country this shipment is going to. We&apos;ll receive the
+            stock into that country&apos;s inventory, and orders for that country
+            will be fulfilled from it.
+          </p>
+          <Field label="Country">
+            <select
+              {...register("country")}
+              className="h-11 w-full max-w-xs rounded-sm border border-line-strong bg-cream-soft px-3 text-body text-text outline-none transition-colors duration-fast ease-out hover:border-text/40 focus:border-ink focus:ring-2 focus:ring-ink/10"
+            >
+              <option value="US">United States</option>
+              <option value="CA">Canada</option>
+            </select>
           </Field>
         </section>
 

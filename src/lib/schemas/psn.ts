@@ -27,6 +27,9 @@ export const createPsnSchema = z.object({
   carrier: z.string().min(2).max(60).optional(),
   masterTracking: z.string().min(3).max(80).optional(),
   shippingMode: shippingModeSchema.default("LOOSE"),
+  // USA / Canada destination (USA + Canada backbone). Stock received against
+  // this PSN lands in this country's bucket. Defaults to US.
+  country: z.enum(["US", "CA"]).default("US"),
   declaredBoxCounts: declaredBoxCountsSchema.refine(
     (obj) => Object.values(obj).some((v) => (v ?? 0) > 0),
     { message: "Declare at least one box." },
@@ -66,6 +69,8 @@ export interface PublicPsn {
   // surfaced so the vendor PSN detail view and the
   // admin receive page can render mode-specific copy + badges.
   shippingMode: ShippingMode;
+  /** Destination country (US / CA). */
+  country: string;
   expectedArrivalDate: string | null;
   carrier: string | null;
   masterTracking: string | null;

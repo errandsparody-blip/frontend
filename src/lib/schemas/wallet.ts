@@ -43,5 +43,7 @@ export interface PublicLedgerEntry {
   referenceId: string | null;
   /** Human order reference (e.g. "#31356") for order-tagged charges; null otherwise. */
   orderRef: string | null;
+  /** Country this entry belongs to (US / CA), or null if country-neutral. */
+  country: string | null;
   createdAt: string;
 }
