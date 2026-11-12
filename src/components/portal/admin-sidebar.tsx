@@ -83,6 +83,9 @@ const NAV: NavItem[] = [
   { href: "/admin/returns", label: "Returns", icon: Undo2, category: "return", pageKey: "admin.returns.read" },
   { href: "/admin/shopper", label: "Shopper", icon: ShoppingBag, category: "shopper", pageKey: "admin.shopper.read" },
   { href: "/admin/finance", label: "Finance", icon: CreditCard, category: "wallet", pageKey: "admin.finance.read" },
+  // Admin earnings + payment settlements. Visible to every admin (they see
+  // their own settlements); SUPER_ADMIN additionally manages fees + payouts.
+  { href: "/admin/earnings", label: "Earnings", icon: CreditCard },
   { href: "/admin/referrals", label: "Referrals", icon: Gift, superAdminOnly: true },
   { href: "/admin/marketplace", label: "Marketplace", icon: Store, superAdminOnly: true },
   {
@@ -104,6 +107,9 @@ const NAV: NavItem[] = [
   // pricing / config editors are SUPER_ADMIN-only.
   // No page key on the ADMIN registry maps to these, so the sidebar
   // hides them entirely for other roles.
+  // USA + Canada controls (routing switch-over, admin country, vendor
+  // assignments, flat-fee pricing). SUPER_ADMIN only.
+  { href: "/admin/config/countries", label: "USA & Canada", icon: Store, superAdminOnly: true },
   { href: "/admin/config/fees", label: "Pricing (Fulfillment)", icon: Tag, superAdminOnly: true },
   // Shopper has its own commission + freight + tax editor — separate
   // from the fulfillment fee schedule above. Dedicated entry so admins don't
