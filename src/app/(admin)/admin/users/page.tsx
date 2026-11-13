@@ -79,6 +79,16 @@ interface PatchRoleResponse {
   revokedSessions: boolean;
 }
 
+type SettableStatus = "ACTIVE" | "SUSPENDED" | "CLOSED";
+const STATUS_OPTIONS: readonly SettableStatus[] = ["ACTIVE", "SUSPENDED", "CLOSED"];
+
+interface PatchStatusResponse {
+  id: string;
+  email: string;
+  status: SettableStatus;
+  revokedSessions: boolean;
+}
+
 // ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
@@ -109,7 +119,7 @@ export default function AdminUsersPage(): JSX.Element | null {
       <PageHeader
         eyebrow="  Users"
         title="Admin users"
-        description="Promote, demote, or reassign roles for platform staff. Changes revoke every active session for the target user so they must log in again before their new role takes effect."
+        description="Promote, demote, or reassign roles for platform staff, and set a user's account status (Active, Suspended, Closed). Role changes and suspending or closing an account revoke every active session, so the user must log in again — and a suspended or closed user can't sign in until a Super Admin reactivates them."
       />
       <UserList currentUserId={user.id} />
     </div>
@@ -210,10 +220,16 @@ function UserRow({
   const qc = useQueryClient();
   const { bannerError, handle, clear } = useApiErrorHandler();
   const [nextRole, setNextRole] = useState<AdminRole>(user.role);
+  // The status dropdown only offers settable values; a user still in
+  // PENDING_EMAIL_VERIFICATION defaults the control to ACTIVE.
+  const currentSettableStatus: SettableStatus =
+    user.status === "SUSPENDED" || user.status === "CLOSED" ? user.status : "ACTIVE";
+  const [nextStatus, setNextStatus] = useState<SettableStatus>(currentSettableStatus);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
 
   const isSelf = user.id === currentUserId;
   const dirty = nextRole !== user.role;
+  const statusDirty = nextStatus !== currentSettableStatus;
 
   const saveMut = useMutation({
     mutationFn: () =>
@@ -235,6 +251,39 @@ function UserRow({
     onError: (err) => handle(err),
   });
 
+  const statusMut = useMutation({
+    mutationFn: () =>
+      api.patch<PatchStatusResponse>(`/admin/users/${user.id}/status`, { status: nextStatus }),
+    onMutate: () => {
+      clear();
+      setSavedMessage(null);
+    },
+    onSuccess: (res) => {
+      void qc.invalidateQueries({ queryKey: ["admin", "users"] });
+      setSavedMessage(
+        res.revokedSessions
+          ? `Status set to ${res.status}. ${res.email} has been logged out and can't sign in until reactivated.`
+          : `Status set to ${res.status}.`,
+      );
+    },
+    onError: (err) => handle(err),
+  });
+
+  function saveStatus(): void {
+    // Suspend / close lock the person out immediately — confirm first.
+    if (nextStatus === "SUSPENDED" || nextStatus === "CLOSED") {
+      const verb = nextStatus === "SUSPENDED" ? "suspend" : "close";
+      const ok = window.confirm(
+        `${nextStatus === "SUSPENDED" ? "Suspend" : "Close"} ${user.email}?\n\n` +
+          `This logs them out now and blocks sign-in until a Super Admin reactivates them. ` +
+          `You can reverse it by setting their status back to ACTIVE.`,
+      );
+      if (!ok) return;
+      void verb;
+    }
+    statusMut.mutate();
+  }
+
   return (
     <>
       <TR>
@@ -250,17 +299,47 @@ function UserRow({
           {user.role}
         </Td>
         <Td>
-          <StatusPill
-            tone={
-              user.status === "ACTIVE"
-                ? "success"
-                : user.status === "SUSPENDED" || user.status === "CLOSED"
-                  ? "error"
-                  : "warning"
-            }
-          >
-            {user.status.replace(/_/g, " ")}
-          </StatusPill>
+          <div className="flex flex-col items-start gap-1.5">
+            <StatusPill
+              tone={
+                user.status === "ACTIVE"
+                  ? "success"
+                  : user.status === "SUSPENDED" || user.status === "CLOSED"
+                    ? "error"
+                    : "warning"
+              }
+            >
+              {user.status.replace(/_/g, " ")}
+            </StatusPill>
+            {isSelf ? (
+              <span className="font-mono text-[10px] uppercase tracking-[1px] text-text-muted">
+                can&apos;t change own
+              </span>
+            ) : (
+              <div className="flex items-center gap-1.5">
+                <select
+                  value={nextStatus}
+                  onChange={(e) => setNextStatus(e.target.value as SettableStatus)}
+                  className="h-8 rounded-sm border border-line-strong bg-white px-2 font-mono text-[11px] text-text outline-none focus:border-ink"
+                  title="Set account status"
+                >
+                  {STATUS_OPTIONS.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={saveStatus}
+                  disabled={!statusDirty || statusMut.isPending}
+                  className="font-mono text-[11px] uppercase tracking-[1.2px] text-ink hover:text-amber disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {statusMut.isPending ? "saving…" : "set"}
+                </button>
+              </div>
+            )}
+          </div>
         </Td>
         <Td mono className="text-text-muted">
           {user.mfaEnrolledAt ? "enrolled" : "—"}
