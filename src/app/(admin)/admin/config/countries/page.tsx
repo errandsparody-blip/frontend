@@ -80,7 +80,7 @@ export default function CountryControlsPage(): JSX.Element {
   });
   const vendorsQ = useQuery({
     queryKey: ["admin", "finance", "vendors", "all"],
-    queryFn: () => api.get<{ items: VendorRow[] }>("/admin/finance/vendors?limit=100"),
+    queryFn: () => api.get<{ items: VendorRow[] }>("/admin/vendors?limit=100"),
     enabled,
   });
   const assignmentsQ = useQuery({
