@@ -435,7 +435,7 @@ export default function CountryControlsPage(): JSX.Element {
       <section className="rounded-md border border-line bg-white p-6">
         <h2 className="font-mono text-mono-label uppercase text-text-muted">Shippo sender profiles</h2>
         <p className="mt-1 mb-4 text-body-sm text-text-muted">
-          The "ship from" address printed on labels. An order&apos;s label uses the profile of the admin
+          The &quot;ship from&quot; address printed on labels. An order&apos;s label uses the profile of the admin
           who processed it; if none, the <strong>Default</strong> profile; if none, the system warehouse
           address. Set the Default plus one per admin.
         </p>
