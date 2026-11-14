@@ -58,7 +58,10 @@ export function FilterBar({
           </button>
         </div>
       ) : null}
-      <div className={cn("grid grid-cols-1 items-end gap-4", gridClassName)}>{children}</div>
+      {/* items-start so every control's top edge lines up; a field with a
+          hint (e.g. Search) lets its helper text hang below without shoving
+          the input out of line with the dropdowns. */}
+      <div className={cn("grid grid-cols-1 items-start gap-4", gridClassName)}>{children}</div>
     </section>
   );
 }
@@ -88,6 +91,9 @@ export function FilterField({
         value={value}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
+        // White to match the dropdowns in the same bar (Input defaults to
+        // cream); keeps the filter row visually consistent.
+        className="bg-white"
       />
     </Field>
   );
@@ -118,19 +124,32 @@ export function FilterSelect({
 }): JSX.Element {
   return (
     <Field label={label} hint={hint} className={className}>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        disabled={disabled}
-        aria-label={label}
-        className="h-11 w-full rounded-sm border border-line-strong bg-white px-3 font-sans text-body text-text outline-none focus:border-ink disabled:opacity-60"
-      >
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
+      {/* Native select with the browser chevron suppressed (appearance-none)
+          and a single consistent custom chevron drawn on top. pr-9 reserves
+          room so long option labels never slide under the icon. */}
+      <div className="relative">
+        <select
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          disabled={disabled}
+          aria-label={label}
+          className="h-11 w-full cursor-pointer appearance-none rounded-sm border border-line-strong bg-white pl-3 pr-9 font-sans text-body text-text outline-none transition-colors focus:border-ink disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {options.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+        <svg
+          aria-hidden
+          viewBox="0 0 20 20"
+          fill="none"
+          className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted"
+        >
+          <path d="M6 8l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </div>
     </Field>
   );
 }
