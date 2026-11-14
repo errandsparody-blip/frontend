@@ -28,8 +28,13 @@ export const createPsnSchema = z.object({
   masterTracking: z.string().min(3).max(80).optional(),
   shippingMode: shippingModeSchema.default("LOOSE"),
   // USA / Canada destination (USA + Canada backbone). Stock received against
-  // this PSN lands in this country's bucket. Defaults to US.
-  country: z.enum(["US", "CA"]).default("US"),
+  // this PSN lands in this country's bucket. Deliberately NOT defaulted — the
+  // vendor must pick one so shipments aren't silently filed as US. The form
+  // starts on an empty "Pick a destination" option, which fails this enum
+  // (surfacing the message below) until a real country is chosen.
+  country: z.enum(["US", "CA"], {
+    errorMap: () => ({ message: "Pick a destination — USA or Canada — before submitting." }),
+  }),
   declaredBoxCounts: declaredBoxCountsSchema.refine(
     (obj) => Object.values(obj).some((v) => (v ?? 0) > 0),
     { message: "Declare at least one box." },

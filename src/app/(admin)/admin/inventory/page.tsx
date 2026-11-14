@@ -82,6 +82,8 @@ export default function AdminInventoryPage(): JSX.Element {
   const [status, setStatus] = useState<Status | "">("");
   const [zeroOnly, setZeroOnly] = useState(false);
   const [vendorId, setVendorId] = useState<string>("");
+  // USA + Canada: toggle stock-on-hand between countries (empty = both).
+  const [country, setCountry] = useState<"" | "US" | "CA">("");
   // Full-size image preview (lightbox). Null when closed.
   const [preview, setPreview] = useState<{ url: string; name: string } | null>(null);
 
@@ -129,7 +131,7 @@ export default function AdminInventoryPage(): JSX.Element {
   const trimmedSearch = search.trim();
   useEffect(() => {
     resetPage();
-  }, [trimmedSearch, tier, status, zeroOnly, vendorId, resetPage]);
+  }, [trimmedSearch, tier, status, zeroOnly, vendorId, country, resetPage]);
 
   const params = new URLSearchParams();
   params.set("limit", String(page.pageSize));
@@ -138,10 +140,11 @@ export default function AdminInventoryPage(): JSX.Element {
   if (status) params.set("status", status);
   if (zeroOnly) params.set("zeroOnly", "true");
   if (vendorId) params.set("vendorId", vendorId);
+  if (country) params.set("country", country);
   if (page.cursor) params.set("cursor", page.cursor);
 
   const listQ = useQuery({
-    queryKey: ["admin", "skus", { search: trimmedSearch, tier, status, zeroOnly, vendorId, cursor: page.cursor, pageSize: page.pageSize }],
+    queryKey: ["admin", "skus", { search: trimmedSearch, tier, status, zeroOnly, vendorId, country, cursor: page.cursor, pageSize: page.pageSize }],
     queryFn: () => api.get<ListResponse>(`/admin/skus?${params.toString()}`),
     placeholderData: keepPreviousData,
   });
@@ -191,16 +194,17 @@ export default function AdminInventoryPage(): JSX.Element {
       />
 
       <FilterBar
-        gridClassName="md:grid-cols-[1fr_220px_180px_180px_140px]"
+        gridClassName="md:grid-cols-[1fr_220px_160px_180px_180px_140px]"
         onClear={() => {
           setSearch("");
           setVendorId("");
+          setCountry("");
           setTier("");
           setStatus("");
           setZeroOnly(false);
         }}
         canClear={
-          search !== "" || vendorId !== "" || tier !== "" || status !== "" || zeroOnly
+          search !== "" || vendorId !== "" || country !== "" || tier !== "" || status !== "" || zeroOnly
         }
       >
         <FilterField
@@ -219,6 +223,16 @@ export default function AdminInventoryPage(): JSX.Element {
           options={[
             { value: "", label: "All vendors" },
             ...vendorOptions.map((v) => ({ value: v.id, label: v.businessName })),
+          ]}
+        />
+        <FilterSelect
+          label="Country"
+          value={country}
+          onChange={(v) => setCountry(v as "" | "US" | "CA")}
+          options={[
+            { value: "", label: "USA & Canada" },
+            { value: "US", label: "USA" },
+            { value: "CA", label: "Canada" },
           ]}
         />
         <FilterSelect
@@ -271,7 +285,7 @@ export default function AdminInventoryPage(): JSX.Element {
         <EmptyState
           title="No SKUs match those filters"
           description={
-            search || tier || status || zeroOnly || vendorId
+            search || tier || status || zeroOnly || vendorId || country
               ? "Loosen the filters or clear the search."
               : "Once a vendor's PSN is received, SKUs will appear here automatically."
           }

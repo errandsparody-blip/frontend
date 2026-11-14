@@ -180,6 +180,7 @@ export default function AdminPsnQueuePage(): JSX.Element {
           <THead>
             <Th>Reference</Th>
             <Th>Vendor</Th>
+            <Th>Destination</Th>
             <Th>Status</Th>
             <Th>Carrier</Th>
             <Th>Boxes</Th>
@@ -197,6 +198,17 @@ export default function AdminPsnQueuePage(): JSX.Element {
                 <TR key={p.id}>
                   <Td mono>{p.id.slice(0, 8)}</Td>
                   <Td strong>{p.vendor.businessName}</Td>
+                  <Td>
+                    <span
+                      className={`inline-flex items-center rounded-sm px-2 py-0.5 font-mono text-[11px] uppercase tracking-[1px] ${
+                        p.country === "CA"
+                          ? "bg-amber/20 text-amber"
+                          : "bg-ink/5 text-text-muted"
+                      }`}
+                    >
+                      {p.country === "CA" ? "Canada" : "USA"}
+                    </span>
+                  </Td>
                   <Td>
                     <StatusPill tone={TONE[p.status]}>
                       {p.status.replace(/_/g, " ")}

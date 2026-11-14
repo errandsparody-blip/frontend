@@ -22,6 +22,7 @@ import { StatusPill } from "@/components/ui/status-pill";
 import { DataTable, TBody, THead, Th, TR, Td } from "@/components/ui/table";
 import { api } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
+import { normalizeError } from "@/lib/errors";
 
 type Country = "US" | "CA";
 
@@ -114,6 +115,7 @@ export default function CountryControlsPage(): JSX.Element {
   const [asgVendor, setAsgVendor] = useState("");
   const [asgCountry, setAsgCountry] = useState<Country>("US");
   const [asgAdmin, setAsgAdmin] = useState("");
+  const [assignErr, setAssignErr] = useState<string | null>(null);
   const assign = useMutation({
     mutationFn: () =>
       api.put("/admin/vendor-assignments", {
@@ -121,10 +123,14 @@ export default function CountryControlsPage(): JSX.Element {
         country: asgCountry,
         adminUserId: asgAdmin,
       }),
+    onMutate: () => setAssignErr(null),
     onSuccess: () => {
-      setAsgVendor(""); setAsgAdmin("");
+      // Keep the country + admin selected so the Super Admin can assign the
+      // NEXT vendor to the same admin in one click; just clear the vendor.
+      setAsgVendor("");
       return invalidate([["admin", "vendor-assignments"]]);
     },
+    onError: (e) => setAssignErr(normalizeError(e).entry.title),
   });
   const unassign = useMutation({
     mutationFn: (v: { vendorId: string; country: Country }) =>
@@ -141,6 +147,14 @@ export default function CountryControlsPage(): JSX.Element {
   const [ffEnabled, setFfEnabled] = useState(false);
   const [ffFee, setFfFee] = useState("");
   const [ffUnits, setFfUnits] = useState("");
+  const flatFeesQ = useQuery({
+    queryKey: ["admin", "vendors", "flat-fees"],
+    queryFn: () =>
+      api.get<{ items: Array<{ id: string; businessName: string; feeCents: number; maxUnits: number }> }>(
+        "/admin/vendors/flat-fees",
+      ),
+    enabled,
+  });
   const saveFlatFee = useMutation({
     mutationFn: () =>
       api.put(`/admin/vendors/${ffVendor}/flat-fee`, {
@@ -149,6 +163,15 @@ export default function CountryControlsPage(): JSX.Element {
           ? { feeCents: Math.round(parseFloat(ffFee || "0") * 100), maxUnits: parseInt(ffUnits || "0", 10) }
           : {}),
       }),
+    // Reset the form and refresh the "who's on a flat fee" list so the result
+    // is visible immediately and the Super Admin can set up the next vendor.
+    onSuccess: () => {
+      setFfVendor("");
+      setFfEnabled(false);
+      setFfFee("");
+      setFfUnits("");
+      return invalidate([["admin", "vendors", "flat-fees"]]);
+    },
   });
 
   // --- Shippo sender profiles ---------------------------------------------
@@ -336,6 +359,13 @@ export default function CountryControlsPage(): JSX.Element {
             </Button>
           </div>
         </div>
+        {assignErr ? (
+          <p className="mb-3 text-body-sm text-error">{assignErr}</p>
+        ) : assign.isSuccess ? (
+          <p className="mb-3 text-body-sm text-success">
+            Assigned. The admin and country stay selected — pick another vendor to assign more to this admin.
+          </p>
+        ) : null}
         {adminsForCountry(asgCountry).length === 0 ? (
           <p className="mb-4 text-body-sm text-amber">
             No admins are scoped to {asgCountry === "CA" ? "Canada" : "USA"} yet — set an admin&apos;s country above first.
@@ -428,6 +458,35 @@ export default function CountryControlsPage(): JSX.Element {
           </Button>
           {saveFlatFee.isSuccess ? <span className="text-body-sm text-success">Saved.</span> : null}
           {saveFlatFee.isError ? <span className="text-body-sm text-error">Couldn&apos;t save.</span> : null}
+        </div>
+
+        {/* Who's on a flat fee — everyone not listed is on the default schedule. */}
+        <div className="mt-6">
+          <h3 className="mb-2 font-mono text-[11px] uppercase tracking-[1.2px] text-text-muted">
+            Vendors on a flat fee
+          </h3>
+          {(flatFeesQ.data?.items ?? []).length === 0 ? (
+            <p className="text-body-sm text-text-muted">
+              No vendors are on a flat fee — everyone is on the standard schedule.
+            </p>
+          ) : (
+            <DataTable>
+              <THead>
+                <Th>Vendor</Th>
+                <Th align="right">Flat fee</Th>
+                <Th align="right">Max items</Th>
+              </THead>
+              <TBody>
+                {(flatFeesQ.data?.items ?? []).map((f) => (
+                  <TR key={f.id}>
+                    <Td>{f.businessName}</Td>
+                    <Td num>${(f.feeCents / 100).toFixed(2)}</Td>
+                    <Td num>{f.maxUnits}</Td>
+                  </TR>
+                ))}
+              </TBody>
+            </DataTable>
+          )}
         </div>
       </section>
 

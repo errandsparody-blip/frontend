@@ -39,6 +39,8 @@ interface AdminPsn {
   // operators can eyeball the dock against the declaration before they
   // start counting line items.
   declaredBoxCounts: Record<string, number>;
+  // USA + Canada destination for this shipment (US / CA).
+  country: string;
   carrier: string | null;
   masterTracking: string | null;
   submittedAt: string | null;
@@ -544,6 +546,16 @@ export default function ReceivePsnPage() {
         description={`Carrier: ${psn.carrier ?? "—"} · Tracking: ${psn.masterTracking ?? "—"}`}
         actions={
           <div className="flex flex-wrap items-center gap-2">
+            {/* Destination country — so the receiver can see at a glance
+                whether this shipment is USA or Canada before receiving it
+                into that country's inventory. */}
+            <span
+              className={`inline-flex items-center rounded-sm px-2.5 py-1 font-mono text-[11px] font-semibold uppercase tracking-[1px] ${
+                psn.country === "CA" ? "bg-amber/20 text-amber" : "bg-ink/5 text-text-muted"
+              }`}
+            >
+              {psn.country === "CA" ? "Destination: Canada" : "Destination: USA"}
+            </span>
             <ShippingModeBadge mode={psn.shippingMode} />
             <StatusPill tone={psn.status === "AWAITING_RECEIPT" ? "info" : psn.status === "RECEIVED" ? "success" : "warning"}>
               {psn.status.replace(/_/g, " ")}

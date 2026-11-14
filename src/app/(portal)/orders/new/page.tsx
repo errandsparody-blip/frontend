@@ -762,6 +762,22 @@ export default function NewOrderPage() {
         />
       ) : null}
 
+      {/* Destination country — shown once at the top of Review (before all
+          three panel variants) so it's unmistakable where this order ships
+          before the vendor submits. */}
+      {step === "review" ? (
+        <div className="mb-4 flex items-center gap-3 rounded-md border border-line bg-white px-5 py-3">
+          <span className="font-mono text-mono-label uppercase text-text-muted">Destination</span>
+          <span
+            className={`inline-flex items-center rounded-sm px-2.5 py-1 font-mono text-[11px] font-semibold uppercase tracking-[1px] ${
+              address.shipCountry === "CA" ? "bg-amber/20 text-amber" : "bg-ink/5 text-text-muted"
+            }`}
+          >
+            {address.shipCountry === "CA" ? "Canada" : "United States"}
+          </span>
+        </div>
+      ) : null}
+
       {/* Review — branches on mode + fulfillment version:
           • v1 + PLATFORM_SHIP: needs `chosen` (a Shippo rate).
           • v2 + PLATFORM_SHIP: shows fulfillment fee + estimate range.

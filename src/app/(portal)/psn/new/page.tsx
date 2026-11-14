@@ -83,8 +83,11 @@ export default function NewPsnPage() {
       // the historical implicit default for any client that didn't carry
       // the field.
       shippingMode: "LOOSE",
-      // USA / Canada destination for this shipment.
-      country: "US",
+      // USA / Canada destination — intentionally empty so the vendor must
+      // pick one (see the "Pick a destination" option below). Cast because
+      // the schema type is "US" | "CA"; the empty value fails validation and
+      // blocks submit until a real country is chosen.
+      country: "" as unknown as "US",
       declaredBoxCounts: { SMALL: 0, MEDIUM: 0, LARGE: 0, X_LARGE: 0, PALLET: 0 },
       lines: [],
       notes: "",
@@ -455,11 +458,14 @@ export default function NewPsnPage() {
             stock into that country&apos;s inventory, and orders for that country
             will be fulfilled from it.
           </p>
-          <Field label="Country">
+          <Field label="Country" error={errors.country?.message}>
             <select
               {...register("country")}
-              className="h-11 w-full max-w-xs rounded-sm border border-line-strong bg-cream-soft px-3 text-body text-text outline-none transition-colors duration-fast ease-out hover:border-text/40 focus:border-ink focus:ring-2 focus:ring-ink/10"
+              className={`h-11 w-full max-w-xs rounded-sm border bg-cream-soft px-3 text-body text-text outline-none transition-colors duration-fast ease-out hover:border-text/40 focus:border-ink focus:ring-2 focus:ring-ink/10 ${
+                errors.country ? "border-error" : "border-line-strong"
+              }`}
             >
+              <option value="">Pick a destination…</option>
               <option value="US">United States</option>
               <option value="CA">Canada</option>
             </select>

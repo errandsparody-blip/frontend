@@ -61,7 +61,9 @@ const ROLE_OPTIONS: readonly AdminRole[] = [
 interface AdminUser {
   id: string;
   email: string;
-  role: AdminRole;
+  // May be any role — when the Super Admin searches by email the list widens
+  // to every account (incl. VENDOR) so it can be promoted to an admin role.
+  role: string;
   status: "ACTIVE" | "PENDING_EMAIL_VERIFICATION" | "SUSPENDED" | "CLOSED";
   mfaEnrolledAt: string | null;
   createdAt: string;
@@ -156,10 +158,14 @@ function UserList({ currentUserId }: { currentUserId: string }): JSX.Element {
       <div className="max-w-md">
         <Input
           type="text"
-          placeholder="Search by email…"
+          placeholder="Search any account by email…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
+        <p className="mt-1.5 text-caption text-text-muted">
+          Showing admin staff. Search by email to find <em>any</em> account (including a vendor) and
+          promote it to an admin role.
+        </p>
       </div>
 
       <div className="mb-3 flex justify-end"><PageSizeSelect value={page.pageSize} onChange={page.setPageSize} /></div>
@@ -219,7 +225,12 @@ function UserRow({
 }): JSX.Element {
   const qc = useQueryClient();
   const { bannerError, handle, clear } = useApiErrorHandler();
-  const [nextRole, setNextRole] = useState<AdminRole>(user.role);
+  // Non-admin accounts (e.g. VENDOR, found via search) aren't valid dropdown
+  // values — default the promote target to ADMIN so Save is enabled and picks
+  // them up as an operational admin.
+  const [nextRole, setNextRole] = useState<AdminRole>(
+    (ROLE_OPTIONS as readonly string[]).includes(user.role) ? (user.role as AdminRole) : "ADMIN",
+  );
   // The status dropdown only offers settable values; a user still in
   // PENDING_EMAIL_VERIFICATION defaults the control to ACTIVE.
   const currentSettableStatus: SettableStatus =
