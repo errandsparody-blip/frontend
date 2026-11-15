@@ -49,14 +49,30 @@ import { useApiErrorHandler } from "@/lib/errors";
 // Wire shapes
 // ---------------------------------------------------------------------------
 
-type AdminRole = "ADMIN" | "FINANCE_ADMIN" | "WAREHOUSE_OPERATOR" | "SUPER_ADMIN";
+// VENDOR is included because a vendor who was promoted to an admin role
+// can be demoted back to their vendor portal. The backend only accepts
+// VENDOR for accounts that still carry a vendorId (hasVendorBinding).
+type AdminRole = "ADMIN" | "FINANCE_ADMIN" | "WAREHOUSE_OPERATOR" | "SUPER_ADMIN" | "VENDOR";
 
+// The admin-tier roles — used for the default selection and always shown
+// in the dropdown. VENDOR is appended per-row only when the account has a
+// vendor to return to (see roleOptionsFor).
 const ROLE_OPTIONS: readonly AdminRole[] = [
   "ADMIN",
   "FINANCE_ADMIN",
   "WAREHOUSE_OPERATOR",
   "SUPER_ADMIN",
 ];
+
+/**
+ * The role choices to show for one account. Always the admin-tier roles;
+ * VENDOR is added only when the account carries a vendor binding (a vendor
+ * who was promoted), so a Super Admin can send them back to their vendor
+ * portal. A pure admin never gets VENDOR — there'd be no tenant to return to.
+ */
+function roleOptionsFor(user: AdminUser): readonly AdminRole[] {
+  return user.hasVendorBinding ? [...ROLE_OPTIONS, "VENDOR"] : ROLE_OPTIONS;
+}
 
 interface AdminUser {
   id: string;
@@ -65,6 +81,9 @@ interface AdminUser {
   // to every account (incl. VENDOR) so it can be promoted to an admin role.
   role: string;
   status: "ACTIVE" | "PENDING_EMAIL_VERIFICATION" | "SUSPENDED" | "CLOSED";
+  // True when the account has (or retains, post-promotion) a vendor tenant.
+  // Gates the "demote to Vendor" option.
+  hasVendorBinding?: boolean;
   mfaEnrolledAt: string | null;
   createdAt: string;
 }
@@ -367,9 +386,9 @@ function UserRow({
                 : "Pick a new role"
             }
           >
-            {ROLE_OPTIONS.map((r) => (
+            {roleOptionsFor(user).map((r) => (
               <option key={r} value={r}>
-                {r}
+                {r === "VENDOR" ? "VENDOR (demote)" : r}
               </option>
             ))}
           </select>

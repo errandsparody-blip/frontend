@@ -23,6 +23,7 @@ import { StatusPill } from "@/components/ui/status-pill";
 import { DataTable, TBody, THead, Th, TR, Td } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
 import { api } from "@/lib/api-client";
+import { useAuth } from "@/lib/auth-context";
 
 interface AdminOrderRow {
   id: string;
@@ -149,6 +150,11 @@ export default function AdminOrdersQueuePage() {
   const [tab, setTab] = useState<TabValue>("all");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  // USA + Canada: SUPER_ADMIN-only country focus (operational admins are
+  // already scoped to their own country).
+  const { user } = useAuth();
+  const isSuper = user?.role === "SUPER_ADMIN";
+  const [country, setCountry] = useState<"" | "US" | "CA">("");
 
   const page = useCursorPagination();
   // `reset` is a stable useCallback, so depending on it (rather than the whole
@@ -158,7 +164,7 @@ export default function AdminOrdersQueuePage() {
   const { reset: resetPage } = page;
   useEffect(() => {
     resetPage();
-  }, [tab, from, to, resetPage]);
+  }, [tab, from, to, country, resetPage]);
 
   const params = new URLSearchParams();
   params.set("limit", String(page.pageSize));
@@ -169,13 +175,14 @@ export default function AdminOrdersQueuePage() {
   }
   if (from) params.set("from", from);
   if (to) params.set("to", to);
+  if (isSuper && country) params.set("country", country);
   if (page.cursor) params.set("cursor", page.cursor);
 
   const qc = useQueryClient();
   const toast = useToast();
 
   const { data, isLoading, isFetching, error } = useQuery({
-    queryKey: ["admin", "orders", { tab, from, to, cursor: page.cursor, pageSize: page.pageSize }],
+    queryKey: ["admin", "orders", { tab, from, to, country, cursor: page.cursor, pageSize: page.pageSize }],
     queryFn: () =>
       api.get<{ items: AdminOrderRow[]; nextCursor: string | null }>(
         `/admin/orders?${params.toString()}`,
@@ -213,14 +220,27 @@ export default function AdminOrdersQueuePage() {
       />
 
       <FilterBar
-        gridClassName="md:grid-cols-[220px_200px_200px]"
+        gridClassName={isSuper ? "md:grid-cols-[160px_220px_200px_200px]" : "md:grid-cols-[220px_200px_200px]"}
         onClear={() => {
           setTab("queue");
           setFrom("");
           setTo("");
+          setCountry("");
         }}
-        canClear={tab !== "queue" || from !== "" || to !== ""}
+        canClear={tab !== "queue" || from !== "" || to !== "" || country !== ""}
       >
+        {isSuper ? (
+          <FilterSelect
+            label="Country"
+            value={country}
+            onChange={(v) => setCountry(v as "" | "US" | "CA")}
+            options={[
+              { value: "", label: "USA & Canada" },
+              { value: "US", label: "USA" },
+              { value: "CA", label: "Canada" },
+            ]}
+          />
+        ) : null}
         <FilterSelect
           label="Status"
           value={tab}

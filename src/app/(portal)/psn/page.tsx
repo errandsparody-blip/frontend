@@ -97,6 +97,7 @@ export default function PsnListPage() {
         <DataTable>
           <THead>
             <Th>Reference</Th>
+            <Th>Destination</Th>
             <Th>Status</Th>
             <Th align="right">Lines</Th>
             <Th align="right">Onboarding fee</Th>
@@ -108,6 +109,15 @@ export default function PsnListPage() {
             {data.items.map((p) => (
               <TR key={p.id}>
                 <Td mono>{p.id.slice(0, 8)}</Td>
+                <Td>
+                  <span
+                    className={`inline-flex items-center rounded-sm px-2 py-0.5 font-mono text-[11px] uppercase tracking-[1px] ${
+                      p.country === "CA" ? "bg-amber/20 text-amber" : "bg-ink/5 text-text-muted"
+                    }`}
+                  >
+                    {p.country === "CA" ? "Canada" : "USA"}
+                  </span>
+                </Td>
                 <Td>
                   <StatusPill tone={TONE[p.status]}>{p.status.replace(/_/g, " ")}</StatusPill>
                 </Td>

@@ -2,8 +2,11 @@
 
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 
 import { EmptyState } from "@/components/ui/empty-state";
+import { Field } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
 import { PageSizeSelect, Pagination, useCursorPagination } from "@/components/ui/pagination";
 import { StatusPill } from "@/components/ui/status-pill";
@@ -13,6 +16,9 @@ import { api } from "@/lib/api-client";
 interface PublicSku {
   id: string;
   productId: string;
+  productName: string | null;
+  productImageUrl: string | null;
+  country: string;
   variant: string;
   quantityAvailable: number;
   quantityReserved: number;
@@ -33,12 +39,25 @@ const STATUS_TONE = {
 
 export default function InventoryPage() {
   const page = useCursorPagination();
+  const { reset: resetPage } = page;
+  // Search by product name / SKU, and filter by country (USA / Canada).
+  const [search, setSearch] = useState("");
+  const [country, setCountry] = useState<"" | "US" | "CA">("");
+  const trimmed = search.trim();
+  useEffect(() => {
+    resetPage();
+  }, [trimmed, country, resetPage]);
+
+  const params = new URLSearchParams();
+  params.set("limit", String(page.pageSize));
+  if (trimmed) params.set("search", trimmed);
+  if (country) params.set("country", country);
+  if (page.cursor) params.set("cursor", page.cursor);
+
   const { data, isLoading, isFetching, error } = useQuery({
-    queryKey: ["skus", { cursor: page.cursor, pageSize: page.pageSize }],
+    queryKey: ["skus", { search: trimmed, country, cursor: page.cursor, pageSize: page.pageSize }],
     queryFn: () =>
-      api.get<{ items: PublicSku[]; nextCursor: string | null }>(
-        `/skus?limit=${page.pageSize}${page.cursor ? `&cursor=${page.cursor}` : ""}`,
-      ),
+      api.get<{ items: PublicSku[]; nextCursor: string | null }>(`/skus?${params.toString()}`),
     placeholderData: keepPreviousData,
   });
 
@@ -61,6 +80,34 @@ export default function InventoryPage() {
         }
       />
 
+      <section className="rounded-md border border-line bg-white p-5">
+        <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-[1fr_200px]">
+          <Field label="Search" hint="By product name or SKU id">
+            <Input
+              type="search"
+              placeholder="e.g. Body Oil / UER-…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="bg-white"
+            />
+          </Field>
+          <Field label="Country">
+            <div className="relative">
+              <select
+                aria-label="Country"
+                value={country}
+                onChange={(e) => setCountry(e.target.value as "" | "US" | "CA")}
+                className="h-11 w-full appearance-none rounded-sm border border-line-strong bg-white pl-3 pr-9 text-body text-text outline-none focus:border-ink"
+              >
+                <option value="">USA &amp; Canada</option>
+                <option value="US">USA</option>
+                <option value="CA">Canada</option>
+              </select>
+            </div>
+          </Field>
+        </div>
+      </section>
+
       <div className="mb-3 flex justify-end"><PageSizeSelect value={page.pageSize} onChange={page.setPageSize} /></div>
       {isLoading ? (
         <div className="font-mono text-mono-label uppercase text-text-muted">Loading…</div>
@@ -76,10 +123,10 @@ export default function InventoryPage() {
       ) : (
         <DataTable>
           <THead>
-            <Th>SKU</Th>
+            <Th>Product</Th>
             <Th>Variant</Th>
+            <Th>Country</Th>
             <Th>Tier</Th>
-            <Th>Location</Th>
             <Th align="right">Available</Th>
             <Th align="right">Reserved</Th>
             <Th>Status</Th>
@@ -88,10 +135,35 @@ export default function InventoryPage() {
           <TBody>
             {data.items.map((s) => (
               <TR key={s.id}>
-                <Td mono>{s.id}</Td>
+                <Td>
+                  <div className="flex items-center gap-3">
+                    {s.productImageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={s.productImageUrl}
+                        alt={s.productName ?? "product"}
+                        className="h-9 w-9 shrink-0 rounded-sm border border-line object-cover"
+                      />
+                    ) : (
+                      <div className="h-9 w-9 shrink-0 rounded-sm border border-line bg-cream-soft" />
+                    )}
+                    <div className="min-w-0">
+                      <div className="truncate font-medium text-ink">{s.productName ?? "—"}</div>
+                      <div className="truncate font-mono text-[11px] text-text-muted">{s.id}</div>
+                    </div>
+                  </div>
+                </Td>
                 <Td mono className="text-text-muted">{s.variant}</Td>
+                <Td>
+                  <span
+                    className={`inline-flex items-center rounded-sm px-2 py-0.5 font-mono text-[11px] uppercase tracking-[1px] ${
+                      s.country === "CA" ? "bg-amber/20 text-amber" : "bg-ink/5 text-text-muted"
+                    }`}
+                  >
+                    {s.country === "CA" ? "Canada" : "USA"}
+                  </span>
+                </Td>
                 <Td mono>{s.storageTier.replace("_", "-")}</Td>
-                <Td mono className="text-text-muted">{s.warehouseLocation ?? "—"}</Td>
                 <Td num>{s.quantityAvailable}</Td>
                 <Td num className="text-text-muted">{s.quantityReserved}</Td>
                 <Td>

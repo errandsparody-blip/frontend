@@ -64,6 +64,10 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard, pageKey: "admin.dashboard" },
+  // Operational-admin snapshot (assigned vendors, pending orders, awaiting
+  // PSNs). No pageKey → visible to every admin role, including the scoped
+  // ADMIN role which has no other dashboard.
+  { href: "/admin/overview", label: "Overview", icon: LayoutDashboard },
   // SUPER_ADMIN-only platform dashboard (finance-sensitive
   // aggregates: revenue, wallet totals, warehouse KPIs).
   {

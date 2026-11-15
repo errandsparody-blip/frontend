@@ -37,6 +37,7 @@ import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
 import { DataTable, TBody, THead, Th, TR, Td } from "@/components/ui/table";
 import { api } from "@/lib/api-client";
+import { useAuth } from "@/lib/auth-context";
 import { useApiErrorHandler } from "@/lib/errors";
 
 interface QueueRow {
@@ -119,10 +120,17 @@ export default function AdminPackQueuePage(): JSX.Element {
   const router = useRouter();
   const { bannerError, handle, clear } = useApiErrorHandler();
   const [selected, setSelected] = useState<QueueRow | null>(null);
+  // USA + Canada: SUPER_ADMIN-only country focus for the pack queue.
+  const { user } = useAuth();
+  const isSuper = user?.role === "SUPER_ADMIN";
+  const [country, setCountry] = useState<"" | "US" | "CA">("");
 
   const queueQ = useQuery({
-    queryKey: ["admin", "pack", "queue"],
-    queryFn: () => api.get<{ items: QueueRow[] }>("/admin/pack/queue?limit=100"),
+    queryKey: ["admin", "pack", "queue", country],
+    queryFn: () =>
+      api.get<{ items: QueueRow[] }>(
+        `/admin/pack/queue?limit=100${isSuper && country ? `&country=${country}` : ""}`,
+      ),
     staleTime: 15_000,
     refetchOnWindowFocus: true,
   });
@@ -199,12 +207,26 @@ export default function AdminPackQueuePage(): JSX.Element {
         title="Pack queue"
         description="Orders waiting for real box dimensions. Recording pack details unlocks live carrier rates in the next step."
         actions={
-          <Link
-            href="/admin/pack/rates"
-            className="rounded-md border border-line bg-white px-3 py-1.5 text-body-sm font-semibold text-ink hover:bg-cream-soft"
-          >
-            Rate picker →
-          </Link>
+          <div className="flex items-center gap-2">
+            {isSuper ? (
+              <select
+                aria-label="Country"
+                value={country}
+                onChange={(e) => setCountry(e.target.value as "" | "US" | "CA")}
+                className="h-9 rounded-md border border-line bg-white px-2 text-body-sm text-ink outline-none focus:border-ink"
+              >
+                <option value="">USA &amp; Canada</option>
+                <option value="US">USA</option>
+                <option value="CA">Canada</option>
+              </select>
+            ) : null}
+            <Link
+              href="/admin/pack/rates"
+              className="rounded-md border border-line bg-white px-3 py-1.5 text-body-sm font-semibold text-ink hover:bg-cream-soft"
+            >
+              Rate picker →
+            </Link>
+          </div>
         }
       />
 

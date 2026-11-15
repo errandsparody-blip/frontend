@@ -115,6 +115,9 @@ export default function WalletPage() {
             >
               {wallet ? formatCents(wallet.balanceCents) : "…"}
             </div>
+            <div className="mt-1 text-caption text-text-muted">
+              One shared USD wallet — it covers both your USA and Canada activity.
+            </div>
             {wallet ? (
               <div className="mt-3 flex items-center gap-3">
                 <StatusPill tone={wallet.status === "ACTIVE" ? "success" : wallet.status === "STORAGE_OVERDUE" ? "error" : "warning"}>
@@ -164,17 +167,29 @@ export default function WalletPage() {
       {ledgerQ.isLoading ? (
         <div className="font-mono text-mono-label uppercase text-text-muted">Loading ledger…</div>
       ) : !ledgerQ.data || ledgerQ.data.items.length === 0 ? (
-        <EmptyState
-          title="No ledger entries yet"
-          description="Fund your wallet and submit a Pre-Shipment Notice to see entries appear here."
-          action={
-            <Link href="/wallet/fund">
-              <Button variant="primary" withArrow>
-                Add funds
-              </Button>
-            </Link>
-          }
-        />
+        country !== "ALL" ? (
+          // Country-filtered empty view — this is just a filter over the single
+          // shared wallet, so DON'T imply a separate wallet or that funding is
+          // needed. The balance above is the real, shared balance.
+          <EmptyState
+            title={`No ${country === "CA" ? "Canada" : "USA"} charges yet`}
+            description={`This is a filtered view of your one shared wallet. Charges tagged ${
+              country === "CA" ? "Canada" : "USA"
+            } will appear here — switch to "All countries" to see everything.`}
+          />
+        ) : (
+          <EmptyState
+            title="No ledger entries yet"
+            description="Fund your wallet and submit a Pre-Shipment Notice to see entries appear here."
+            action={
+              <Link href="/wallet/fund">
+                <Button variant="primary" withArrow>
+                  Add funds
+                </Button>
+              </Link>
+            }
+          />
+        )
       ) : (
         <DataTable>
           <THead>

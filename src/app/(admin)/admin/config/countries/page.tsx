@@ -94,6 +94,22 @@ export default function CountryControlsPage(): JSX.Element {
     Promise.all(keys.map((k) => qc.invalidateQueries({ queryKey: k })));
 
   // --- switch-over ---------------------------------------------------------
+  // USA + Canada: CAD→USD exchange rate (USD per 1 CAD) used to charge USD
+  // wallets for Canadian (CAD) shipping labels.
+  const fxQ = useQuery({
+    queryKey: ["admin", "migration", "fx-rate"],
+    queryFn: () => api.get<{ usdPerCad: number }>("/admin/migration/fx-rate"),
+    enabled,
+  });
+  const [fxRate, setFxRate] = useState<string>("");
+  const saveFx = useMutation({
+    mutationFn: () => api.put("/admin/migration/fx-rate", { usdPerCad: parseFloat(fxRate || "0") }),
+    onSuccess: () => {
+      setFxRate("");
+      return invalidate([["admin", "migration", "fx-rate"]]);
+    },
+  });
+
   const enableRouting = useMutation({
     mutationFn: (ack: boolean) =>
       api.post("/admin/migration/enable-routing", { confirm: true, acknowledgePendingCanada: ack }),
@@ -487,6 +503,36 @@ export default function CountryControlsPage(): JSX.Element {
               </TBody>
             </DataTable>
           )}
+        </div>
+      </section>
+
+      {/* Exchange rate — CAD labels charged to USD wallets */}
+      <section className="rounded-md border border-line bg-white p-6">
+        <h2 className="font-mono text-mono-label uppercase text-text-muted">Exchange rate (CAD → USD)</h2>
+        <p className="mt-1 mb-4 max-w-prose text-body-sm text-text-muted">
+          Vendor wallets are in USD. Canadian carriers (Canada Post, UPS Canada) quote shipping in
+          CAD, so a CAD label cost is converted to USD using this rate before the wallet is charged.
+          Enter <strong>USD per 1 CAD</strong> (e.g. 0.72 means CA$10 is charged as $7.20).
+        </p>
+        <div className="flex items-end gap-3">
+          <Field label="USD per 1 CAD">
+            <Input
+              type="number"
+              step="0.01"
+              min={0}
+              placeholder={fxQ.data ? fxQ.data.usdPerCad.toString() : "0.72"}
+              value={fxRate}
+              onChange={(e) => setFxRate(e.target.value)}
+            />
+          </Field>
+          <Button variant="primary" loading={saveFx.isPending} disabled={!fxRate} onClick={() => saveFx.mutate()}>
+            Save rate
+          </Button>
+          {fxQ.data ? (
+            <span className="pb-2 text-body-sm text-text-muted">
+              Current: {fxQ.data.usdPerCad} USD per CAD
+            </span>
+          ) : null}
         </div>
       </section>
 
