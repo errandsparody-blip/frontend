@@ -3,7 +3,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import { ErrorBanner } from "@/components/errors/error-banner";
 import { AttachmentUploader } from "@/components/portal/attachment-uploader";
@@ -261,6 +261,19 @@ export default function NewOrderPage() {
 
   const { bannerError, handle, clear } = useApiErrorHandler();
 
+  // The error banner sits at the top of the form. On a tall Review step the
+  // vendor clicks "Done" at the bottom, so a submit rejection (e.g. wrong-
+  // country stock) renders ~900px above their viewport and reads as "nothing
+  // happened". We scroll this region into view whenever an error is raised so
+  // the reason is always visible right after the click.
+  const errorRegionRef = useRef<HTMLDivElement>(null);
+  function revealError(): void {
+    // Defer one frame so the banner has rendered before we scroll to it.
+    requestAnimationFrame(() => {
+      errorRegionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  }
+
   const [step, setStep] = useState<Step>("lines");
   const [submitted, setSubmitted] = useState<PublicOrder | null>(null);
 
@@ -360,7 +373,10 @@ export default function NewOrderPage() {
       });
       setStep("rates");
     },
-    onError: (err) => handle(err),
+    onError: (err) => {
+      handle(err);
+      revealError();
+    },
   });
 
   const submitMut = useMutation({
@@ -484,7 +500,11 @@ export default function NewOrderPage() {
       draft.clear();
       setSubmitted(o);
     },
-    onError: (err) => handle(err),
+    onError: (err) => {
+      handle(err);
+      // Bring the error into view — the Done button is far below the banner.
+      revealError();
+    },
   });
 
   function onAction(handler: NonNullable<NonNullable<typeof bannerError>["entry"]["action"]>["handler"]) {
@@ -599,16 +619,18 @@ export default function NewOrderPage() {
         />
       ) : null}
 
-      <ErrorBanner error={bannerError} onAction={onAction} />
+      <div ref={errorRegionRef}>
+        <ErrorBanner error={bannerError} onAction={onAction} />
 
-      {validationError ? (
-        <div
-          role="alert"
-          className="rounded-sm border-l-4 border-error bg-error/10 px-4 py-3 text-body-sm text-error"
-        >
-          {validationError}
-        </div>
-      ) : null}
+        {validationError ? (
+          <div
+            role="alert"
+            className="rounded-sm border-l-4 border-error bg-error/10 px-4 py-3 text-body-sm text-error"
+          >
+            {validationError}
+          </div>
+        ) : null}
+      </div>
 
       {step === "lines" ? (
         <LineBuilder
