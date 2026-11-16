@@ -541,6 +541,15 @@ export const errorCatalog: Record<string, ErrorEntry> = {
   },
 
   // ──────────────────────────────────────────────────────────────────────
+  // Order routing (USA + Canada)
+  // ──────────────────────────────────────────────────────────────────────
+  order_country_mismatch: {
+    title: "Stock is in the wrong country",
+    body:
+      "This order ships to a different country than the stock you picked. A Canada order can only use Canada stock, and a USA order only USA stock. Use Back to return to Lines and choose items stocked in the destination country.",
+  },
+
+  // ──────────────────────────────────────────────────────────────────────
   // Synthetic transport-layer codes (set by normalize.ts, not the backend)
   // ──────────────────────────────────────────────────────────────────────
   network_offline: {

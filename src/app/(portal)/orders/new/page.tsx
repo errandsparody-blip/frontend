@@ -870,6 +870,17 @@ export default function NewOrderPage() {
           shippingLoading={shippingEstimateQ.isLoading}
           walletBalanceCents={walletBalanceQ.data?.balanceCents ?? null}
           walletLoading={walletBalanceQ.isLoading}
+          // Surface any estimate/wallet query failure so a dead "Done"
+          // button always has a visible cause (+ a retry). Without this a
+          // failed estimate silently disabled Submit with no message.
+          estimateError={
+            fulfillmentEstimateQ.error ?? shippingEstimateQ.error ?? walletBalanceQ.error ?? null
+          }
+          onRetryEstimates={() => {
+            void fulfillmentEstimateQ.refetch();
+            void shippingEstimateQ.refetch();
+            void walletBalanceQ.refetch();
+          }}
           submitting={submitMut.isPending}
           onBack={() => setStep("address")}
           onSubmit={() => submitMut.mutate()}
@@ -1952,6 +1963,8 @@ function V2ReviewPanel({
   shippingLoading,
   walletBalanceCents,
   walletLoading,
+  estimateError,
+  onRetryEstimates,
   submitting,
   onBack,
   onSubmit,
@@ -1971,6 +1984,10 @@ function V2ReviewPanel({
   shippingLoading: boolean;
   walletBalanceCents: number | null;
   walletLoading: boolean;
+  /** Non-null when an estimate/wallet query failed to load. */
+  estimateError: unknown;
+  /** Refetch the three estimate/wallet queries. */
+  onRetryEstimates: () => void;
   submitting: boolean;
   onBack: () => void;
   onSubmit: () => void;
@@ -1993,13 +2010,31 @@ function V2ReviewPanel({
     walletBalanceCents !== null && walletBalanceCents >= maxCharge;
   const missingPoints = shippingEstimate ? !shippingEstimate.allAssigned : false;
   const loading = feeLoading || shippingLoading || walletLoading;
+  const hasError = estimateError != null;
   const canSubmit =
     !submitting &&
     !loading &&
+    !hasError &&
     !missingPoints &&
     walletCovers &&
     shippingEstimate !== null &&
     fulfillmentFeeCents !== null;
+
+  // Every disabled state must have a visible cause next to the button —
+  // a silently-dead "Done" button (estimate failed to load, nothing shown)
+  // was the whole bug. Each branch below maps to a message rendered by the
+  // button; the specific red/amber banners above cover errors + wallet.
+  const blockReason: string | null = submitting
+    ? null
+    : hasError
+      ? "We couldn't load the order estimate. Retry above, then submit."
+      : loading
+        ? "Calculating your estimate — one moment."
+        : missingPoints
+          ? "Some products are missing shipping points (see above)."
+          : !walletCovers
+            ? "Add funds to cover the estimate before submitting (see above)."
+            : null;
 
   return (
     <section className="flex flex-col gap-6 rounded-md border border-line bg-white p-8">
@@ -2034,6 +2069,31 @@ function V2ReviewPanel({
           <SummaryRow label="Your reference" value={externalReference} />
         ) : null}
       </dl>
+
+      {/* Estimate/wallet load failure — the panel can't build its cost
+          summary, so Submit stays disabled. Show WHY and offer a retry,
+          rather than a silently-dead button (the reported bug). */}
+      {hasError ? (
+        <div
+          role="alert"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-md border-l-4 border-error bg-error/10 px-4 py-3 text-body-sm text-error"
+        >
+          <span>
+            We couldn&apos;t load this order&apos;s estimate
+            {(estimateError as { message?: string })?.message
+              ? ` — ${(estimateError as { message?: string }).message}`
+              : "."}{" "}
+            Check your lines and try again.
+          </span>
+          <button
+            type="button"
+            onClick={onRetryEstimates}
+            className="rounded-sm border border-error px-3 py-1 font-mono text-[11px] uppercase tracking-[1.2px] text-error hover:bg-error hover:text-text-inv"
+          >
+            Retry
+          </button>
+        </div>
+      ) : null}
 
       {/* Missing-points warning — soft red banner so the vendor sees it
           before scrolling to the disabled Submit button. Backend
@@ -2145,21 +2205,30 @@ function V2ReviewPanel({
         ) : null}
       </div>
 
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4">
         <Button type="button" variant="outline" size="lg" onClick={onBack}>
           ← Back
         </Button>
-        <Button
-          type="button"
-          variant="amber"
-          size="lg"
-          withArrow
-          onClick={onSubmit}
-          loading={submitting}
-          disabled={!canSubmit}
-        >
-          {submitting ? "Submitting…" : "Done"}
-        </Button>
+        <div className="flex flex-col items-end gap-1.5">
+          {/* A disabled Done button always states why, so it never looks
+              broken (the reported "can't submit, no error" symptom). */}
+          {blockReason ? (
+            <span className="text-right font-mono text-[11px] uppercase tracking-[0.6px] text-text-muted">
+              {blockReason}
+            </span>
+          ) : null}
+          <Button
+            type="button"
+            variant="amber"
+            size="lg"
+            withArrow
+            onClick={onSubmit}
+            loading={submitting}
+            disabled={!canSubmit}
+          >
+            {submitting ? "Submitting…" : "Done"}
+          </Button>
+        </div>
       </div>
     </section>
   );
