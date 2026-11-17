@@ -294,9 +294,12 @@ export const errorCatalog: Record<string, ErrorEntry> = {
     surface: "inline",
   },
   order_external_ref_duplicate: {
-    title: "Duplicate external reference",
-    body: "An order with this external reference already exists. Use a unique reference per order.",
-    surface: "inline",
+    // Banner (not inline): the manual order wizard has no react-hook-form, so an
+    // inline field error renders nothing — the vendor saw a silent failure. A
+    // banner surfaces (and scrolls into view) so they know what to change.
+    title: "You already have an order with that reference",
+    body: "An order with this external reference already exists for your account. Change the reference to a new one, or clear it (it's optional), then submit again.",
+    surface: "banner",
     field: "externalRef",
   },
   order_not_cancellable: {
