@@ -102,11 +102,12 @@ export function useApiErrorHandler<TForm extends FieldValues>(
           break;
       }
 
-      // Telemetry (fire-and-forget): send user-visible errors to the admin
+      // Telemetry (fire-and-forget): send EVERY handled error to the admin
       // error log so a super-admin can see what a vendor hit without logging
-      // in. Inline per-field validation is left out — it's expected form
-      // feedback, not a failure worth surfacing to ops.
-      if (n.surface === "banner" || n.surface === "page" || n.surface === "toast") {
+      // in — including inline field-level errors (the duplicate-reference 409
+      // was one of those, and skipping them hid it). The admin viewer can
+      // filter, so we'd rather over-capture than miss a real failure.
+      {
         const serverMsg = (n.cause as { message?: unknown } | null)?.message;
         reportClientError({
           kind: "api_error",
