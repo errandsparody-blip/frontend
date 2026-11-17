@@ -19,6 +19,7 @@ import { DraftResumeBanner } from "@/components/ui/draft-resume-banner";
 import { api } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
 import { useApiErrorHandler } from "@/lib/errors";
+import { showErrorToast } from "@/lib/errors/toast";
 import { rememberText } from "@/lib/suggestions";
 import { useFormDraft } from "@/lib/use-form-draft";
 import {
@@ -382,6 +383,66 @@ export default function NewOrderPage() {
     },
   });
 
+  // Validate the shipping address the MOMENT the vendor leaves the Recipient
+  // step — not at the final Done. If the address is rejected or needs
+  // correction, we pop the error immediately and keep them on this step, so a
+  // bad address never carries all the way to the submit screen. The backend
+  // enforces the same rule again at submit as a backstop; this is purely to
+  // surface the problem early and clearly.
+  const addressCheckMut = useMutation({
+    mutationFn: async () => {
+      return api.post<{
+        outcome: "ACCEPTED" | "NEEDS_VERIFICATION" | "REJECTED";
+        detail?: string;
+        suggested?: {
+          line1: string;
+          line2?: string;
+          city: string;
+          state: string;
+          postalCode: string;
+          country: string;
+        };
+      }>("/orders/validate-address", {
+        shipAddressLine1: address.shipAddressLine1,
+        shipAddressLine2: address.shipAddressLine2 || undefined,
+        shipCity: address.shipCity,
+        shipState: address.shipState,
+        shipPostalCode: address.shipPostalCode,
+        shipCountry: address.shipCountry,
+      });
+    },
+    onMutate: () => {
+      clear();
+      setValidationError(null);
+    },
+    onSuccess: (res) => {
+      if (res.outcome === "ACCEPTED") {
+        setAddressErrors({});
+        setStep("review");
+        return;
+      }
+      // Build one clear sentence: the reason, then the suggested fix if any.
+      const reason =
+        res.detail?.trim() ||
+        (res.outcome === "REJECTED"
+          ? "We couldn't validate that address. Check the street, city, state, and ZIP."
+          : "We couldn't confirm that address exactly as entered.");
+      const suggested = res.suggested
+        ? ` Suggested: ${[
+            res.suggested.line1,
+            res.suggested.city,
+            `${res.suggested.state} ${res.suggested.postalCode}`,
+          ]
+            .filter(Boolean)
+            .join(", ")}. Please correct it before continuing.`
+        : "";
+      showErrorToast(`${reason}${suggested}`, "address_rejected");
+    },
+    onError: (err) => {
+      handle(err);
+    },
+  });
+
   const submitMut = useMutation({
     mutationFn: async () => {
       // Branch on fulfillment mode + workflow version:
@@ -719,11 +780,13 @@ export default function NewOrderPage() {
             }
             setValidationError(null);
             setAddressErrors({});
-            // PLATFORM_SHIP with a valid address goes straight to review; the
-            // admin picks the actual carrier rate at pack time (v2).
-            setStep("review");
+            // PLATFORM_SHIP: before moving on, validate the address with the
+            // carrier now so a rejected/needs-correction address pops the error
+            // here, on this step — not at the final Done. Advances to review
+            // only on an ACCEPTED result (see addressCheckMut.onSuccess).
+            addressCheckMut.mutate();
           }}
-          quoting={quoteMut.isPending}
+          quoting={quoteMut.isPending || addressCheckMut.isPending}
         />
       ) : null}
 

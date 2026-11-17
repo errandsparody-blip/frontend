@@ -1,114 +1,180 @@
 "use client";
 
 /**
- * ErrorToastHost — renders error toasts as pop-up notifications fixed at the
- * top of the viewport. Mounted once in the root layout so a toast appears
- * immediately wherever the vendor is on the page: they don't have to scroll to
- * find an inline message or leave the step they're on. Subscribes to the global
- * toast bus (lib/errors/toast). Each toast auto-dismisses; the vendor can also
- * close it. Stacks newest-on-top and caps the visible count so a burst of
- * errors can't bury the screen.
+ * ErrorToastHost — renders errors as a centered pop-up modal.
+ *
+ * Why a modal and not an inline banner or a slide-in toast: a vendor must see
+ * the error no matter where they are on the page, without scrolling, and it
+ * must stay on screen long enough to read a long message (e.g. an address
+ * correction with a suggested fix). So this:
+ *   - overlays the whole screen with a dim backdrop (unmissable),
+ *   - is centered and on top of everything (highest z-index),
+ *   - does NOT auto-dismiss — it stays until the vendor closes it,
+ *   - scrolls its own body if the message is long,
+ *   - uses clean, neutral styling (no colored left-edge "slop" cards).
+ *
+ * Mounted once in the root layout; subscribes to the global toast bus
+ * (lib/errors/toast). Errors are queued and shown one at a time so a burst
+ * can't bury the screen — closing one reveals the next.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { subscribeErrorToast, type ErrorToast } from "@/lib/errors/toast";
 
-const AUTO_DISMISS_MS = 7000;
-const MAX_VISIBLE = 4;
-
 export function ErrorToastHost() {
-  const [toasts, setToasts] = useState<ErrorToast[]>([]);
+  const [queue, setQueue] = useState<ErrorToast[]>([]);
+  const dismissBtnRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     const unsub = subscribeErrorToast((toast) => {
-      setToasts((prev) => [toast, ...prev].slice(0, MAX_VISIBLE));
-      // Schedule removal of this specific toast.
-      window.setTimeout(() => {
-        setToasts((prev) => prev.filter((t) => t.id !== toast.id));
-      }, AUTO_DISMISS_MS);
+      setQueue((prev) => {
+        // De-dupe an identical message that's already queued (e.g. a double
+        // click firing the same error twice).
+        if (prev.some((t) => t.message === toast.message)) return prev;
+        return [...prev, toast];
+      });
     });
     return unsub;
   }, []);
 
-  const dismiss = (id: number) =>
-    setToasts((prev) => prev.filter((t) => t.id !== id));
+  // Close on Escape for keyboard users.
+  useEffect(() => {
+    if (queue.length === 0) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setQueue((prev) => prev.slice(1));
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [queue.length]);
 
-  if (toasts.length === 0) return null;
+  // Move focus to the dismiss button when a pop-up is showing, so keyboard
+  // users land on the actionable control (replaces autoFocus).
+  useEffect(() => {
+    if (queue.length > 0) dismissBtnRef.current?.focus();
+  }, [queue.length]);
+
+  if (queue.length === 0) return null;
+
+  const current = queue[0]!;
+  const remaining = queue.length - 1;
+  const dismiss = () => setQueue((prev) => prev.slice(1));
 
   return (
+    // Backdrop. Clicking it dismisses, but that's a convenience only — the
+    // "Got it" button and Escape are the primary, accessible dismissers, so
+    // the a11y lint rules about click-only handlers don't apply here.
+    // eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions
     <div
+      role="dialog"
+      aria-modal="true"
       aria-live="assertive"
-      role="alert"
+      onClick={dismiss}
       style={{
         position: "fixed",
-        top: 16,
-        left: 0,
-        right: 0,
+        inset: 0,
         zIndex: 2147483647,
+        background: "rgba(17, 17, 17, 0.45)",
         display: "flex",
-        flexDirection: "column",
         alignItems: "center",
-        gap: 8,
-        pointerEvents: "none",
-        padding: "0 12px",
+        justifyContent: "center",
+        padding: 20,
       }}
     >
-      {toasts.map((t) => (
+      {/* Stop backdrop-dismiss when interacting with the card itself. */}
+      {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions */}
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: "100%",
+          maxWidth: 440,
+          maxHeight: "80vh",
+          display: "flex",
+          flexDirection: "column",
+          background: "#ffffff",
+          color: "#1a1a1a",
+          borderRadius: 14,
+          boxShadow: "0 24px 60px rgba(0, 0, 0, 0.3)",
+          overflow: "hidden",
+          animation: "usaErrPopIn 150ms ease-out",
+        }}
+      >
         <div
-          key={t.id}
           style={{
-            pointerEvents: "auto",
-            width: "100%",
-            maxWidth: 560,
-            background: "#b91c1c",
-            color: "#fff",
-            borderRadius: 10,
-            boxShadow: "0 10px 30px rgba(0,0,0,0.25)",
-            padding: "12px 14px",
             display: "flex",
-            alignItems: "flex-start",
+            alignItems: "center",
             gap: 10,
-            fontSize: 14,
-            lineHeight: 1.4,
-            animation: "usaErrToastIn 160ms ease-out",
+            padding: "18px 22px 12px",
           }}
         >
-          <span
+          <svg
             aria-hidden
-            style={{ fontSize: 18, lineHeight: "20px", flexShrink: 0 }}
+            width="22"
+            height="22"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#d97706"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{ flexShrink: 0 }}
           >
-            ⚠️
+            <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
+            <line x1="12" y1="9" x2="12" y2="13" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
+          <div style={{ fontWeight: 700, fontSize: 16 }}>Heads up</div>
+        </div>
+
+        <div
+          style={{
+            padding: "0 22px",
+            overflowY: "auto",
+            fontSize: 15,
+            lineHeight: 1.5,
+            color: "#2b2b2b",
+          }}
+        >
+          {current.message}
+          {current.code ? (
+            <div style={{ marginTop: 10, fontSize: 12, color: "#8a8a8a" }}>
+              Reference: {current.code}
+            </div>
+          ) : null}
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+            padding: "16px 22px 20px",
+          }}
+        >
+          <span style={{ fontSize: 12, color: "#9a9a9a" }}>
+            {remaining > 0 ? `${remaining} more` : ""}
           </span>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 600 }}>{t.message}</div>
-            {t.code ? (
-              <div style={{ fontSize: 11, opacity: 0.8, marginTop: 2 }}>
-                Ref: {t.code}
-              </div>
-            ) : null}
-          </div>
           <button
+            ref={dismissBtnRef}
             type="button"
-            onClick={() => dismiss(t.id)}
-            aria-label="Dismiss"
+            onClick={dismiss}
             style={{
-              background: "transparent",
+              background: "#111111",
+              color: "#ffffff",
               border: "none",
-              color: "#fff",
+              borderRadius: 9,
+              padding: "10px 22px",
+              fontSize: 14,
+              fontWeight: 600,
               cursor: "pointer",
-              fontSize: 18,
-              lineHeight: "18px",
-              padding: 0,
-              opacity: 0.85,
-              flexShrink: 0,
             }}
           >
-            ×
+            Got it
           </button>
         </div>
-      ))}
-      <style>{`@keyframes usaErrToastIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}`}</style>
+      </div>
+      <style>{`@keyframes usaErrPopIn{from{opacity:0;transform:scale(0.96)}to{opacity:1;transform:scale(1)}}`}</style>
     </div>
   );
 }
