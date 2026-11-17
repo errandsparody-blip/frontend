@@ -42,7 +42,7 @@ import { PageSizeSelect, Pagination, useCursorPagination } from "@/components/ui
 import { StatusPill } from "@/components/ui/status-pill";
 import { DataTable, TBody, THead, Th, TR, Td } from "@/components/ui/table";
 import { api } from "@/lib/api-client";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth, type AuthUser } from "@/lib/auth-context";
 import { useApiErrorHandler } from "@/lib/errors";
 
 // ---------------------------------------------------------------------------
@@ -299,6 +299,32 @@ function UserRow({
     onError: (err) => handle(err),
   });
 
+  // Impersonation — "Open as" this user. Mints a short-lived token server-side
+  // (no password) and plants it as the session, then routes to their home. The
+  // admin's own refresh cookie is untouched, so the Exit banner can refresh
+  // straight back to admin.
+  const { setSession } = useAuth();
+  const router = useRouter();
+  const impersonateMut = useMutation({
+    mutationFn: () =>
+      api.post<{ accessToken: string; user: AuthUser }>(
+        `/admin/users/${user.id}/impersonate`,
+        {},
+      ),
+    onMutate: () => {
+      clear();
+      setSavedMessage(null);
+    },
+    onSuccess: (res) => {
+      setSession({ accessToken: res.accessToken, user: res.user });
+      router.push(res.user.vendorId ? "/dashboard" : "/admin");
+    },
+    onError: (err) => handle(err),
+  });
+  // Only offer it for other, active, non-super-admin accounts (matches the
+  // backend guard; avoids a button that would just error).
+  const canImpersonate = !isSelf && user.role !== "SUPER_ADMIN" && user.status === "ACTIVE";
+
   function saveStatus(): void {
     // Suspend / close lock the person out immediately — confirm first.
     if (nextStatus === "SUSPENDED" || nextStatus === "CLOSED") {
@@ -394,16 +420,29 @@ function UserRow({
           </select>
         </Td>
         <Td align="right">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => saveMut.mutate()}
-            disabled={!dirty || saveMut.isPending || isSelf}
-            loading={saveMut.isPending}
-          >
-            {saveMut.isPending ? "Saving…" : "Save"}
-          </Button>
+          <div className="flex items-center justify-end gap-2">
+            {canImpersonate ? (
+              <button
+                type="button"
+                onClick={() => impersonateMut.mutate()}
+                disabled={impersonateMut.isPending}
+                title={`Open ${user.email}'s dashboard as them (no password needed)`}
+                className="rounded-sm border border-line-strong px-2.5 py-1 font-mono text-[11px] uppercase tracking-[1.2px] text-text hover:border-ink hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {impersonateMut.isPending ? "Opening…" : "Open as"}
+              </button>
+            ) : null}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => saveMut.mutate()}
+              disabled={!dirty || saveMut.isPending || isSelf}
+              loading={saveMut.isPending}
+            >
+              {saveMut.isPending ? "Saving…" : "Save"}
+            </Button>
+          </div>
         </Td>
       </TR>
       {bannerError || savedMessage ? (

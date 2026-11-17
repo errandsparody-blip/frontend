@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter_Tight, JetBrains_Mono } from "next/font/google";
 
+import { ImpersonationBanner } from "@/components/admin/impersonation-banner";
 import { AuthProvider } from "@/lib/auth-context";
 import { QueryProvider } from "@/lib/query-provider";
 
@@ -34,7 +35,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={`${inter.variable} ${jbMono.variable}`}>
       <body className="bg-cream font-sans text-text antialiased">
         <QueryProvider>
-          <AuthProvider>{children}</AuthProvider>
+          <AuthProvider>
+            <ImpersonationBanner />
+            {children}
+          </AuthProvider>
         </QueryProvider>
       </body>
     </html>

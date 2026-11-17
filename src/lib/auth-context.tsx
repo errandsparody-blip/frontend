@@ -30,6 +30,12 @@ export interface AuthUser {
   vendorId: string | null;
   mfaEnrolled: boolean;
   emailVerified: boolean;
+  /**
+   * Set when a super-admin is impersonating this user (the operator's id).
+   * Drives the "viewing as" banner and the Exit action. Absent on normal
+   * sessions.
+   */
+  impersonatedBy?: string | null;
 }
 
 /**
