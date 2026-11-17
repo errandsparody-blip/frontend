@@ -24,6 +24,7 @@ import { useCallback, useState } from "react";
 import type { FieldValues, Path, UseFormReturn } from "react-hook-form";
 
 import { normalizeError, type NormalizedError } from "./normalize";
+import { reportClientError } from "./report";
 
 export interface ApiErrorHandler {
   /** Current banner-level error to render in the form. */
@@ -99,6 +100,21 @@ export function useApiErrorHandler<TForm extends FieldValues>(
           // them as banners so they're at least visible.
           setBannerError(n);
           break;
+      }
+
+      // Telemetry (fire-and-forget): send user-visible errors to the admin
+      // error log so a super-admin can see what a vendor hit without logging
+      // in. Inline per-field validation is left out — it's expected form
+      // feedback, not a failure worth surfacing to ops.
+      if (n.surface === "banner" || n.surface === "page" || n.surface === "toast") {
+        const serverMsg = (n.cause as { message?: unknown } | null)?.message;
+        reportClientError({
+          kind: "api_error",
+          message: typeof serverMsg === "string" && serverMsg ? serverMsg : n.entry.title,
+          code: n.code,
+          statusCode: typeof n.status === "number" ? n.status : null,
+          context: { surface: n.surface, code: n.code },
+        });
       }
 
       return n;

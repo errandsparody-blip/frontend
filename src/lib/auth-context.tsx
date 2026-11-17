@@ -80,6 +80,8 @@ interface AuthContextValue {
    * and bounces back to /login.
    */
   setSession: (input: { accessToken: string; user: AuthUser }) => void;
+  /** Exit an impersonation session and return to the admin. */
+  stopImpersonation: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -90,12 +92,66 @@ interface RefreshResponse {
   user: AuthUser;
 }
 
+// Impersonation is stashed per-tab so it survives a hard reload (the token
+// lives only in memory otherwise, so refreshing would bounce back to admin).
+// sessionStorage (not localStorage) keeps it to the one tab and clears when the
+// tab closes.
+const IMPERSONATION_KEY = "ue_impersonation";
+
+/** Read the `exp` (epoch seconds) out of a JWT without verifying it. */
+function jwtExpSeconds(token: string): number | null {
+  try {
+    const payload = token.split(".")[1];
+    if (!payload) return null;
+    const json = JSON.parse(
+      atob(payload.replace(/-/g, "+").replace(/_/g, "/")),
+    ) as { exp?: number };
+    return typeof json.exp === "number" ? json.exp : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The stored impersonation session for this tab, if still valid. */
+function readStoredImpersonation(): { accessToken: string; user: AuthUser } | null {
+  try {
+    if (typeof window === "undefined") return null;
+    const raw = window.sessionStorage.getItem(IMPERSONATION_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { accessToken: string; user: AuthUser };
+    const exp = jwtExpSeconds(parsed.accessToken);
+    // Drop it once expired (with a few seconds of skew) so a stale token can't
+    // keep the operator stuck in a dead impersonation.
+    if (exp !== null && exp * 1000 <= Date.now() + 5_000) {
+      window.sessionStorage.removeItem(IMPERSONATION_KEY);
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }): JSX.Element {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
   const refresh = useCallback(async (): Promise<void> => {
+    // Impersonation survives reload: if this tab has a still-valid impersonation
+    // token, restore that session instead of refreshing back to the admin.
+    const imp = readStoredImpersonation();
+    if (imp) {
+      setAccessToken(imp.accessToken);
+      setUser(imp.user);
+      setLoading(false);
+      Sentry.setUser({
+        id: imp.user.id,
+        email: imp.user.email,
+        role: imp.user.role,
+      } as Record<string, unknown>);
+      return;
+    }
     try {
       const r = await api.post<RefreshResponse>("/auth/refresh", undefined, { noRefresh: true });
       setAccessToken(r.accessToken);
@@ -114,6 +170,11 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
 
   const logout = useCallback(async (): Promise<void> => {
     try {
+      if (typeof window !== "undefined") window.sessionStorage.removeItem(IMPERSONATION_KEY);
+    } catch {
+      /* ignore */
+    }
+    try {
       await api.post("/auth/logout", undefined, { noRefresh: true });
     } catch {
       /* swallow — we're logging out anyway */
@@ -124,6 +185,18 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
     router.push("/login");
   }, [router]);
 
+  // End an impersonation session and return to the admin. Clears the stashed
+  // token first so refresh() doesn't just restore it, then refreshes from the
+  // admin's own (untouched) cookie.
+  const stopImpersonation = useCallback(async (): Promise<void> => {
+    try {
+      if (typeof window !== "undefined") window.sessionStorage.removeItem(IMPERSONATION_KEY);
+    } catch {
+      /* ignore */
+    }
+    await refresh();
+  }, [refresh]);
+
   const setSession = useCallback(
     (input: { accessToken: string; user: AuthUser }): void => {
       setAccessToken(input.accessToken);
@@ -131,6 +204,19 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
       // We just received an authenticated payload — bypass the loading state
       // even if the initial /auth/refresh hasn't returned yet.
       setLoading(false);
+      // Persist an impersonation session so it survives a reload; a normal
+      // sign-in clears any stale impersonation from this tab.
+      try {
+        if (typeof window !== "undefined") {
+          if (input.user.impersonatedBy) {
+            window.sessionStorage.setItem(IMPERSONATION_KEY, JSON.stringify(input));
+          } else {
+            window.sessionStorage.removeItem(IMPERSONATION_KEY);
+          }
+        }
+      } catch {
+        /* ignore storage errors */
+      }
       Sentry.setUser({
         id: input.user.id,
         email: input.user.email,
@@ -145,7 +231,9 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
   }, [refresh]);
 
   return (
-    <AuthContext.Provider value={{ user, loading, refresh, logout, setSession }}>
+    <AuthContext.Provider
+      value={{ user, loading, refresh, logout, setSession, stopImpersonation }}
+    >
       {children}
     </AuthContext.Provider>
   );

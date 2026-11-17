@@ -15,7 +15,7 @@ import { useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 
 export function ImpersonationBanner(): JSX.Element | null {
-  const { user, refresh } = useAuth();
+  const { user, stopImpersonation } = useAuth();
   const router = useRouter();
   const [exiting, setExiting] = useState(false);
 
@@ -24,7 +24,7 @@ export function ImpersonationBanner(): JSX.Element | null {
   async function exit(): Promise<void> {
     setExiting(true);
     try {
-      await refresh(); // restores the admin session from the untouched cookie
+      await stopImpersonation(); // clears the stashed token, refreshes back to admin
     } finally {
       router.push("/admin/users");
     }

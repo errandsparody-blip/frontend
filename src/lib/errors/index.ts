@@ -18,3 +18,5 @@ export { isUnexpected, normalizeError, type NormalizedError } from "./normalize"
 export { useApiErrorHandler, type ApiErrorHandler } from "./use-api-error-handler";
 
 export { installErrorTelemetry } from "./telemetry";
+
+export { reportClientError, type ClientErrorKind, type ReportClientErrorInput } from "./report";

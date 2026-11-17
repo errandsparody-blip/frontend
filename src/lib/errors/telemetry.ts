@@ -21,12 +21,46 @@
 import * as Sentry from "@sentry/nextjs";
 
 import { setUnknownErrorCodeTracker } from "./catalog";
+import { reportClientError } from "./report";
 
 let installed = false;
 
 export function installErrorTelemetry(): void {
   if (installed) return;
   installed = true;
+
+  // Uncaught JS errors + unhandled promise rejections → admin error log, so a
+  // page that silently breaks for a vendor leaves a trace the super-admin can
+  // see without logging in. Both are best-effort and swallow their own
+  // failures (reportClientError never throws).
+  if (typeof window !== "undefined") {
+    window.addEventListener("error", (ev) => {
+      // Skip resource-load errors (missing image/script) — those have an
+      // empty message and no Error object, and aren't actionable here.
+      const msg = ev.message || (ev.error instanceof Error ? ev.error.message : "");
+      if (!msg) return;
+      reportClientError({
+        kind: "window_error",
+        message: msg,
+        ...(ev.error instanceof Error ? { stack: ev.error.stack } : {}),
+        context: { filename: ev.filename, lineno: ev.lineno, colno: ev.colno },
+      });
+    });
+    window.addEventListener("unhandledrejection", (ev) => {
+      const reason = ev.reason;
+      const msg =
+        reason instanceof Error
+          ? reason.message
+          : typeof reason === "string"
+            ? reason
+            : "Unhandled promise rejection";
+      reportClientError({
+        kind: "unhandled_rejection",
+        message: msg,
+        ...(reason instanceof Error ? { stack: reason.stack } : {}),
+      });
+    });
+  }
 
   setUnknownErrorCodeTracker((code, detail) => {
     // Capture as `info` rather than `error` — an unknown code is a gap in

@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  AlertTriangle,
   Bell,
   Boxes,
   Building2,
@@ -120,6 +121,9 @@ const NAV: NavItem[] = [
   // have to drill through the generic Config table to find it.
   { href: "/admin/config/shopper", label: "Pricing (Shopper)", icon: ShoppingBag, superAdminOnly: true },
   { href: "/admin/audit", label: "Audit log", icon: ScrollText, pageKey: "admin.audit.read" },
+  // SUPER_ADMIN-only diagnostics: what errors vendors are hitting in their
+  // browser, so ops can see a vendor's failures without logging in as them.
+  { href: "/admin/errors", label: "Vendor errors", icon: AlertTriangle, superAdminOnly: true },
   { href: "/admin/config", label: "Config", icon: Settings, superAdminOnly: true },
 ];
 
