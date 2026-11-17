@@ -153,6 +153,20 @@ export default function PsnDetailPage() {
         }
       />
 
+      {/* Step marker — a still-draft PSN is step 2 of the create flow: review
+          the computed fees, then Submit for receiving (below). */}
+      {isDraft ? (
+        <ol className="flex flex-wrap items-center gap-2 font-mono text-mono-label uppercase">
+          <li className="rounded-sm border border-line px-2 py-1 text-text-subtle">
+            01 · Declare shipment
+          </li>
+          <li className="text-text-subtle">→</li>
+          <li className="rounded-sm bg-ink px-2 py-1 text-text-inv">
+            02 · Review &amp; submit for receiving
+          </li>
+        </ol>
+      ) : null}
+
       <ErrorBanner error={bannerError} onAction={onAction} />
 
       {/* Phase 2 — Hold banner. Only shows when an admin has placed a hold

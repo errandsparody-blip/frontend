@@ -402,6 +402,15 @@ export default function NewPsnPage() {
         description="Declare every product and box you're shipping. The onboarding fee is computed from the box mix at submit — open the storage tier guide if you're unsure which tier to pick."
       />
 
+      {/* Two-step flow marker so vendors know a submit step follows this form. */}
+      <ol className="flex flex-wrap items-center gap-2 font-mono text-mono-label uppercase">
+        <li className="rounded-sm bg-ink px-2 py-1 text-text-inv">01 · Declare shipment</li>
+        <li className="text-text-subtle">→</li>
+        <li className="rounded-sm border border-line px-2 py-1 text-text-subtle">
+          02 · Submit for receiving
+        </li>
+      </ol>
+
       {/* Boxes by tier — same prominent reference card as on the PSN list.
           Lives under the header so a vendor about to fill in box counts
           can look up the live pricing without leaving the form. */}
@@ -918,18 +927,28 @@ export default function NewPsnPage() {
 
         <ErrorBanner error={bannerError} onAction={onAction} />
 
-        <div className="flex justify-end gap-3">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => router.push("/psn")}
-            disabled={isSubmitting}
-          >
-            Cancel
-          </Button>
-          <Button type="submit" variant="primary" size="lg" withArrow loading={isSubmitting}>
-            {isSubmitting ? "Saving…" : "Save as draft"}
-          </Button>
+        <div className="flex flex-col items-end gap-2">
+          {/* The PSN flow is two steps: this form saves the PSN, then the PSN's
+              own page is where you review the final fees and click "Submit for
+              receiving" (which charges your wallet). Spell that out so the
+              single "Save" button doesn't look like a dead end. */}
+          <p className="text-right text-body-sm text-text-muted">
+            Next: on the PSN&apos;s page you&apos;ll review the fees and click{" "}
+            <strong className="text-ink">Submit for receiving</strong>.
+          </p>
+          <div className="flex justify-end gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => router.push("/psn")}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary" size="lg" withArrow loading={isSubmitting}>
+              {isSubmitting ? "Saving…" : "Save & continue"}
+            </Button>
+          </div>
         </div>
       </form>
     </div>
