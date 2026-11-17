@@ -268,10 +268,13 @@ export default function NewOrderPage() {
   // the reason is always visible right after the click.
   const errorRegionRef = useRef<HTMLDivElement>(null);
   function revealError(): void {
-    // Defer one frame so the banner has rendered before we scroll to it.
-    requestAnimationFrame(() => {
-      errorRegionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-    });
+    // The error now pops as a fixed top-of-screen toast (see ErrorToastHost),
+    // which is visible wherever the vendor is in the form — so we deliberately
+    // do NOT scroll the page here. Scrolling would yank them off the step they
+    // were on (e.g. away from the Done button on Review), which is exactly the
+    // "I had to leave the spot to see the error" complaint. The banner still
+    // renders in-place in the error region as a persistent record; the toast
+    // is the thing that grabs attention on the same spot.
   }
 
   const [step, setStep] = useState<Step>("lines");

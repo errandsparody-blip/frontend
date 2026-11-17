@@ -150,10 +150,21 @@ export const errorCatalog: Record<string, ErrorEntry> = {
   // Orders / fulfillment
   // ──────────────────────────────────────────────────────────────────────
   address_rejected: {
+    // Banner (not inline) so it's always visible — paired with the top
+    // pop-up toast, the vendor sees the rejection the instant it happens
+    // instead of having to find a red field on the Recipient step.
+    // preferDetail surfaces the exact reason (e.g. "Unable to find a valid
+    // ZIP code") the backend returns.
     title: "We couldn't validate that address",
     body: "Check the street, city, state, and ZIP. P.O. boxes are accepted; APO/FPO is not.",
-    surface: "inline",
-    field: "shipAddress",
+    surface: "banner",
+    preferDetail: true,
+  },
+  address_needs_verification: {
+    title: "That address needs a second look",
+    body: "We couldn't confirm the address exactly as entered. Double-check the street, city, state, and ZIP, then try again.",
+    surface: "banner",
+    preferDetail: true,
   },
   order_carrier_unavailable: {
     title: "No carriers can ship this order right now",

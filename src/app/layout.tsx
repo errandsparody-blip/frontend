@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter_Tight, JetBrains_Mono } from "next/font/google";
 
 import { ImpersonationBanner } from "@/components/admin/impersonation-banner";
+import { ErrorToastHost } from "@/components/errors/error-toast-host";
 import { AuthProvider } from "@/lib/auth-context";
 import { QueryProvider } from "@/lib/query-provider";
 
@@ -37,6 +38,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <QueryProvider>
           <AuthProvider>
             <ImpersonationBanner />
+            <ErrorToastHost />
             {children}
           </AuthProvider>
         </QueryProvider>

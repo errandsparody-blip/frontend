@@ -25,6 +25,7 @@ import type { FieldValues, Path, UseFormReturn } from "react-hook-form";
 
 import { normalizeError, type NormalizedError } from "./normalize";
 import { reportClientError } from "./report";
+import { showErrorToast } from "./toast";
 
 export interface ApiErrorHandler {
   /** Current banner-level error to render in the form. */
@@ -100,6 +101,26 @@ export function useApiErrorHandler<TForm extends FieldValues>(
           // them as banners so they're at least visible.
           setBannerError(n);
           break;
+      }
+
+      // Pop a top-of-screen toast so the vendor sees the error instantly —
+      // no scrolling to an inline message, no leaving the step they're on.
+      // We skip pure per-field validation (fieldErrors with no broader
+      // message), where the red field text is the clearer signal; everything
+      // else — banner, page, toast, and inline entries that carry a real
+      // message (like address_rejected) — pops. Prefer the specific server
+      // message so the reason (e.g. the exact address problem) is visible.
+      {
+        const serverMsg = (n.cause as { message?: unknown } | null)?.message;
+        const isPureFieldValidation =
+          n.surface === "inline" &&
+          n.fieldErrors != null &&
+          Object.keys(n.fieldErrors).length > 0;
+        if (!isPureFieldValidation) {
+          const toastMsg =
+            typeof serverMsg === "string" && serverMsg ? serverMsg : n.entry.title;
+          showErrorToast(toastMsg, n.code);
+        }
       }
 
       // Telemetry (fire-and-forget): send EVERY handled error to the admin
