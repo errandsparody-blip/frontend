@@ -136,11 +136,6 @@ export function ErrorToastHost() {
           }}
         >
           {current.message}
-          {current.code ? (
-            <div style={{ marginTop: 10, fontSize: 12, color: "#8a8a8a" }}>
-              Reference: {current.code}
-            </div>
-          ) : null}
         </div>
 
         <div

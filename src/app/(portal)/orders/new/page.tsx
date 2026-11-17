@@ -19,7 +19,6 @@ import { DraftResumeBanner } from "@/components/ui/draft-resume-banner";
 import { api } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
 import { useApiErrorHandler } from "@/lib/errors";
-import { showErrorToast } from "@/lib/errors/toast";
 import { rememberText } from "@/lib/suggestions";
 import { useFormDraft } from "@/lib/use-form-draft";
 import {
@@ -414,29 +413,56 @@ export default function NewOrderPage() {
     onMutate: () => {
       clear();
       setValidationError(null);
+      setAddressErrors({});
     },
     onSuccess: (res) => {
       if (res.outcome === "ACCEPTED") {
         setAddressErrors({});
+        setValidationError(null);
         setStep("review");
         return;
       }
-      // Build one clear sentence: the reason, then the suggested fix if any.
-      const reason =
-        res.detail?.trim() ||
-        (res.outcome === "REJECTED"
-          ? "We couldn't validate that address. Check the street, city, state, and ZIP."
-          : "We couldn't confirm that address exactly as entered.");
-      const suggested = res.suggested
-        ? ` Suggested: ${[
-            res.suggested.line1,
-            res.suggested.city,
-            `${res.suggested.state} ${res.suggested.postalCode}`,
-          ]
-            .filter(Boolean)
-            .join(", ")}. Please correct it before continuing.`
-        : "";
-      showErrorToast(`${reason}${suggested}`, "address_rejected");
+      // Not accepted. Rather than a confusing modal full of carrier jargon,
+      // pinpoint the exact field(s) that don't match a valid address and flag
+      // each one inline with a plain "Did you mean …?" hint drawn from the
+      // carrier's suggestion. The vendor fixes the highlighted field and moves
+      // on. (The backend re-checks at submit as a backstop.)
+      const s = res.suggested;
+      const norm = (v?: string) => (v ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+      const fieldMap: Record<string, string> = {};
+      if (s) {
+        if (norm(address.shipAddressLine1) !== norm(s.line1)) {
+          fieldMap.shipAddressLine1 = `Did you mean "${s.line1}"?`;
+        }
+        if (s.line2 && norm(address.shipAddressLine2) !== norm(s.line2)) {
+          fieldMap.shipAddressLine2 = `Did you mean "${s.line2}"?`;
+        }
+        if (norm(address.shipCity) !== norm(s.city)) {
+          fieldMap.shipCity = `Did you mean "${s.city}"?`;
+        }
+        if (norm(address.shipState) !== norm(s.state)) {
+          fieldMap.shipState = `Did you mean "${s.state}"?`;
+        }
+        if (norm(address.shipPostalCode) !== norm(s.postalCode)) {
+          fieldMap.shipPostalCode = `Did you mean "${s.postalCode}"?`;
+        }
+      }
+      if (Object.keys(fieldMap).length > 0) {
+        setAddressErrors(fieldMap);
+        setValidationError(
+          Object.keys(fieldMap).length === 1
+            ? "We couldn't confirm this address. Check the highlighted field."
+            : "We couldn't confirm this address. Check the highlighted fields.",
+        );
+      } else {
+        // Couldn't pinpoint a single field (hard reject, or the suggestion
+        // matched). Point the vendor at the address block in plain language.
+        setAddressErrors({
+          shipAddressLine1:
+            "We couldn't find this address. Double-check the street, city, state, and ZIP.",
+        });
+        setValidationError("We couldn't find this address — check the highlighted field below.");
+      }
     },
     onError: (err) => {
       handle(err);
@@ -689,8 +715,24 @@ export default function NewOrderPage() {
         {validationError ? (
           <div
             role="alert"
-            className="rounded-sm border-l-4 border-error bg-error/10 px-4 py-3 text-body-sm text-error"
+            className="flex items-center gap-2 text-body-sm font-medium text-error"
           >
+            <svg
+              aria-hidden
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="shrink-0"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
             {validationError}
           </div>
         ) : null}
