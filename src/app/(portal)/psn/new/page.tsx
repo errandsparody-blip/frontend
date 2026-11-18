@@ -5,7 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Layers, Package, PackagePlus, Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Controller, useFieldArray, useForm } from "react-hook-form";
+import { Controller, useFieldArray, useForm, type SubmitErrorHandler } from "react-hook-form";
 
 import { ErrorBanner } from "@/components/errors/error-banner";
 import { StorageTierGuide } from "@/components/portal/storage-tier-guide";
@@ -14,6 +14,7 @@ import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
 import { api } from "@/lib/api-client";
+import { showErrorToast } from "@/lib/errors/toast";
 import { useAuth } from "@/lib/auth-context";
 import { normalizeError, useApiErrorHandler } from "@/lib/errors";
 import type { PublicProduct } from "@/lib/schemas/products";
@@ -487,6 +488,32 @@ export default function NewPsnPage() {
     }
   }
 
+  // Invalid-submit handler. Without this, clicking "Save as draft" on an
+  // incomplete form does nothing visible — React Hook Form blocks the submit
+  // and only marks fields, which a vendor halfway down the page never sees.
+  // So when the form is invalid we pop a plain-language toast listing exactly
+  // what's missing and jump focus to the first offending field.
+  const onInvalid: SubmitErrorHandler<CreatePsnInput> = (formErrors) => {
+    const missing: string[] = [];
+    if (formErrors.country) missing.push("choose a destination — USA or Canada");
+    if (formErrors.lines) missing.push("add at least one product");
+    if (formErrors.declaredBoxCounts) missing.push("enter how many boxes you're sending");
+    const message =
+      missing.length > 0
+        ? `Before saving, please ${missing.join("; ")}.`
+        : "Some required details are missing — check the highlighted fields and try again.";
+    showErrorToast(message);
+    // Jump focus to the country picker when that's what's missing — it's the
+    // easiest requirement to overlook (it starts on "Pick a destination…").
+    if (formErrors.country) {
+      try {
+        form.setFocus("country");
+      } catch {
+        /* focus is best-effort */
+      }
+    }
+  };
+
   function onAction(handler: NonNullable<NonNullable<typeof bannerError>["entry"]["action"]>["handler"]) {
     if (handler === "support") window.location.href = "mailto:hello@myusaerrands.com";
   }
@@ -562,7 +589,7 @@ export default function NewPsnPage() {
         <StorageTierGuide triggerLabel="Open storage tier guide" />
       </section>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-8" noValidate>
+      <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="flex flex-col gap-8" noValidate>
         {/* Shipment meta */}
         <section className="rounded-md border border-line bg-white p-8">
           <h2 className="mb-4 font-mono text-mono-label uppercase text-text-muted">Shipment</h2>
