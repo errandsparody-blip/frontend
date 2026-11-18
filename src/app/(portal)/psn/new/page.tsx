@@ -933,8 +933,10 @@ export default function NewPsnPage() {
               receiving" (which charges your wallet). Spell that out so the
               single "Save" button doesn't look like a dead end. */}
           <p className="text-right text-body-sm text-text-muted">
-            Next: on the PSN&apos;s page you&apos;ll review the fees and click{" "}
-            <strong className="text-ink">Submit for receiving</strong>.
+            This saves your PSN as a <strong className="text-ink">draft</strong>. Nothing is
+            charged yet — you&apos;ll review the fees and click{" "}
+            <strong className="text-ink">Submit for receiving</strong> on the next page. Your
+            draft stays in your PSN list until you submit it.
           </p>
           <div className="flex justify-end gap-3">
             <Button
@@ -946,7 +948,7 @@ export default function NewPsnPage() {
               Cancel
             </Button>
             <Button type="submit" variant="primary" size="lg" withArrow loading={isSubmitting}>
-              {isSubmitting ? "Saving…" : "Save & continue"}
+              {isSubmitting ? "Saving draft…" : "Save as draft"}
             </Button>
           </div>
         </div>

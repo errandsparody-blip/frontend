@@ -132,9 +132,11 @@ export default function PsnListPage() {
                 <Td align="right">
                   <Link
                     href={`/psn/${p.id}`}
-                    className="font-mono text-[11px] uppercase tracking-[1.2px] text-text-muted hover:text-ink"
+                    className={`font-mono text-[11px] uppercase tracking-[1.2px] hover:text-ink ${
+                      p.status === "DRAFT" ? "font-semibold text-ink" : "text-text-muted"
+                    }`}
                   >
-                    Open →
+                    {p.status === "DRAFT" ? "Continue draft →" : "Open →"}
                   </Link>
                 </Td>
               </TR>

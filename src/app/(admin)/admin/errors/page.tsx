@@ -35,6 +35,7 @@ interface ListResponse {
 
 const KINDS: Array<{ value: string; label: string }> = [
   { value: "", label: "All kinds" },
+  { value: "server_error", label: "Server error (5xx)" },
   { value: "api_error", label: "API error" },
   { value: "blocked_action", label: "Blocked action" },
   { value: "window_error", label: "JS error" },
@@ -43,7 +44,12 @@ const KINDS: Array<{ value: string; label: string }> = [
 ];
 
 function kindTone(kind: string): string {
-  if (kind === "window_error" || kind === "unhandled_rejection" || kind === "render_error") {
+  if (
+    kind === "server_error" ||
+    kind === "window_error" ||
+    kind === "unhandled_rejection" ||
+    kind === "render_error"
+  ) {
     return "bg-error/10 text-error";
   }
   return "bg-ink/5 text-text-muted";
