@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Layers, Package, PackagePlus, Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Controller, useFieldArray, useForm } from "react-hook-form";
 
 import { ErrorBanner } from "@/components/errors/error-banner";
@@ -14,6 +14,7 @@ import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
 import { api } from "@/lib/api-client";
+import { useAuth } from "@/lib/auth-context";
 import { normalizeError, useApiErrorHandler } from "@/lib/errors";
 import type { PublicProduct } from "@/lib/schemas/products";
 import {
@@ -103,6 +104,119 @@ export default function NewPsnPage() {
   } = form;
 
   const { bannerError, handle, clear } = useApiErrorHandler(form);
+
+  // ---------------------------------------------------------------------------
+  // Server-side draft autosave.
+  //
+  // The vendor's in-progress PSN is saved to the SERVER as a DRAFT as they
+  // fill the form — not just to their own browser. That's what lets a
+  // super-admin impersonate the vendor and see exactly what they entered, then
+  // click Submit for receiving to reproduce a problem — without the vendor
+  // having to finish or the submit having to succeed.
+  //
+  // How it behaves:
+  //  • Fires only once the form has the minimum valid shape to create a draft
+  //    (a destination, ≥1 line, ≥1 box) — matches the create schema.
+  //  • Debounced ~2s after the last change; creates one draft, then PATCHes it.
+  //  • The draft id is remembered in localStorage so a reload continues the
+  //    same draft instead of spawning duplicates. If that stored draft is gone
+  //    (submitted/cancelled elsewhere), we transparently start a fresh one.
+  //  • Best-effort: a failed autosave never interrupts the vendor. The explicit
+  //    "Save as draft" button is what surfaces a real create error.
+  // ---------------------------------------------------------------------------
+  const { user } = useAuth();
+  const draftIdStorageKey = user?.id ? `psn-draft-id:${user.id}` : null;
+  const serverDraftIdRef = useRef<string | null>(null);
+  const [serverDraftId, setServerDraftId] = useState<string | null>(null);
+  const [draftSavedAt, setDraftSavedAt] = useState<Date | null>(null);
+  const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autosaveInFlight = useRef(false);
+  const lastSavedJson = useRef<string>("");
+
+  // Restore a previously-created draft id so a page reload keeps writing to the
+  // same server draft.
+  useEffect(() => {
+    if (!draftIdStorageKey) return;
+    try {
+      const stored = window.localStorage.getItem(draftIdStorageKey);
+      if (stored) {
+        serverDraftIdRef.current = stored;
+        setServerDraftId(stored);
+      }
+    } catch {
+      /* storage may be unavailable; autosave still works, just no resume */
+    }
+  }, [draftIdStorageKey]);
+
+  const setDraftId = useCallback(
+    (id: string | null) => {
+      serverDraftIdRef.current = id;
+      setServerDraftId(id);
+      if (!draftIdStorageKey) return;
+      try {
+        if (id) window.localStorage.setItem(draftIdStorageKey, id);
+        else window.localStorage.removeItem(draftIdStorageKey);
+      } catch {
+        /* ignore storage failures */
+      }
+    },
+    [draftIdStorageKey],
+  );
+
+  // Build a create-valid payload from the current form values, or null if the
+  // form isn't complete enough to persist yet.
+  const buildDraftPayload = useCallback((): CreatePsnInput | null => {
+    const values = form.getValues();
+    const cleanedCounts = Object.fromEntries(
+      Object.entries(values.declaredBoxCounts ?? {}).filter(([, v]) => Number(v) > 0),
+    );
+    const parsed = createPsnSchema.safeParse({ ...values, declaredBoxCounts: cleanedCounts });
+    return parsed.success ? parsed.data : null;
+  }, [form]);
+
+  const runAutosave = useCallback(async () => {
+    if (autosaveInFlight.current) return;
+    const payload = buildDraftPayload();
+    if (!payload) return;
+    const json = JSON.stringify(payload);
+    if (json === lastSavedJson.current) return; // nothing new since last save
+    autosaveInFlight.current = true;
+    try {
+      if (serverDraftIdRef.current) {
+        try {
+          await api.patch(`/psns/${serverDraftIdRef.current}`, payload, { noRefresh: true });
+        } catch {
+          // The remembered draft is gone or no longer editable — start fresh.
+          setDraftId(null);
+          const created = await api.post<PublicPsn>("/psns", payload);
+          setDraftId(created.id);
+        }
+      } else {
+        const created = await api.post<PublicPsn>("/psns", payload);
+        setDraftId(created.id);
+      }
+      lastSavedJson.current = json;
+      setDraftSavedAt(new Date());
+    } catch {
+      /* best-effort; explicit Save surfaces real errors */
+    } finally {
+      autosaveInFlight.current = false;
+    }
+  }, [buildDraftPayload, setDraftId]);
+
+  // Debounce autosave on every form change.
+  useEffect(() => {
+    const sub = form.watch(() => {
+      if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+      autosaveTimer.current = setTimeout(() => {
+        void runAutosave();
+      }, 2000);
+    });
+    return () => {
+      sub.unsubscribe();
+      if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+    };
+  }, [form, runAutosave]);
 
   const { fields, append, remove } = useFieldArray({ control, name: "lines" });
   const declaredBoxCounts = watch("declaredBoxCounts");
@@ -340,17 +454,34 @@ export default function NewPsnPage() {
 
   async function onSubmit(values: CreatePsnInput): Promise<void> {
     clear();
+    // Cancel any pending autosave so it can't race this explicit save.
+    if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
     try {
       // Strip zero-count tiers — the API requires at least one positive entry.
       const cleanedCounts = Object.fromEntries(
         Object.entries(values.declaredBoxCounts).filter(([, v]) => Number(v) > 0),
       );
-      const created = await api.post<PublicPsn>("/psns", {
-        ...values,
-        declaredBoxCounts: cleanedCounts,
-      });
+      const payload = { ...values, declaredBoxCounts: cleanedCounts };
+      // Reuse the draft autosave already created (don't spawn a duplicate);
+      // fall back to creating one if autosave hasn't run yet or the stored
+      // draft is no longer writable.
+      let id = serverDraftIdRef.current;
+      if (id) {
+        try {
+          await api.patch(`/psns/${id}`, payload);
+        } catch {
+          const created = await api.post<PublicPsn>("/psns", payload);
+          id = created.id;
+        }
+      } else {
+        const created = await api.post<PublicPsn>("/psns", payload);
+        id = created.id;
+      }
+      // The draft is now handed off to its own page for submit — clear the
+      // remembered id so the next new PSN starts clean.
+      setDraftId(null);
       await qc.invalidateQueries({ queryKey: ["psns"] });
-      router.push(`/psn/${created.id}`);
+      router.push(`/psn/${id}`);
     } catch (err) {
       handle(err);
     }
@@ -938,6 +1069,12 @@ export default function NewPsnPage() {
             <strong className="text-ink">Submit for receiving</strong> on the next page. Your
             draft stays in your PSN list until you submit it.
           </p>
+          {serverDraftId && draftSavedAt ? (
+            <p className="flex items-center gap-1.5 text-right text-caption text-text-muted">
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              Draft saved automatically at {draftSavedAt.toLocaleTimeString()}
+            </p>
+          ) : null}
           <div className="flex justify-end gap-3">
             <Button
               type="button"
