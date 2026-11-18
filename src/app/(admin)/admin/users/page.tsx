@@ -325,6 +325,38 @@ function UserRow({
   // backend guard; avoids a button that would just error).
   const canImpersonate = !isSelf && user.role !== "SUPER_ADMIN" && user.status === "ACTIVE";
 
+  // Force-log-out — revoke all of this user's sessions so they're bounced to a
+  // fresh login. Useful when a vendor is stuck on stale client state. Doesn't
+  // touch their data or status; purely ends their sessions.
+  const forceLogoutMut = useMutation({
+    mutationFn: () =>
+      api.post<{ id: string; email: string; loggedOut: boolean }>(
+        `/admin/users/${user.id}/force-logout`,
+        {},
+      ),
+    onMutate: () => {
+      clear();
+      setSavedMessage(null);
+    },
+    onSuccess: (res) => {
+      setSavedMessage(
+        `${res.email} has been logged out everywhere. They'll need to sign in again, which reloads their app fresh.`,
+      );
+    },
+    onError: (err) => handle(err),
+  });
+  const canForceLogout = !isSelf;
+
+  function forceLogout(): void {
+    const ok = window.confirm(
+      `Log ${user.email} out of all their sessions?\n\n` +
+        `Their next action will bounce them to the login screen and they'll sign in again — ` +
+        `this clears any stale state on their side. It does NOT delete data or change their account status.`,
+    );
+    if (!ok) return;
+    forceLogoutMut.mutate();
+  }
+
   function saveStatus(): void {
     // Suspend / close lock the person out immediately — confirm first.
     if (nextStatus === "SUSPENDED" || nextStatus === "CLOSED") {
@@ -430,6 +462,17 @@ function UserRow({
                 className="rounded-sm border border-line-strong px-2.5 py-1 font-mono text-[11px] uppercase tracking-[1.2px] text-text hover:border-ink hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {impersonateMut.isPending ? "Opening…" : "Open as"}
+              </button>
+            ) : null}
+            {canForceLogout ? (
+              <button
+                type="button"
+                onClick={forceLogout}
+                disabled={forceLogoutMut.isPending}
+                title={`Log ${user.email} out of all sessions (forces a fresh login)`}
+                className="rounded-sm border border-line-strong px-2.5 py-1 font-mono text-[11px] uppercase tracking-[1.2px] text-text hover:border-ink hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {forceLogoutMut.isPending ? "Logging out…" : "Log out"}
               </button>
             ) : null}
             <Button
