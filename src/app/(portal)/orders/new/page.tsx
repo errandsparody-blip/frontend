@@ -47,6 +47,7 @@ interface SkuOption {
   productName: string;
   variant: string;
   quantityAvailable: number;
+  country: "US" | "CA";
 }
 
 interface InventoryRow {
@@ -56,6 +57,8 @@ interface InventoryRow {
   quantityAvailable: number;
   quantityReserved: number;
   status: string;
+  // Fulfillment country of this stock (migration 0077): "US" or "CA".
+  country?: string;
 }
 
 interface ProductRow {
@@ -130,6 +133,7 @@ export default function NewOrderPage() {
           productName: p?.name ?? "—",
           variant: s.variant,
           quantityAvailable: s.quantityAvailable,
+          country: asCountry(s.country),
         };
       });
   }, [inventoryQ.data, productsQ.data]);
@@ -1115,13 +1119,30 @@ function LineBuilder({
           className="h-11 rounded-sm border border-line-strong bg-white px-3 font-sans text-body text-text outline-none focus:border-ink"
         >
           <option value="">{loading ? "Loading inventory…" : "Pick a product"}</option>
-          {skus
-            .filter((s) => !lines.find((l) => l.skuId === s.id))
-            .map((s) => (
+          {(() => {
+            // Group the picker by fulfillment country so USA and Canada stock
+            // are visually separated — the list used to mix both with no way
+            // to tell them apart. Each option is also tagged with its country.
+            const available = skus.filter((s) => !lines.find((l) => l.skuId === s.id));
+            const us = available.filter((s) => s.country === "US");
+            const ca = available.filter((s) => s.country === "CA");
+            const renderOpt = (s: SkuOption) => (
               <option key={s.id} value={s.id}>
-                {s.productCode} · {s.productName} ({s.variant}) — {s.quantityAvailable} avail
+                {s.country === "CA" ? "🇨🇦 CA" : "🇺🇸 US"} · {s.productCode} · {s.productName} (
+                {s.variant}) — {s.quantityAvailable} avail
               </option>
-            ))}
+            );
+            return (
+              <>
+                {us.length > 0 ? (
+                  <optgroup label="🇺🇸 USA stock">{us.map(renderOpt)}</optgroup>
+                ) : null}
+                {ca.length > 0 ? (
+                  <optgroup label="🇨🇦 Canada stock">{ca.map(renderOpt)}</optgroup>
+                ) : null}
+              </>
+            );
+          })()}
         </select>
       </Field>
 
@@ -1131,6 +1152,7 @@ function LineBuilder({
         <DataTable>
           <THead>
             <Th>SKU</Th>
+            <Th>Country</Th>
             <Th>Product</Th>
             <Th align="right">Available</Th>
             <Th align="right">Qty</Th>
@@ -1140,6 +1162,17 @@ function LineBuilder({
             {linesEnriched.map((l) => (
               <TR key={l.skuId}>
                 <Td mono>{l.sku.id}</Td>
+                <Td>
+                  <span
+                    className={`inline-flex items-center rounded-sm px-2 py-0.5 font-mono text-[11px] font-semibold uppercase tracking-[1px] ${
+                      l.sku.country === "CA"
+                        ? "bg-amber/20 text-amber"
+                        : "bg-ink/5 text-text-muted"
+                    }`}
+                  >
+                    {l.sku.country === "CA" ? "Canada" : "USA"}
+                  </span>
+                </Td>
                 <Td>
                   {l.sku.productName} <span className="text-text-muted">({l.sku.variant})</span>
                 </Td>
