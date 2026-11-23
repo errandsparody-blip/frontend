@@ -78,7 +78,7 @@ export default function HomePage() {
 
       {/* SERVICES — three cards, the spine of the marketing site. */}
       <section className="bg-cream">
-        <div className="mx-auto max-w-[84rem] px-8 pb-24">
+        <div className="mx-auto max-w-[84rem] px-8 pt-28 pb-24">
           <FadeUp>
             <div className="font-mono text-mono-eyebrow uppercase text-amber">
                What we do
