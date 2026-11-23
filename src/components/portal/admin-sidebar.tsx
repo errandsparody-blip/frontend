@@ -77,6 +77,12 @@ const NAV: NavItem[] = [
     icon: LayoutDashboard,
     superAdminOnly: true,
   },
+  {
+    href: "/admin/fulfillment-activity",
+    label: "Fulfillment activity",
+    icon: ClipboardList,
+    superAdminOnly: true,
+  },
   { href: "/admin/psn", label: "Receiving", icon: ClipboardCheck, category: "psn", pageKey: "admin.psn.read" },
   { href: "/admin/vendors", label: "Vendors", icon: Building2, category: "vendor", pageKey: "admin.vendors.read" },
   { href: "/admin/inventory", label: "Inventory", icon: Package, pageKey: "admin.inventory.read" },
