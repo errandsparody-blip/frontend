@@ -230,6 +230,48 @@ export default function OrderDetailPage() {
         actions={<BackButton fallback="/orders" />}
       />
 
+      {o.status === "ON_HOLD" ? (
+        <section className="rounded-md border border-amber/40 bg-amber/5 p-5">
+          <div className="font-mono text-mono-label uppercase tracking-[1.4px] text-amber">
+            On hold — needs attention
+          </div>
+          <p className="mt-1 text-body-sm text-text">
+            {o.holdReason === "INSUFFICIENT_STOCK"
+              ? "There isn't enough stock on hand to fulfil this order."
+              : o.holdReason === "UNMAPPED_SKU"
+                ? "One or more items don't match a stored product code."
+                : o.holdReason === "INSUFFICIENT_FUNDS"
+                  ? "Your wallet balance is too low to cover the fee."
+                  : o.holdReason === "ADDRESS_INVALID"
+                    ? "The shipping address couldn't be verified."
+                    : "This order can't be fulfilled yet."}
+          </p>
+          {o.heldItems && o.heldItems.length > 0 ? (
+            <ul className="mt-3 flex flex-col gap-1">
+              {o.heldItems.map((it, i) => (
+                <li
+                  key={i}
+                  className={`text-body-sm ${it.short ? "font-medium text-error" : "text-text-muted"}`}
+                >
+                  {it.short ? "⚠ " : "✓ "}
+                  {it.name} ×{it.quantity}
+                  {it.mapped
+                    ? it.short
+                      ? ` — only ${it.available ?? 0} in stock for this destination`
+                      : " — in stock"
+                    : " — product code not matched"}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          <p className="mt-3 text-caption text-text-muted">
+            It ships automatically once resolved — restock the flagged item (send a PSN) or
+            map the product code. Stock is tracked separately for USA and Canada, so check the
+            destination country&apos;s stock, not the product total.
+          </p>
+        </section>
+      ) : null}
+
       {(() => {
         const isVendorCarrier = o.fulfillmentMode === "VENDOR_CARRIER";
         // same hierarchy as the admin page: prefer the
