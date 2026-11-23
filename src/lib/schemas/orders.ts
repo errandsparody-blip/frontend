@@ -432,6 +432,20 @@ export interface PublicOrder {
     declaredValueCents: number;
     allocationStatus: string;
   }>;
+  /** Machine reason the order is parked. Set only while status = ON_HOLD. */
+  holdReason?: string | null;
+  /**
+   * For an ON_HOLD storefront order: the items it's waiting on, with your
+   * current stock in the order's destination country. `short` items (not
+   * enough on hand, or an unmatched code) are what needs fixing.
+   */
+  heldItems?: Array<{
+    name: string;
+    quantity: number;
+    available: number | null;
+    mapped: boolean;
+    short: boolean;
+  }>;
 }
 
 export interface QuoteRateOption {

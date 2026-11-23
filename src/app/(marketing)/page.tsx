@@ -76,21 +76,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* STATS BAR — a floating rounded panel on warm cream, matching the
-          hero's soft, editorial feel. */}
-      <section className="bg-cream">
-        <div className="mx-auto max-w-[84rem] px-5 py-16 sm:px-8">
-          <FadeUp>
-            <div className="grid grid-cols-2 overflow-hidden rounded-3xl border border-line bg-cream-soft shadow-1 lg:grid-cols-4">
-              <Stat value="10000+" label="Inventory managed" />
-              <Stat value="75+" label="Vendors trust the system" />
-              <Stat value="4.2 days" label="Average inbound onboarding" amber />
-              <Stat value="99.97%" label="Uptime. Not rounded" />
-            </div>
-          </FadeUp>
-        </div>
-      </section>
-
       {/* SERVICES — three cards, the spine of the marketing site. */}
       <section className="bg-cream">
         <div className="mx-auto max-w-[84rem] px-8 pb-24">
@@ -282,22 +267,6 @@ export default function HomePage() {
         </div>
       </section>
     </>
-  );
-}
-
-function Stat({ value, label, amber }: { value: string; label: string; amber?: boolean }) {
-  return (
-    <div className="border-line p-12 [&:not(:last-child)]:border-r">
-      <div
-        className={
-          "text-[40px] font-medium leading-none tabular-nums tracking-[-1.2px] " +
-          (amber ? "text-amber" : "text-ink")
-        }
-      >
-        {value}
-      </div>
-      <div className="mt-3 font-mono text-mono-label uppercase text-text-muted">{label}</div>
-    </div>
   );
 }
 

@@ -65,6 +65,16 @@ interface AdminOrderRow {
   // set only while status = ON_HOLD.
   source: "MANUAL" | "API";
   holdReason: string | null;
+  // For ON_HOLD storefront orders: the items the order is waiting on, with
+  // current stock. `short` = not enough on hand (or unmapped) — these are what
+  // the operator needs to restock/fix. Empty for non-held orders.
+  heldItems?: Array<{
+    name: string;
+    quantity: number;
+    available: number | null;
+    mapped: boolean;
+    short: boolean;
+  }>;
   // pending vendor cancellation request flag.
   cancelRequestedAt: string | null;
   cancelRequestResolvedAt: string | null;
@@ -379,6 +389,24 @@ export default function AdminOrdersQueuePage() {
                     <div className="mt-1 max-w-[180px] text-caption text-amber">
                       {HOLD_REASON_LABEL[o.holdReason] ?? o.holdReason}
                     </div>
+                  ) : null}
+                  {o.status === "ON_HOLD" && o.heldItems && o.heldItems.length > 0 ? (
+                    <ul className="mt-1 max-w-[240px] space-y-0.5">
+                      {o.heldItems.map((it, i) => (
+                        <li
+                          key={i}
+                          className={`text-caption ${it.short ? "font-medium text-error" : "text-text-muted"}`}
+                        >
+                          {it.short ? "⚠ " : ""}
+                          {it.name} ×{it.quantity}
+                          {it.mapped
+                            ? it.short
+                              ? ` — ${it.available ?? 0} in stock`
+                              : ""
+                            : " — unmatched code"}
+                        </li>
+                      ))}
+                    </ul>
                   ) : null}
                 </Td>
                 <Td mono className="text-text-muted">
