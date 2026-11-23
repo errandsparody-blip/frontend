@@ -192,6 +192,21 @@ export default function AdminOrdersQueuePage() {
     placeholderData: keepPreviousData,
   });
 
+  // Live count of orders currently on hold (all dates), so the On-hold quick
+  // filter always shows how many are waiting — held orders used to be easy to
+  // miss. Country-scoped server-side; we pass the super-admin's country focus
+  // so the badge matches what the list will show. Refreshes on an interval and
+  // whenever an order is released.
+  const holdCountsQ = useQuery({
+    queryKey: ["admin", "orders", "status-counts", { country: isSuper ? country : "" }],
+    queryFn: () =>
+      api.get<{ byStatus: Record<string, number>; total: number }>(
+        `/admin/orders/status-counts${isSuper && country ? `?country=${country}` : ""}`,
+      ),
+    refetchInterval: 60_000,
+  });
+  const holdCount = holdCountsQ.data?.byStatus?.ON_HOLD ?? 0;
+
   // retry allocation on a held storefront order after the
   // blocker is resolved (funds added, SKU received, address fixed).
   const releaseMut = useMutation({
@@ -201,6 +216,8 @@ export default function AdminOrdersQueuePage() {
       ),
     onSuccess: async (res) => {
       await qc.invalidateQueries({ queryKey: ["admin", "orders"] });
+      // Refresh the On-hold badge count too.
+      await qc.invalidateQueries({ queryKey: ["admin", "orders", "status-counts"] });
       toast.show({
         title: res.released
           ? "Order released into fulfillment."
@@ -218,6 +235,58 @@ export default function AdminOrdersQueuePage() {
         title="Order queue"
         description="Buy labels, pick, pack, and ship. Each transition is captured in the order's append-only timeline."
       />
+
+      {/* Quick filters. The On-hold button is always visible with a live count
+          so stock/SKU holds can't sit unnoticed — one click jumps straight to
+          them. Highlighted amber whenever anything is held. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setTab("ON_HOLD")}
+          className={`inline-flex items-center gap-2 rounded-sm border px-3 py-1.5 font-mono text-[11px] uppercase tracking-[1.2px] transition-colors ${
+            tab === "ON_HOLD"
+              ? "border-amber bg-amber text-ink"
+              : holdCount > 0
+                ? "border-amber bg-amber/15 text-amber hover:bg-amber/25"
+                : "border-line-strong text-text-muted hover:border-ink hover:text-ink"
+          }`}
+        >
+          On hold
+          <span
+            className={`inline-flex min-w-[1.25rem] items-center justify-center rounded-sm px-1.5 py-0.5 text-[11px] font-semibold ${
+              tab === "ON_HOLD"
+                ? "bg-ink/10 text-ink"
+                : holdCount > 0
+                  ? "bg-amber text-ink"
+                  : "bg-ink/5 text-text-muted"
+            }`}
+          >
+            {holdCount}
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab("queue")}
+          className={`rounded-sm border px-3 py-1.5 font-mono text-[11px] uppercase tracking-[1.2px] transition-colors ${
+            tab === "queue"
+              ? "border-ink bg-ink text-text-inv"
+              : "border-line-strong text-text-muted hover:border-ink hover:text-ink"
+          }`}
+        >
+          Queue
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab("all")}
+          className={`rounded-sm border px-3 py-1.5 font-mono text-[11px] uppercase tracking-[1.2px] transition-colors ${
+            tab === "all"
+              ? "border-ink bg-ink text-text-inv"
+              : "border-line-strong text-text-muted hover:border-ink hover:text-ink"
+          }`}
+        >
+          All
+        </button>
+      </div>
 
       <FilterBar
         gridClassName={isSuper ? "md:grid-cols-[160px_220px_200px_200px]" : "md:grid-cols-[220px_200px_200px]"}
