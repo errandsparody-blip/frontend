@@ -230,7 +230,7 @@ export default function OrderDetailPage() {
         actions={<BackButton fallback="/orders" />}
       />
 
-      {o.status === "ON_HOLD" ? (
+      {(o.status as string) === "ON_HOLD" ? (
         <section className="rounded-md border border-amber/40 bg-amber/5 p-5">
           <div className="font-mono text-mono-label uppercase tracking-[1.4px] text-amber">
             On hold — needs attention
