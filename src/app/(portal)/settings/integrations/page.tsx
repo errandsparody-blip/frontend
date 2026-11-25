@@ -31,6 +31,7 @@ interface IntegrationSettings {
   defaultCarrierService: string | null;
   defaultInsurance: boolean;
   keys: PublicApiKey[];
+  woocommerceWebhookToken: string | null;
 }
 
 interface CreatedKey {
@@ -99,6 +100,19 @@ export default function IntegrationsPage(): JSX.Element {
     onError: () => toast.show({ title: "Couldn't create the key.", severity: "error" }),
   });
 
+  // WooCommerce direct connect — generate/rotate the per-vendor webhook token.
+  const [wooCopied, setWooCopied] = useState(false);
+  const wooConnectMut = useMutation({
+    mutationFn: () => api.post<{ token: string }>("/integration/woocommerce/connect", {}),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["integration", "settings"] });
+      toast.show({ title: "WooCommerce URL ready — copy it into your store.", severity: "success" });
+    },
+    onError: () => toast.show({ title: "Couldn't generate the URL.", severity: "error" }),
+  });
+  const wooToken = settingsQ.data?.woocommerceWebhookToken ?? null;
+  const wooUrl = wooToken ? `${API_BASE}/integration/woocommerce/${wooToken}` : null;
+
   const [revokeId, setRevokeId] = useState<string | null>(null);
   const revokeMut = useMutation({
     mutationFn: (id: string) => api.delete<void>(`/integration/keys/${id}`),
@@ -138,6 +152,100 @@ export default function IntegrationsPage(): JSX.Element {
         </div>
       ) : (
         <>
+          {/* ---- WooCommerce direct connect (no plugin, no middleman) ------ */}
+          <section className="rounded-md border border-line bg-white p-8">
+            <div className="flex items-center gap-2">
+              <Plug className="h-5 w-5 text-ink" />
+              <h2 className="text-h3 font-semibold text-ink">Connect WooCommerce</h2>
+            </div>
+            <p className="mt-2 max-w-2xl text-body-sm text-text-muted">
+              The simplest way to connect a WordPress / WooCommerce store — no plugin, no
+              code. Generate your link below, paste it into one WooCommerce setting, and paid
+              orders flow straight to us.
+            </p>
+
+            {!wooUrl ? (
+              !isSubUser && (
+                <div className="mt-6">
+                  <Button onClick={() => wooConnectMut.mutate()} loading={wooConnectMut.isPending}>
+                    Generate my WooCommerce link
+                  </Button>
+                </div>
+              )
+            ) : (
+              <>
+                <div className="mt-6">
+                  <div className="font-mono text-mono-label uppercase text-text-muted">
+                    Your webhook Delivery URL
+                  </div>
+                  <div className="mt-2 flex items-center gap-2">
+                    <code className="flex-1 break-all rounded border border-line bg-cream/40 px-3 py-2 font-mono text-mono-label text-ink">
+                      {wooUrl}
+                    </code>
+                    <Button
+                      variant="outline"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(wooUrl);
+                          setWooCopied(true);
+                          setTimeout(() => setWooCopied(false), 1500);
+                        } catch {
+                          /* selectable fallback */
+                        }
+                      }}
+                    >
+                      {wooCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                </div>
+
+                <ol className="mt-6 list-decimal space-y-3 pl-5 text-body-sm text-text-muted">
+                  <li>
+                    In each product&apos;s settings in WooCommerce, set the{" "}
+                    <strong>SKU</strong> to its USA Errands <strong>product code</strong> (e.g.{" "}
+                    <code className="font-mono">DSH-VCR-001</code>). This is how we match what
+                    sold to what we&apos;re holding.
+                  </li>
+                  <li>
+                    In WordPress, go to <strong>WooCommerce → Settings → Advanced → Webhooks</strong>{" "}
+                    and click <strong>Add webhook</strong>.
+                  </li>
+                  <li>
+                    Add <strong>two</strong> webhooks, both with <strong>Status</strong> = Active
+                    and the link above as the <strong>Delivery URL</strong> (leave the secret
+                    blank): one with <strong>Topic</strong> = <em>Order created</em> and one with{" "}
+                    <strong>Topic</strong> = <em>Order updated</em>. The two together make sure
+                    every paid order reaches us, whether payment clears instantly or a little
+                    later. (Sending the same order twice is harmless — we never duplicate.)
+                  </li>
+                  <li>
+                    Delete any old webhook pointing at a different service (e.g. the Shipbubble
+                    one) so orders only come to us.
+                  </li>
+                </ol>
+                <p className="mt-4 text-caption text-text-muted">
+                  Only <strong>paid</strong> orders (Processing / Completed) are pulled in.
+                  Re-sending the same order never creates a duplicate.
+                </p>
+
+                {!isSubUser && (
+                  <div className="mt-5">
+                    <Button
+                      variant="ghost"
+                      onClick={() => wooConnectMut.mutate()}
+                      loading={wooConnectMut.isPending}
+                    >
+                      Regenerate link
+                    </Button>
+                    <span className="ml-2 text-caption text-text-muted">
+                      (invalidates the current URL — you&apos;ll need to update WooCommerce)
+                    </span>
+                  </div>
+                )}
+              </>
+            )}
+          </section>
+
           {/* ---- Default shipping ------------------------------------------ */}
           <section className="rounded-md border border-line bg-white p-8">
             <h2 className="text-h3 font-semibold text-ink">Default shipping</h2>
