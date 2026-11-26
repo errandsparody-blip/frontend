@@ -32,6 +32,19 @@ interface Settlement {
   receipt_url: string | null;
 }
 interface AdminUser { id: string; email: string; role: string }
+interface BreakdownItem {
+  label: string;
+  kind: string;
+  amountCents: number;
+  status: string | null;
+  counted: boolean;
+  reason: string | null;
+}
+interface Breakdown {
+  items: BreakdownItem[];
+  includedCents: number;
+  excludedCents: number;
+}
 
 const money = (c: number) => `$${(c / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const TONE: Record<Settlement["status"], "neutral" | "warning" | "success" | "error"> = {
@@ -105,6 +118,16 @@ export default function EarningsPage(): JSX.Element {
     mutationFn: (v: { id: string; receiptUrl: string }) =>
       api.post(`/admin/earnings/settlements/${v.id}/paid`, v.receiptUrl ? { receiptUrl: v.receiptUrl } : {}),
     onSuccess: invalidate,
+  });
+
+  // Super admin: reconcile (line-item breakdown behind a settlement number).
+  const [breakdown, setBreakdown] = useState<Breakdown | null>(null);
+  const reconcile = useMutation({
+    mutationFn: () => {
+      const p = new URLSearchParams({ adminUserId: cAdmin, kind: cKind, from: cFrom, to: cTo });
+      return api.get<Breakdown>(`/admin/earnings/breakdown?${p.toString()}`);
+    },
+    onSuccess: (d) => setBreakdown(d),
   });
 
   const fees = feesQ.data;
@@ -224,13 +247,82 @@ export default function EarningsPage(): JSX.Element {
               </Field>
               <Field label="From"><Input type="date" value={cFrom} onChange={(e) => setCFrom(e.target.value)} /></Field>
               <Field label="To"><Input type="date" value={cTo} onChange={(e) => setCTo(e.target.value)} /></Field>
-              <div className="flex items-end">
+              <div className="flex items-end gap-2">
+                <Button variant="outline" disabled={!cAdmin || !cFrom || !cTo}
+                  loading={reconcile.isPending} onClick={() => reconcile.mutate()}>
+                  Reconcile
+                </Button>
                 <Button variant="primary" disabled={!cAdmin || !cFrom || !cTo}
                   loading={createSettlement.isPending} onClick={() => createSettlement.mutate()}>
                   Create
                 </Button>
               </div>
             </div>
+
+            {/* Reconciliation breakdown — exactly which orders / PSNs make up
+                the number, and which were excluded (cancelled / rejected /
+                refunded) and why. Click Reconcile before creating a settlement. */}
+            {breakdown ? (
+              <div className="mt-6 rounded-md border border-line bg-cream/30 p-5">
+                <div className="flex flex-wrap items-baseline gap-6">
+                  <div>
+                    <div className="font-mono text-mono-label uppercase text-text-muted">
+                      Counts toward pay
+                    </div>
+                    <div className="text-h3 font-semibold tabular-nums text-ink">
+                      {money(breakdown.includedCents)}
+                    </div>
+                  </div>
+                  {breakdown.excludedCents > 0 ? (
+                    <div>
+                      <div className="font-mono text-mono-label uppercase text-text-muted">
+                        Excluded (cancelled / rejected / refunded)
+                      </div>
+                      <div className="text-h3 font-semibold tabular-nums text-error line-through">
+                        {money(breakdown.excludedCents)}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+
+                {breakdown.items.length === 0 ? (
+                  <p className="mt-4 text-body-sm text-text-muted">
+                    No charges in this period for this admin.
+                  </p>
+                ) : (
+                  <div className="mt-4">
+                    <DataTable>
+                      <THead>
+                        <Th>Reference</Th>
+                        <Th>Type</Th>
+                        <Th align="right">Amount</Th>
+                        <Th>Counts?</Th>
+                        <Th>Reason</Th>
+                      </THead>
+                      <TBody>
+                        {breakdown.items.map((it, i) => (
+                          <TR key={i}>
+                            <Td mono>{it.label}</Td>
+                            <Td className="text-text-muted">{it.kind}</Td>
+                            <Td num className={it.counted ? "tabular-nums" : "tabular-nums text-text-subtle line-through"}>
+                              {money(it.amountCents)}
+                            </Td>
+                            <Td>
+                              {it.counted ? (
+                                <StatusPill tone="success">Counted</StatusPill>
+                              ) : (
+                                <StatusPill tone="error">Excluded</StatusPill>
+                              )}
+                            </Td>
+                            <Td className="text-body-sm text-text-muted">{it.reason ?? "—"}</Td>
+                          </TR>
+                        ))}
+                      </TBody>
+                    </DataTable>
+                  </div>
+                )}
+              </div>
+            ) : null}
           </section>
 
           <section className="rounded-md border border-line bg-white p-6">
