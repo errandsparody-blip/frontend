@@ -67,6 +67,7 @@ export default function AdminMarketplacePage() {
         </div>
       ) : null}
       <div className="flex flex-col gap-8">
+        <FlutterwaveHealthCard />
         <MarketplaceDiscounts onError={handle} clearError={clear} />
         <ReservationSweep onError={handle} clearError={clear} />
         <ReturnsQueue onError={handle} clearError={clear} />
@@ -507,6 +508,98 @@ function StorefrontOrders() {
           refund.mutate(pendingRefund.reference, { onSettled: () => setPendingRefund(null) });
         }}
       />
+    </section>
+  );
+}
+
+interface FlutterwaveHealth {
+  keyPresent: boolean;
+  keyMode: "LIVE" | "TEST" | "UNKNOWN";
+  keyAuthenticates: boolean;
+  webhookHashSet: boolean;
+  detail: string | null;
+}
+
+/**
+ * One-click Flutterwave connection check — confirms the live credentials are
+ * wired correctly before relying on real payments. Read-only; moves no money.
+ */
+function FlutterwaveHealthCard() {
+  const [result, setResult] = useState<FlutterwaveHealth | null>(null);
+  const check = useMutation({
+    mutationFn: () => api.get<FlutterwaveHealth>("/admin/payments/flutterwave/health"),
+    onSuccess: (d) => setResult(d),
+    onError: () =>
+      setResult({
+        keyPresent: false,
+        keyMode: "UNKNOWN",
+        keyAuthenticates: false,
+        webhookHashSet: false,
+        detail: "Couldn't reach the check endpoint.",
+      }),
+  });
+
+  const Row = ({ ok, label, note }: { ok: boolean; label: string; note?: string }) => (
+    <div className="flex items-center gap-2 text-body-sm">
+      <span
+        className={`inline-flex h-5 w-5 items-center justify-center rounded-full text-[12px] font-bold ${
+          ok ? "bg-success/15 text-success" : "bg-error/15 text-error"
+        }`}
+      >
+        {ok ? "✓" : "✕"}
+      </span>
+      <span className="text-ink">{label}</span>
+      {note ? <span className="text-text-muted">— {note}</span> : null}
+    </div>
+  );
+
+  return (
+    <section className="rounded-md border border-line bg-white p-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-h3 font-semibold text-ink">Flutterwave connection</h2>
+          <p className="mt-1 text-body-sm text-text-muted">
+            Verify the live payment credentials are wired correctly. Read-only — moves no money.
+          </p>
+        </div>
+        <Button variant="primary" loading={check.isPending} onClick={() => check.mutate()}>
+          Check connection
+        </Button>
+      </div>
+
+      {result ? (
+        <div className="mt-5 flex flex-col gap-2">
+          <Row ok={result.keyPresent} label="Secret key configured" />
+          <Row
+            ok={result.keyMode === "LIVE"}
+            label={`Key mode: ${result.keyMode}`}
+            note={result.keyMode === "TEST" ? "still on the TEST key — swap to live" : undefined}
+          />
+          <Row
+            ok={result.keyAuthenticates}
+            label="Key authenticates with Flutterwave"
+            note={!result.keyAuthenticates && result.detail ? result.detail : undefined}
+          />
+          <Row
+            ok={result.webhookHashSet}
+            label="Webhook secret hash set"
+            note={
+              result.webhookHashSet
+                ? undefined
+                : "blank — payments will NOT confirm until this is set"
+            }
+          />
+          {result.keyMode === "LIVE" && result.keyAuthenticates && result.webhookHashSet ? (
+            <p className="mt-2 text-body-sm font-medium text-success">
+              All good — Flutterwave is live and connected.
+            </p>
+          ) : (
+            <p className="mt-2 text-body-sm text-text-muted">
+              Fix the ✕ items above, then run the check again.
+            </p>
+          )}
+        </div>
+      ) : null}
     </section>
   );
 }
