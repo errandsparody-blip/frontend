@@ -334,6 +334,10 @@ function PayoutCard({
   //   onSuccess: (res) => { window.location.href = res.url; },
   //   onError,
   // });
+  // Inline error shown right at the Payouts card, so a validation/Flutterwave
+  // failure is visible where the vendor clicked — not only in the page-top
+  // banner they'd have to scroll up to see.
+  const [payoutErr, setPayoutErr] = useState<string | null>(null);
   const connectFlutterwave = useMutation({
     mutationFn: () =>
       api.post("/payments/flutterwave/connect", {
@@ -343,9 +347,30 @@ function PayoutCard({
         accountNumber: accountNumber.trim(),
         country,
       }),
-    onSuccess: onChanged,
-    onError,
+    onSuccess: () => {
+      setPayoutErr(null);
+      onChanged();
+    },
+    onError: (e) => {
+      const msg = (e as { message?: string } | null)?.message;
+      setPayoutErr(
+        typeof msg === "string" && msg ? msg : "Couldn't connect your payout account.",
+      );
+      onError(e);
+    },
   });
+
+  function submitFlutterwave() {
+    clearError();
+    setPayoutErr(null);
+    if (!bankName.trim() || !businessEmail.trim() || !bankCode.trim() || !accountNumber.trim()) {
+      setPayoutErr(
+        "Enter your business name and email, select your bank, and enter your account number.",
+      );
+      return;
+    }
+    connectFlutterwave.mutate();
+  }
 
   const has = (p: string) => accounts.find((a) => a.processor === p);
 
@@ -416,10 +441,13 @@ function PayoutCard({
           </div>
           <div className="mt-2">
             <Button variant="outline" loading={connectFlutterwave.isPending}
-              onClick={() => { clearError(); connectFlutterwave.mutate(); }}>
+              onClick={submitFlutterwave}>
               {has("FLUTTERWAVE") ? "Update Flutterwave" : "Connect Flutterwave"}
             </Button>
           </div>
+          {payoutErr ? (
+            <p className="mt-2 text-body-sm font-medium text-error">{payoutErr}</p>
+          ) : null}
         </div>
       </div>
     </Card>
